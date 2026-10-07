@@ -1,0 +1,156 @@
+{
+  "_doc": "Single source of truth for the photo-quality engine. Read by the client (config.js) and the backend recheck (backend/photo_quality). Every number is a starting value: re-tune with real worker photos (edge-validator/samples/README.md).",
+  "thresholds": {
+    "blur": {
+      "failBelow": 0.14,
+      "warnBelow": 0.21,
+      "minTileRange": 20,
+      "minTexturedTiles": 2,
+      "grid": 3
+    },
+    "exposure": {
+      "darkMeanFail": 40,
+      "darkMeanWarn": 65,
+      "crushedFracFail": 0.6,
+      "crushedFracWarn": 0.45,
+      "overMeanFail": 235,
+      "overMeanWarn": 210,
+      "clippedFracFail": 0.35,
+      "clippedFracWarn": 0.15,
+      "flatRangeWarn": 45
+    },
+    "resolution": {
+      "failShortSide": 480,
+      "failLongSide": 640,
+      "warnMegapixels": 0.75
+    },
+    "noise": {
+      "sigmaWarn": 5,
+      "sigmaFail": 10,
+      "blockWarn": 1.15,
+      "blockFail": 1.45,
+      "blockMinExcess": 0.5
+    },
+    "glare": {
+      "cell": 8,
+      "vMin": 245,
+      "satMax": 0.2,
+      "cellSatFrac": 0.7,
+      "cellFlatVar": 25,
+      "haloMin": 10,
+      "haloSurround": 0.6,
+      "warnArea": 0.01,
+      "failArea": 0.04,
+      "hardWarnArea": 0.1
+    },
+    "shake": {
+      "maxSide": 800,
+      "minLocalRange": 25,
+      "minBinFrac": 0.002,
+      "warnAniso": 1.4,
+      "failAniso": 1.8,
+      "sensor": {
+        "rotWarn": 25,
+        "rotFail": 60,
+        "accWarn": 1.2,
+        "accFail": 3.0,
+        "minSamples": 3
+      }
+    },
+    "obstruction": {
+      "grid": 12,
+      "flatTileStd": 6,
+      "flatRelative": 0.25,
+      "coverFlatStd": 2.5,
+      "darkTileMean": 50,
+      "warnArea": 0.1,
+      "failArea": 0.35,
+      "fullCoverArea": 0.85
+    },
+    "face": {
+      "minScoreWarn": 0.7,
+      "minScoreFail": 0.5,
+      "minHeightWarn": 0.15,
+      "minHeightFail": 0.08,
+      "visibleWarn": 0.95,
+      "visibleFail": 0.75,
+      "edgeMargin": 0.01,
+      "yawWarn": 0.35,
+      "yawFail": 0.7,
+      "rollWarn": 25,
+      "multiRatio": 0.5,
+      "cropPad": 0.15,
+      "cropMinSide": 48,
+      "cropBlurFail": 0.1,
+      "cropBlurWarn": 0.16,
+      "cropDarkMeanFail": 35,
+      "cropDarkMeanWarn": 60,
+      "cropClippedWarn": 0.25,
+      "minDetectionConfidence": 0.3,
+      "eyeDarkRatio": 0.45,
+      "eyePatch": 0.3,
+      "innerShrink": 0.15
+    },
+    "live": {
+      "size": 480,
+      "blurBad": 0.2,
+      "blurSoft": 0.28,
+      "glareCell": 3,
+      "motionWindowMs": 400,
+      "readyFrames": 3,
+      "faceEvery": 3,
+      "burst": {
+        "frames": 8,
+        "scoreSize": 480
+      }
+    }
+  },
+  "policy": {
+    "obstruction": {
+      "blockOnFail": true
+    },
+    "resolution": {
+      "blockOnFail": true
+    },
+    "exposure": {
+      "blockOnFail": true
+    },
+    "blur": {
+      "blockOnFail": true
+    },
+    "face": {
+      "blockOnFail": true
+    },
+    "glare": {
+      "blockOnFail": false
+    },
+    "shake": {
+      "blockOnFail": false
+    },
+    "noise": {
+      "blockOnFail": false
+    }
+  },
+  "default_task": {
+    "face": "off",
+    "camera": "environment"
+  },
+  "tasks": {
+    "task_demo_1": {
+      "label": "Shelf / site photo",
+      "face": "off",
+      "camera": "environment"
+    },
+    "task_selfie_checkin": {
+      "label": "Selfie check-in",
+      "face": "required",
+      "camera": "user",
+      "live": true
+    },
+    "task_worker_at_site": {
+      "label": "Worker at site (face optional)",
+      "face": "optional",
+      "camera": "environment"
+    }
+  }
+}

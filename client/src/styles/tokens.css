@@ -1,0 +1,46 @@
+/* Design tokens: colors, radii, shadows, spacing (8px grid), motion. */
+:root {
+  --bg: #05070d;
+  --bg-2: #0a0f1c;
+  --panel: rgba(255, 255, 255, 0.04);
+  --panel-2: rgba(255, 255, 255, 0.07);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --text: #e8edf7;
+  --text-dim: #9aa6bd;
+  --text-faint: #8190ab;
+
+  --cyan: #22d3ee;
+  --violet: #8b5cf6;
+  --green: #34d399;
+  --red: #fb4b5c;
+  --amber: #fbbf24;
+
+  --grad: linear-gradient(120deg, var(--cyan), var(--violet));
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  --s1: 8px;
+  --s2: 16px;
+  --s3: 24px;
+  --s4: 32px;
+  --s5: 48px;
+
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 20px 50px -20px rgba(0, 0, 0, 0.7);
+  --glow-cyan: 0 0 24px -4px rgba(34, 211, 238, 0.55);
+  --glow-green: 0 0 32px -4px rgba(52, 211, 153, 0.6);
+  --glow-red: 0 0 32px -4px rgba(251, 75, 92, 0.65);
+
+  --font-head: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --t-fast: 150ms;
+  --t-med: 260ms;
+  --t-slow: 600ms;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}

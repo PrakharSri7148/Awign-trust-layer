@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlmodel
+scikit-learn
+shap
+numpy
+pandas
+joblib
+Pillow
+python-multipart

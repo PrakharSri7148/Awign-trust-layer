@@ -1,0 +1,4 @@
+# Optional: server-side face recheck for tasks that require a face.
+# Without it the backend flags face tasks as "face_unverified" instead of checking them.
+-r requirements.txt
+mediapipe

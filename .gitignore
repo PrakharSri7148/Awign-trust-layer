@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+backend/trust_layer.db
+
+backend/uploads/
+backend/.pytest_cache/
+
+# MediaPipe runtime is copied from node_modules by scripts/copy-mediapipe.mjs
+client/public/mediapipe/*.wasm
+client/public/mediapipe/vision_wasm*.js
