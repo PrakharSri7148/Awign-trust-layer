@@ -2,7 +2,7 @@
 
 Plan: see `iteration-1.md`. Updated after every phase. How to use the result: see `README.md`.
 
-**Final status: all 6 phases complete. The only thing left is yours: drop real worker photos into `samples/` and run `cd client && npm run calibrate`** (see "What you need to do next" at the bottom).
+**Status (2026-10-07): phases 0–5 complete. Phase 6 (live metrics HUD) is planned and ready to build: the full spec, task list, acceptance criteria, test recipe and pitfalls are in [`iteration-2.md`](iteration-2.md); the checklist is in the "Phase 6" section at the bottom of this file.** Still pending on the user, independent of Phase 6: drop real worker photos into `samples/` and run `cd client && npm run calibrate`.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -12,6 +12,7 @@ Plan: see `iteration-1.md`. Updated after every phase. How to use the result: se
 | 3 | Face check (MediaPipe) + per-task config | ✅ done |
 | 4 | In-app camera, live feedback, burst best-frame, sensor-synced shake, Web Worker | ✅ done |
 | 5 | Calibration tool, classifier retrain, dashboard | ✅ done |
+| 6 | **Live metrics HUD on the camera** (brightness %, focus %, all 8 parameters, overall live quality %) — plan in `iteration-2.md` | 📋 planned, not started |
 
 ---
 
@@ -224,7 +225,7 @@ Client **77 passing** (new: live cues, ready tracker, burst selection incl. stea
 - **In-app captures have no EXIF**, so GPS/time-in-EXIF can't corroborate them; `capture_source` is self-reported by the device and so is *advisory*, like the rest of the client report. It deters casual gallery-picking; it does not stop a determined spoofer.
 - **Sensor units/availability vary.** `rotationRate` is in °/s per spec; iOS needs the permission tap; desktop browsers have no motion sensors (steadiness is then simply not measured). The shake thresholds (25/60 °/s, 1.2/3 m/s²) are starting values.
 - **Camera needs HTTPS** (or localhost): `npm run dev:https` for a phone on the LAN. On plain HTTP the app uses the file picker.
-- Only tested with Chrome's fake camera and a synthetic gyro; **not yet on a physical iPhone/Android**. Safari quirks (`requestVideoFrameCallback` older than 15.4, EXIF, orientation) are unverified.
+- Only tested with Chrome's fake camera and a synthetic gyro; not run on a physical iPhone/Android. **Out of scope by the user's decision (2026-10-07): do not plan work around it.** Browser-specific quirks (Safari `requestVideoFrameCallback`, EXIF, orientation) remain unverified.
 
 
 ---
@@ -281,5 +282,53 @@ Old Laplacian metric: 16× lower for a dim copy of the same photo, and *higher* 
 1. **Drop real photos** into `edge-validator/samples/<issue>/` (≥100 in `good/`, ≥30 per issue folder; originals straight from the phones workers use; include a range of phones and lighting).
 2. `cd client && npm run calibrate` → read the *false rejections* line first, then the per-check separation and suggestions. Copy accepted numbers into `client/src/lib/photoQuality/thresholds.json`, then `npm test`, backend `pytest`, and `node tools/parity.mjs`.
 3. **Decide on faces** before relying on `required`: validate on your workers; until then you may want `policy.face.blockOnFail: false` so a miss is a flag, not a block.
-4. **Test on a physical phone over HTTPS** (`npm run dev:https`): the camera, motion permission and EXIF/orientation behaviour on iOS Safari and Android Chrome are unverified.
-5. **Restart note:** the classifier file changed; if your backend isn't started with `--reload`, restart it. Your existing database was migrated in place (your 3 rows are intact; backup in `backups/`).
+4. **Restart note:** the classifier file changed; if your backend isn't started with `--reload`, restart it. Your existing database was migrated in place (your 3 rows are intact; backup in `backups/`).
+
+
+---
+
+## Phase 6 — Live metrics HUD on the camera 📋 PLANNED (handoff for the implementing agent)
+
+Requested 2026-10-07: while the worker is on the camera screen, show the quality metrics **live**: a brightness percentage, a focus percentage and all 8 quality parameters, plus an overall live quality percentage, to give a real live feel and let the worker see exactly what to fix. **Read [`iteration-2.md`](iteration-2.md) first: it is the spec.** Summary here so this file stands alone.
+
+### Starting state (verified 2026-10-07)
+- Client tests **84 passing** (`cd client && npm test`); backend **50 passing** (`cd backend && .venv/bin/python -m pytest -q`, ~2 min); JS↔Python parity **100%** (`cd client && node tools/parity.mjs <photo>`).
+- The camera already has live guidance: `client/src/lib/photoQuality/live.js` (`analyzeLive`, 5 chips: Lens/Light/Face/Steady/Focus/Glare + headline hint + ready tracker), `components/capture/LiveCamera.jsx` (5 Hz loop on a 480 px frame, burst, sensor window, face box). There are **no numbers** yet, and two of the 8 parameters (resolution, noise/compression) are not shown live.
+- Measured cost per live tick today: ~31 ms (blur 25, exposure 3, obstruction 2, glare 1). Noise σ on a native 256×256 crop: 3 ms and accurate (6.03 for true 6).
+
+### What to build
+| Metric shown | Source (reuse) |
+|---|---|
+| Brightness % (mean luma ÷ 255, + clipped %), good-zone band 25–82% | `exposureMetrics` |
+| Focus % = clamp(blurScore / 0.40), ticks at 50% / 70% | `blurMetrics` |
+| Glare % of frame | `glareMetrics` + `glareStatus` (live cell size) |
+| Lens: clear / partly N% / covered | `obstructionMetrics` |
+| Steadiness °/s (RMS, last 400 ms) | `sensorShake` on the motion buffer |
+| Noise σ | `noiseSigma` on a 256×256 native-resolution video crop |
+| Resolution `W×H` | `video.videoWidth/Height` vs `thresholds.resolution` |
+| Face: confidence % + size % of frame (or "off" / "searching…") | existing `evaluateFace` result |
+| Compression | **cannot be measured on a video stream**: show "checked when you capture" |
+| **Overall live quality %** | `combineScores` (0.5·min + 0.5·mean), same as the capture report |
+
+Behaviour: ≤5 Hz, EMA smoothing (±3 points on a static scene), 2-tick hysteresis on status, threshold tick marks, collapsible "Metrics" panel (expanded ≥600 px, compact below, remembered via `localStorage` in try/catch), never covers the shutter/hint, no `aria-live` on the numbers, `?hud=raw` shows raw values, result checklist shows the same value format after capture.
+
+### Checklist (tick as you go; keep tests green at every step)
+- [ ] **6a** Extract `combineScores`; write `lib/photoQuality/liveMetrics.js` (pure, EMA + hysteresis state in/out); add `live.hud` constants to `thresholds.json` + README threshold table; `liveMetrics.test.js` (all cases listed in iteration-2 §3, 6a)
+- [ ] **6b** `LiveCamera.jsx`: native 256×256 crop every 2nd tick, video dims, smoothing ref; measure p50/p95 tick time in Chrome and record it here; offload to the worker only if p95 > 50 ms
+- [ ] **6c** `components/capture/LiveHud.jsx` + CSS (ring, 8 rows + compression note, ticks, toggle, compact mode, `?hud=raw`, reduced motion, accessible text); verify at 420 px and 1440 px that it never covers the shutter or hint
+- [ ] **6d** `QualityChecklist.jsx` shows values in the HUD format via a shared `formatMetric` helper in `lib/format.js` (+ unit test)
+- [ ] **6e** Headless-Chrome fake-camera e2e for every case in iteration-2 §3 6e (good / dark / blurred / noisy / covered / shaky / face vs no-face task / toggle persistence / burst still ≥10 of 12); no console errors; `npm run build` passes; client tests ≥ 84 + new, backend 50, parity 100%
+- [ ] Fill in a **"Phase 6 — results"** section here (what was built, measured numbers, bugs found, honest limits) and update `edge-validator/README.md`
+
+### Constraints
+- **Display-only:** no server, database, classifier or threshold changes; no existing threshold may change (calibration needs real photos first). No Python changes expected; if a check's logic is touched, port it to `backend/photo_quality/` and re-run parity.
+- Don't use or POST to the user's servers (backend **8000**, Vite **5174**); use an isolated backend (`TRUST_LAYER_DB`, `PHOTO_DIR`, port 8001) and Vite on 5173 via **127.0.0.1** (`localhost:5173` is another project). HUD-only tests need no backend.
+- Pitfalls already hit (details in iteration-2 §5): StrictMode double effects need cancellable starts; Vite reloads once on first lazy import; `puppeteer-core` is installed `--no-save` and vanishes on `npm install`; measure UI stalls with a timer gap recorder read *after* awaiting ~40 ms.
+- Out of scope: physical-phone testing (dropped by the user), calibration (waiting on photos), face-policy change (user decision pending).
+
+### Supervision
+`CLAUDE.md` in the project root requires invoking the `edge-validator-ai` subagent after every completed milestone, before starting a new phase, and whenever tests fail twice in a row; if it returns **STOP**, halt and follow its prompts. Record each invocation's outcome in this file.
+
+### Milestone log
+- 2026-10-07: Iteration 2 plan written (`iteration-2.md`), progress file updated, iPhone testing removed from scope.
+- 2026-10-07: **Supervisor invocation FAILED: the `edge-validator-ai` subagent is not registered** (the tool reported "Agent type 'edge-validator-ai' not found"; only claude, claude-code-guide, Explore, general-purpose, Plan and statusline-setup exist). No supervisor verdict (GO/STOP) was obtained for this milestone. Nothing was implemented, so there is nothing to stop yet, but the implementing agent must not treat the absence of a STOP as a GO: define the subagent (e.g. `.claude/agents/edge-validator-ai.md`) or tell the user, and obtain a verdict before starting Phase 6a.

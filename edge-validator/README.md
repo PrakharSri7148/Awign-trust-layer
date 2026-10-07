@@ -5,6 +5,7 @@ The photo-quality engine behind the Capture screen: it decides, on the worker's 
 | File / folder | What it is |
 |---|---|
 | [iteration-1.md](iteration-1.md) | The audit of the original single-check validator and the plan for this work |
+| [iteration-2.md](iteration-2.md) | **Phase 6 plan: live metrics HUD on the camera** (spec, tasks, acceptance criteria, test recipe) |
 | [progress.md](progress.md) | What was built in each of the 6 phases, how it was verified, and the honest limits |
 | `samples/` | **Where real worker photos go** for calibration (one folder per issue, see its README) |
 | `backups/` | The database and classifier as they were before phases 2 and 5 |
