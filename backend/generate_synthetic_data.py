@@ -33,21 +33,27 @@ CASES = [
 ]
 
 
-def generate(seed=42):
+def generate(seed=42, *, n_per_case=N_PER_CASE, sd_scale=1.0, mean_shift=0.0, photo_shift=0.0, cases=None):
+    """The defaults reproduce synthetic_training_data.csv exactly (a test pins that). The keyword
+    arguments exist so the accuracy report can build a HELD-OUT set from a different generator:
+    sd_scale widens/narrows every motion/ambient spread, mean_shift moves fraud rows' motion/ambient
+    means up and genuine rows' down (positive = the two classes look more alike), photo_shift adds
+    to the photo score, `cases` swaps the case table (sensitivity runs)."""
     rng = np.random.default_rng(seed)
     frames = []
-    for _name, (pa, pb), bad_share, (m_mu, m_sd), (a_mu, a_sd), fraud in CASES:
-        photo = rng.beta(pa, pb, N_PER_CASE)
+    for _name, (pa, pb), bad_share, (m_mu, m_sd), (a_mu, a_sd), fraud in (cases or CASES):
+        shift = mean_shift if fraud else -mean_shift
+        photo = rng.beta(pa, pb, n_per_case)
         # Some rows of the "good photo" cases still get a poor photo (bad light, shaky hands).
-        poor = rng.random(N_PER_CASE) < bad_share
-        photo = np.where(poor, rng.beta(*POOR_PHOTO, N_PER_CASE), photo)
+        poor = rng.random(n_per_case) < bad_share
+        photo = np.where(poor, rng.beta(*POOR_PHOTO, n_per_case), photo)
         frames.append(
             pd.DataFrame(
                 {
-                    "photo_quality_score": np.clip(photo, 0, 1),
-                    "motion_score": np.clip(rng.normal(m_mu, m_sd, N_PER_CASE), 0, 1),
-                    "ambient_score": np.clip(rng.normal(a_mu, a_sd, N_PER_CASE), 0, 1),
-                    "is_fraud": np.full(N_PER_CASE, fraud, dtype=int),
+                    "photo_quality_score": np.clip(photo + photo_shift, 0, 1),
+                    "motion_score": np.clip(rng.normal(m_mu + shift, m_sd * sd_scale, n_per_case), 0, 1),
+                    "ambient_score": np.clip(rng.normal(a_mu + shift, a_sd * sd_scale, n_per_case), 0, 1),
+                    "is_fraud": np.full(n_per_case, fraud, dtype=int),
                 }
             )
         )

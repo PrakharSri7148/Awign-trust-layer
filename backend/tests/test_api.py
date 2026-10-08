@@ -5,6 +5,11 @@ from . import imgs
 from .conftest import passing_client_report, submit
 
 
+def photo_flags(body):
+    """The photo-related flags only: sensor fusion adds its own info flags (e.g. fusion_insufficient_evidence)."""
+    return [f for f in body["quality_flags"] if not f.startswith(("fusion_", "visit_"))]
+
+
 def test_good_photo_is_verified_stored_and_served(client):
     r = submit(client, imgs.good(), client_report=passing_client_report())
     assert r.status_code == 200, r.text
@@ -43,12 +48,12 @@ def test_no_photo_cannot_be_verified(client):
     body = submit(client, None, photo_quality_pass=True).json()
     assert body["photo_verdict"] == "unverified"
     assert body["photo_quality_pass"] is False  # the boolean from the device is NOT trusted
-    assert body["quality_flags"] == ["photo_missing"]
+    assert photo_flags(body) == ["photo_missing"]
 
 
 def test_plain_json_body_still_accepted(client):
     r = client.post("/submissions", json={"worker_id": "w", "task_id": "t", "site_id": "s", "photo_quality_pass": True})
-    assert r.status_code == 200 and r.json()["quality_flags"] == ["photo_missing"]
+    assert r.status_code == 200 and photo_flags(r.json()) == ["photo_missing"]
 
 
 def test_legacy_mode_trusts_the_boolean(client, monkeypatch):
@@ -56,7 +61,7 @@ def test_legacy_mode_trusts_the_boolean(client, monkeypatch):
 
     monkeypatch.setattr(photo_service, "PHOTO_REQUIRED", False)
     body = submit(client, None, photo_quality_pass=True).json()
-    assert body["photo_quality_pass"] is True and body["quality_flags"] == ["photo_unverified"]
+    assert body["photo_quality_pass"] is True and photo_flags(body) == ["photo_unverified"]
     assert body["photo_quality_score"] == 1.0
 
 

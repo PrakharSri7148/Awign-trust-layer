@@ -144,13 +144,16 @@ export function glareStatus(m, t = THRESHOLDS.glare) {
   return { status, hint }
 }
 
+// 1 = no glare. Hard-edged white areas count for less than soft-halo glare.
+export const glareScore = (m, t = THRESHOLDS.glare) => ramp(m.soft ? m.area : m.area * 0.4, t.failArea * 1.5, 0)
+
 export function checkGlare(frame) {
   const t = THRESHOLDS.glare
   const m = glareMetrics(frame)
   const { status, hint } = glareStatus(m, t)
   return checkResult('glare', {
     status,
-    score: ramp(m.soft ? m.area : m.area * 0.4, t.failArea * 1.5, 0),
+    score: glareScore(m, t),
     value: m.area,
     hint,
     details: m,

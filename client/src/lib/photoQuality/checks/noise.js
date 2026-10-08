@@ -37,6 +37,9 @@ export function blockinessStats(gray, w, h) {
 
 export const blockiness = (gray, w, h) => blockinessStats(gray, w, h)?.ratio ?? null
 
+// 1 = clean. sigma in grey levels (0..255).
+export const noiseSigmaScore = (sigma, t = THRESHOLDS.noise) => ramp(sigma, t.sigmaFail + 5, 1)
+
 export function checkNoise(frame) {
   const t = THRESHOLDS.noise
   const patches = frame.native.patches
@@ -70,7 +73,7 @@ export function checkNoise(frame) {
   }
   return checkResult('noise', {
     status,
-    score: Math.min(ramp(sigma, t.sigmaFail + 5, 1), block == null ? 1 : ramp(block, t.blockFail + 0.2, 1.02)),
+    score: Math.min(noiseSigmaScore(sigma, t), block == null ? 1 : ramp(block, t.blockFail + 0.2, 1.02)),
     value: sigma,
     hint,
     details: { noiseSigma: sigma, blockiness: blockRatio, blockExcess, bitsPerPixel, patches: patches.length },

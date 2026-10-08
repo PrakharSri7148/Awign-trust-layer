@@ -25,4 +25,4 @@ PASS, WARN, FAIL, SKIP = "pass", "warn", "fail", "skip"
 V_PASS, V_WARN, V_BLOCK = "pass", "warn", "block"
 
 # Ordered by how much a worker should care (used to sort issues).
-CHECK_IDS = ["obstruction", "resolution", "exposure", "blur", "face", "glare", "shake", "noise"]
+CHECK_IDS = ["obstruction", "resolution", "exposure", "blur", "face", "liveness", "glare", "shake", "noise"]

@@ -22,7 +22,8 @@ def rgb_to_hsv(r, g, b):
 
 def looks_like_finger(hsv):
     h, s, v = hsv
-    warm = h <= 50 or h >= 345
+    # skin is ~0-30 deg; cream / tan / beige walls (~35-45) must not read as a finger
+    warm = h <= 32 or h >= 345
     return warm and 0.15 <= s <= (0.95 if h < 20 else 0.75) and 0.2 <= v <= 0.97
 
 

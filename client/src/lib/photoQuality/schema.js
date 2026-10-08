@@ -12,6 +12,7 @@ export const CHECK_IDS = [
   'exposure',
   'blur',
   'face',
+  'liveness',
   'glare',
   'shake',
   'noise',
@@ -26,6 +27,7 @@ export const CHECK_LABELS = {
   noise: 'Noise / compression',
   shake: 'Steadiness',
   face: 'Face',
+  liveness: 'Liveness',
 }
 
 // score: 0..1, 1 = good. value: the raw metric behind it. hint: what the worker should do.

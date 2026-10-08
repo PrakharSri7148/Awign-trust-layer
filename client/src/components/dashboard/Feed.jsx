@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { setToken } from '../../lib/auth.js'
 import { FACTORS, flagMeta, matchesPhoto, pct, relTime } from '../../lib/format.js'
 import { FlagChips, PhotoBadge } from '../ui/PhotoBadge.jsx'
 import StatusBadge from '../ui/StatusBadge.jsx'
@@ -64,12 +65,23 @@ export default function Feed({ rows, loading, error, fresh, onReload, onOpen }) 
         <span className="faint num" style={{ marginLeft: 'auto', fontSize: 12 }}>{visible.length} of {rows.length} shown</span>
       </div>
 
-      {error && (
+      {error === 'UNAUTHORIZED' ? (
+        <form
+          className="banner banner--error"
+          role="alert"
+          style={{ marginBottom: 'var(--s2)' }}
+          onSubmit={(e) => { e.preventDefault(); setToken(new FormData(e.currentTarget).get('token')?.toString().trim() ?? ''); onReload() }}
+        >
+          <span>This dashboard needs an access token.</span>
+          <input name="token" type="password" autoComplete="off" aria-label="Access token" style={{ margin: '0 8px' }} />
+          <button className="btn btn--sm btn--primary" type="submit">Unlock</button>
+        </form>
+      ) : error ? (
         <div className="banner banner--error" role="alert" style={{ marginBottom: 'var(--s2)' }}>
           <span>Error loading submissions: {error}</span>
           <button className="btn btn--sm btn--danger" onClick={onReload}>Retry</button>
         </div>
-      )}
+      ) : null}
 
       {loading && rows.length === 0 ? (
         <div aria-busy="true">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="skeleton" />)}</div>
@@ -106,6 +118,7 @@ export default function Feed({ rows, loading, error, fresh, onReload, onOpen }) 
                     <div className="photocell">
                       <PhotoBadge verdict={s.photo_verdict ?? 'unverified'} />
                       <FlagChips flags={s.quality_flags} max={2} />
+                      {s.review && <span className={`st st--${s.review.decision === 'approve' ? 'pass' : 'fail'}`} title={`${s.review.decision} by ${s.review.reviewer}`}>{s.review.decision === 'approve' ? 'reviewed ✓' : s.review.decision === 'reject' ? 'rejected' : 'retake'}</span>}
                     </div>
                   </td>
                   <td>

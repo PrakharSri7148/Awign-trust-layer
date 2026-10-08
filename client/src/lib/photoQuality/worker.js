@@ -1,12 +1,5 @@
-// Web Worker: runs the (CPU-heavy, pure) pixel checks off the UI thread.
-import { analyzeFrame } from './index.js'
-import { frameFromTransfer } from './transfer.js'
+// Web Worker: runs the (CPU-heavy, pure) pixel checks off the UI thread, for captured photos and
+// for the live viewfinder ticks. The logic lives in workerHandlers.js.
+import { handleMessage } from './workerHandlers.js'
 
-self.onmessage = ({ data }) => {
-  const { id, frame, task } = data
-  try {
-    postMessage({ id, report: analyzeFrame(frameFromTransfer(frame), { task }) })
-  } catch (err) {
-    postMessage({ id, error: String(err?.message ?? err) })
-  }
-}
+self.onmessage = ({ data }) => postMessage(handleMessage(data))

@@ -1,3 +1,5 @@
+import { FUSION_FLAG_META } from './sensorFusion/flags.js'
+import { fmtArea, fmtFace, fmtRot, fmtSigma, fmtSize, focusScore, lensText, pct0 } from './photoQuality/display.js'
 export const pct = (v, d = 1) => `${((v ?? 0) * 100).toFixed(d)}%`
 
 export function relTime(iso, now = Date.now()) {
@@ -12,7 +14,7 @@ export function relTime(iso, now = Date.now()) {
 export const FACTORS = [
   { key: 'photo_quality', label: 'Photo quality', color: '#8b5cf6' },
   { key: 'motion_consistency', label: 'Motion consistency', color: '#22d3ee' },
-  { key: 'ambient_fingerprint', label: 'Ambient fingerprint', color: '#fbbf24' },
+  { key: 'ambient_fingerprint', label: 'Network vs area', color: '#fbbf24' },
 ]
 
 export const isFlagged = (s) => s.status === 'flagged'
@@ -30,6 +32,16 @@ export const FLAG_META = {
   obstruction: { label: 'Lens covered', kind: 'quality', help: 'A finger, cloth or dirt over part or all of the lens.' },
   noise: { label: 'Noise / compression', kind: 'quality', help: 'Grainy (low light) or heavily compressed.' },
   shake: { label: 'Camera shake', kind: 'quality', help: 'Directional motion blur from camera movement.' },
+  liveness: { label: 'Liveness not verified', kind: 'integrity', help: 'The live check (a random blink / turn / smile / mouth challenge) was not completed or failed.' },
+  liveness_unverified: { label: 'Liveness unverified', kind: 'integrity', help: 'No valid live-check evidence came with this submission.' },
+  liveness_failed: { label: 'Liveness failed', kind: 'integrity', help: 'The live challenge was failed or the evidence does not add up.' },
+  liveness_forged: { label: 'Liveness forged', kind: 'integrity', help: 'The challenge id is unknown, or was issued to another worker or task.' },
+  liveness_expired: { label: 'Liveness expired', kind: 'integrity', help: 'The challenge expired before the submission arrived, or the photo was taken too long after it.' },
+  liveness_replayed: { label: 'Liveness replayed', kind: 'integrity', help: 'This challenge was already used by an earlier submission (evidence replay).' },
+  liveness_mismatch: { label: 'Liveness mismatch', kind: 'integrity', help: 'The evidence is for different challenges than the server issued.' },
+  liveness_review_requested: { label: 'Review requested', kind: 'info', help: 'The worker could not complete the live check after several attempts and asked for a human review.' },
+  liveness_review_unearned: { label: 'Review not earned', kind: 'integrity', help: 'A review was requested without the attempts the server issued challenges for.' },
+  spoof_suspected: { label: 'Spoof suspected', kind: 'integrity', help: 'The photo looks like a picture of a screen or a print.' },
   face: { label: 'Face not clear', kind: 'quality', help: 'Face missing, cut off, too small, blurred, in shadow or hidden.' },
   photo_missing: { label: 'No photo', kind: 'integrity', help: 'The submission arrived without a photo, so it could not be verified.' },
   photo_unverified: { label: 'Photo unverified', kind: 'integrity', help: 'Accepted on the device\'s word (legacy mode).' },
@@ -44,6 +56,7 @@ export const FLAG_META = {
   client_verdict_mismatch: { label: 'Device report mismatch', kind: 'integrity', help: 'The device said the photo was fine; the server measured otherwise.' },
   client_dimensions_mismatch: { label: 'Device size mismatch', kind: 'integrity', help: 'The photo size the device reported is not the real size.' },
   client_report_missing: { label: 'No device report', kind: 'info', help: 'The device sent no quality report.' },
+  ...FUSION_FLAG_META, // sensor fusion: GPS trail vs phone sensors, network vs the claimed area
 }
 
 export function flagMeta(flag) {
@@ -58,6 +71,38 @@ export const VERDICT_META = {
   warn: { label: 'Photo warning', tone: 'amber' },
   block: { label: 'Photo poor', tone: 'red' },
   unverified: { label: 'Unverified', tone: 'muted' },
+}
+
+// ---- one number per photo check, the same words the live HUD uses ---------------------
+// A check report is not uniform (see iteration-2.md §3 6d), so each check says where its
+// display value lives. Returns null when there is nothing to show (skipped checks).
+export function formatMetric(id, check) {
+  if (!check || check.status === 'skip') return null
+  const d = check.details ?? {}
+  switch (id) {
+    case 'blur':
+      return check.value == null ? 'Focus —' : `Focus ${pct0(focusScore(check.value) * 100)}`
+    case 'exposure':
+      return `Brightness ${pct0((check.value / 255) * 100)}`
+    case 'resolution':
+      return d.width ? fmtSize(d.width, d.height) : null
+    case 'noise':
+      return check.value == null ? null : fmtSigma(check.value)
+    case 'obstruction':
+      return `Lens ${lensText(check.value ?? 0, d.fullCover)}`
+    case 'glare':
+      return `Glare ${fmtArea(check.value ?? 0)}`
+    case 'shake':
+      return d.sensor?.rotRms != null ? fmtRot(d.sensor.rotRms) : 'no sensor'
+    case 'face':
+      if (d.unchecked) return 'unchecked'
+      if (d.count === 0) return 'not found'
+      return d.score == null ? null : fmtFace(d.score, d.heightFrac)
+    case 'liveness':
+      return d.reason === 'challenge_passed' ? 'live check passed' : d.reason === 'review_requested' ? 'sent for review' : d.reason === 'no_live_camera' ? 'not possible' : 'not verified'
+    default:
+      return null
+  }
 }
 
 // Feed filter: 'all' | 'any' (any photo issue) | 'unverified' | a specific flag id.

@@ -6,6 +6,7 @@ import Charts from '../components/dashboard/Charts.jsx'
 import Feed from '../components/dashboard/Feed.jsx'
 import Kpis from '../components/dashboard/Kpis.jsx'
 import QualityPanel from '../components/dashboard/QualityPanel.jsx'
+import ReviewQueue from '../components/dashboard/ReviewQueue.jsx'
 import { useDemo } from '../lib/contexts.jsx'
 import { useSubmissions } from '../lib/useSubmissions.js'
 
@@ -45,10 +46,11 @@ export default function Dashboard() {
         <Kpis rows={rows} />
         <Charts rows={rows} />
         <QualityPanel rows={rows} />
+        <ReviewQueue rows={rows} onOpen={setSelected} />
         <Feed rows={rows} loading={loading} error={error} fresh={fresh} onReload={reload} onOpen={setSelected} />
       </div>
 
-      <AnimatePresence>{selected && <CaseFile key={selected.id} row={selected} onClose={() => setSelected(null)} />}</AnimatePresence>
+      <AnimatePresence>{selected && <CaseFile key={selected.id} row={selected} onClose={() => setSelected(null)} onReviewed={reload} />}</AnimatePresence>
     </div>
   )
 }

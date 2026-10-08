@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { AlertTriangle, RotateCcw, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { API_BASE } from '../../lib/api.js'
+import { authHeaders, withToken } from '../../lib/auth.js'
 import { useToast } from '../../lib/contexts.jsx'
 import { flagMeta, pct } from '../../lib/format.js'
 import { CHECK_IDS, CHECK_LABELS } from '../../lib/photoQuality/schema.js'
@@ -10,8 +11,11 @@ import CountUp from '../ui/CountUp.jsx'
 import Gauge from '../ui/Gauge.jsx'
 import ShapBars from '../ui/ShapBars.jsx'
 import StatusBadge from '../ui/StatusBadge.jsx'
+import FusionSection from './FusionSection.jsx'
+import ReviewSection from './ReviewSection.jsx'
+import { isFusionFlag } from '../../lib/sensorFusion/flags.js'
 
-export default function CaseFile({ row, onClose }) {
+export default function CaseFile({ row, onClose, onReviewed }) {
   const toast = useToast()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -20,19 +24,20 @@ export default function CaseFile({ row, onClose }) {
   const isDemo = String(row.id).startsWith('demo-')
   const when = new Date(row.timestamp)
 
-  // The list endpoint leaves the per-check report out; fetch it for this case.
-  const [detail, setDetail] = useState(null)
+  // The list endpoint leaves the per-check and sensor reports out; fetch them for this case.
+  const [fullDetail, setFullDetail] = useState(null)
+  const detail = fullDetail?.photo_quality ?? null
   useEffect(() => {
-    if (!row.has_photo || isDemo) return
+    if ((!row.has_photo && !(row.fusion_version >= 1)) || isDemo) return
     let alive = true
-    fetch(`${API_BASE}/submissions/${row.id}`)
+    fetch(`${API_BASE}/submissions/${row.id}`, { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => alive && setDetail(d?.photo_quality ?? null))
+      .then((d) => alive && setFullDetail(d))
       .catch(() => {})
     return () => {
       alive = false
     }
-  }, [row.id, row.has_photo, isDemo])
+  }, [row.id, row.has_photo, row.fusion_version, isDemo])
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -44,10 +49,10 @@ export default function CaseFile({ row, onClose }) {
     setBusy(true)
     try {
       if (!isDemo) {
-        const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(row.site_id)}/reset-fingerprint`, { method: 'POST' })
+        const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(row.site_id)}/reset-fingerprint`, { method: 'POST', headers: authHeaders() })
         if (!res.ok) throw new Error(`Server responded ${res.status}`)
       }
-      toast(`Fingerprint reset for ${row.site_id}${isDemo ? ' (demo)' : ''}`)
+      toast(`Network profile reset for ${row.site_id}${isDemo ? ' (demo)' : ''}`)
       setConfirming(false)
     } catch (err) {
       toast(`Reset failed: ${err.message}`, 'error')
@@ -61,7 +66,7 @@ export default function CaseFile({ row, onClose }) {
     ['Submitted', when.toLocaleString()],
     ['Photo checked on device', 'edge validation · focus, light, lens, glare, shake, noise, face'],
     ['Photo re-checked by server', verdict === 'unverified' ? 'no photo to check' : `verdict: ${verdict}${row.client_mismatch ? ' · device report contradicted' : ''}`],
-    ['Sensors read', 'GPS · motion · network'],
+    ['Sensors read', row.fusion_version >= 1 ? 'GPS trail · accelerometer / gyroscope · network' : 'GPS · motion · network'],
     ['Scored by classifier', `p = ${pct(row.fraud_probability)}`],
   ]
 
@@ -106,6 +111,10 @@ export default function CaseFile({ row, onClose }) {
 
         <PhotoSection row={row} detail={detail} verdict={verdict} />
 
+        <FusionSection row={row} fusion={fullDetail?.fusion ?? row.fusion} />
+
+        <ReviewSection row={row} onDone={onReviewed} />
+
         <dl className="kv">
           <dt>Worker</dt><dd>{row.worker_id}</dd>
           <dt>Task</dt><dd>{row.task_id}</dd>
@@ -128,16 +137,16 @@ export default function CaseFile({ row, onClose }) {
           <div className="confirm" role="alertdialog" aria-label="Confirm reset">
             <div style={{ display: 'flex', gap: 10 }}>
               <AlertTriangle size={18} className="text-red" style={{ flex: 'none', marginTop: 2 }} />
-              <span>The next submission for <b className="mono">{row.site_id}</b> becomes the new ambient baseline. This can't be undone.</span>
+              <span>The network profile learned for <b className="mono">{row.site_id}</b> is forgotten and rebuilt from the next accepted visits (until then the network check says "not enough history"). This can't be undone.</span>
             </div>
             <div className="row">
               <button className="btn" onClick={() => setConfirming(false)} disabled={busy}>Cancel</button>
-              <button className="btn btn--danger" onClick={reset} disabled={busy}>{busy ? 'Resetting…' : 'Reset baseline'}</button>
+              <button className="btn btn--danger" onClick={reset} disabled={busy}>{busy ? 'Resetting…' : 'Reset network profile'}</button>
             </div>
           </div>
         ) : (
           <button className="btn btn--danger" onClick={() => setConfirming(true)}>
-            <RotateCcw size={16} /> Reset site fingerprint
+            <RotateCcw size={16} /> Reset site network profile
           </button>
         )}
       </motion.aside>
@@ -151,7 +160,7 @@ function PhotoSection({ row, detail, verdict }) {
   const server = detail?.server
   const client = detail?.client
   const ev = detail?.evidence
-  const flags = row.quality_flags ?? []
+  const flags = (row.quality_flags ?? []).filter((f) => !isFusionFlag(f)) // sensor-fusion flags have their own section
   const rows = server ? CHECK_IDS.filter((id) => server.checks[id]) : []
   const fmt = (c) => (c?.value == null ? '-' : Number(c.value).toFixed(2))
 
@@ -166,8 +175,8 @@ function PhotoSection({ row, detail, verdict }) {
       </div>
 
       {row.has_photo && (
-        <a href={`${API_BASE}${row.photo_url}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 10 }}>
-          <img className="photo-thumb" src={`${API_BASE}${row.photo_url}`} alt={`Photo submitted for case ${row.id}`} loading="lazy" />
+        <a href={withToken(`${API_BASE}${row.photo_url}`)} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 10 }}>
+          <img className="photo-thumb" src={withToken(`${API_BASE}${row.photo_url}`)} alt={`Photo submitted for case ${row.id}`} loading="lazy" />
         </a>
       )}
 
@@ -205,6 +214,8 @@ function PhotoSection({ row, detail, verdict }) {
         </table>
       )}
 
+      <LivenessSection server={server} ev={ev} />
+
       {ev && (
         <dl className="kv" style={{ marginTop: 12 }}>
           <dt>Capture</dt><dd>{ev.capture?.source === 'camera' ? 'In-app live camera' : 'Picked file'}{ev.capture?.burst ? ` · burst ${ev.capture.burst.picked + 1}/${ev.capture.burst.frames}` : ''}</dd>
@@ -216,6 +227,40 @@ function PhotoSection({ row, detail, verdict }) {
       )}
 
       {!row.has_photo && <p className="dim" style={{ fontSize: 13, margin: '10px 0 0' }}>No photo is stored for this submission.</p>}
+    </div>
+  )
+}
+
+const CHALLENGE_WORDS = { blink: 'blink', turn_left: 'turn head left', turn_right: 'turn head right', smile: 'smile', open_mouth: 'open mouth' }
+const fx = (v, d = 2) => (v == null ? '-' : Number(v).toFixed(d))
+
+// What the live check looked like to the server: the challenges it issued, what the device's signal timeline showed
+// when replayed, why evidence was rejected, and the screen / print evidence. Only on tasks that have a face.
+function LivenessSection({ server, ev }) {
+  const check = server?.checks?.liveness
+  const live = ev?.liveness
+  const passive = server?.passive
+  if (!check && !live && !passive) return null
+  const v = live?.validation
+  const e = live?.evidence
+  const cp = live?.client_passive
+  return (
+    <div style={{ marginTop: 14 }} data-testid="liveness-section">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div className="eyebrow eyebrow--cyan">Live check</div>
+        {check && <span className={`st st--${ST[check.status]}`}>{check.status}</span>}
+      </div>
+      {check?.hint && <p className="dim" style={{ fontSize: 13, margin: '6px 0 0' }}>{check.hint}</p>}
+      <dl className="kv" style={{ marginTop: 8 }}>
+        {check?.details?.reason && (<><dt>Result</dt><dd>{check.details.reason.replace(/_/g, ' ')}</dd></>)}
+        {e?.challenges && (<><dt>Challenges</dt><dd>{e.challenges.map((c) => CHALLENGE_WORDS[c] ?? c).join(' + ')}{e.attempts ? ` · attempt ${e.attempts}` : ''}</dd></>)}
+        {e?.results?.length > 0 && (<><dt>Device says</dt><dd>{e.results.map((r) => `${CHALLENGE_WORDS[r.id] ?? r.id}: ${r.status} (${((r.t1 - r.t0) / 1000).toFixed(1)}s)`).join(', ')}</dd></>)}
+        {v?.replay && (<><dt>Server replay</dt><dd>{v.replay.phase === 'passed' ? 'the signal timeline shows the challenges being performed' : `timeline does not show it (${v.replay.phase})`}</dd></>)}
+        {live && (<><dt>Nonce</dt><dd>{live.nonce_claimed === true ? 'issued by the server, used once' : live.nonce_claimed === false ? 'already used (replay)' : 'not consumed'}</dd></>)}
+        {v?.reasons?.length > 0 && (<><dt>Rejected because</dt><dd>{v.reasons.join('; ')}</dd></>)}
+        {passive?.score != null && (<><dt>Screen / print</dt><dd>{passive.status} · score {fx(passive.score)} (moire {fx(passive.moire?.score, 1)}, frame {fx(passive.bezel?.score)}), recomputed on the stored photo</dd></>)}
+        {cp && (<><dt>Camera session</dt><dd>banding {fx(cp.banding?.score)} · planar {String(cp.planar?.planar)} · glare on face {fx(cp.glareFace?.overlap)} (device-reported)</dd></>)}
+      </dl>
     </div>
   )
 }

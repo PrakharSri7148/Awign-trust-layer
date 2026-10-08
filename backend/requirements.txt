@@ -8,3 +8,5 @@ pandas
 joblib
 Pillow
 python-multipart
+pillow-heif
+maxminddb

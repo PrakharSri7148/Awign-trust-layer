@@ -18,8 +18,10 @@ function rgbToHsv(r, g, b) {
 
 // Skin / out-of-focus finger over the lens: warm hue, moderate saturation.
 // A finger in front of a flash glows red (hue < 20, high saturation).
+// Hue stops at 32 deg: skin is ~0-30, but cream / tan / beige walls sit at ~35-45 and were
+// being read as a finger (a flat cream wall was blocked as a covered lens).
 function looksLikeFinger({ h, s, v }) {
-  const warm = h <= 50 || h >= 345
+  const warm = h <= 32 || h >= 345
   return warm && s >= 0.15 && s <= (h < 20 ? 0.95 : 0.75) && v >= 0.2 && v <= 0.97
 }
 

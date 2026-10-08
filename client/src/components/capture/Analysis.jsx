@@ -2,9 +2,9 @@ import { BrainCircuit } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 const LINES = [
-  'Hashing site fingerprint…',
-  'Scoring motion consistency…',
-  'Comparing ambient baseline…',
+  'Comparing the GPS trail with the phone\'s movement…',
+  'Checking the network against the site…',
+  'Re-checking the photo on the server…',
   'Running gradient-boosting classifier…',
   'Computing SHAP explanation…',
 ]

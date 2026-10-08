@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { API_BASE } from './api.js'
+import { authHeaders } from './auth.js'
 
 const POLL_MS = 5000
 
@@ -14,7 +15,8 @@ export function useSubmissions() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/submissions`)
+      const res = await fetch(`${API_BASE}/submissions`, { headers: authHeaders() })
+      if (res.status === 401) throw new Error('UNAUTHORIZED')
       if (!res.ok) throw new Error(`Server responded ${res.status}`)
       const rows = await res.json()
       if (!alive.current) return

@@ -12,7 +12,10 @@
     "postinstall": "node scripts/copy-mediapipe.mjs",
     "predev": "node scripts/copy-mediapipe.mjs",
     "prebuild": "node scripts/copy-mediapipe.mjs",
-    "calibrate": "../backend/.venv/bin/python ../backend/tools/calibrate.py"
+    "calibrate": "../backend/.venv/bin/python ../backend/tools/calibrate.py",
+    "report": "../backend/.venv/bin/python ../backend/tools/accuracy_report.py",
+    "e2e": "node tools/e2e/run.mjs",
+    "fusion:parity": "node tools/fusion-parity.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.1.0",

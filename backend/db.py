@@ -23,6 +23,11 @@ SUBMISSION_COLUMNS = {
     "photo_path": "VARCHAR",
     "photo_sha256": "VARCHAR",
     "photo_dhash": "VARCHAR",
+    "fusion_version": "INTEGER NOT NULL DEFAULT 0",
+    "motion_known": "BOOLEAN NOT NULL DEFAULT 0",
+    "env_known": "BOOLEAN NOT NULL DEFAULT 0",
+    "fusion_report": "VARCHAR NOT NULL DEFAULT '{}'",
+    "trail_sha256": "VARCHAR",
 }
 
 

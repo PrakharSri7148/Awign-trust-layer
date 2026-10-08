@@ -6,9 +6,17 @@ import { THRESHOLDS } from './config.js'
 import { blurMetrics } from './checks/blur.js'
 import { checkExposure } from './checks/exposure.js'
 import { glareMetrics, glareStatus } from './checks/glare.js'
-import { obstructionMetrics } from './checks/obstruction.js'
+import { checkObstruction } from './checks/obstruction.js'
+import { makeThumb, opticalMotion } from './checks/opticalMotion.js'
+import { checkResolution } from './checks/resolution.js'
 import { sensorShake } from './checks/shakeSensor.js'
+import { computeLiveMetrics, initialHudState } from './liveMetrics.js'
 import { STATUS } from './schema.js'
+import { noiseSigma } from './stats.js'
+import { bandingEvidence, rowProfile } from './passive/banding.js'
+import { bezelMetrics } from './passive/bezel.js'
+import { moireMetrics } from './passive/moire.js'
+import { passiveScore } from './passive/passive.js'
 
 // What to tell the worker first when several things are wrong.
 export const LIVE_PRIORITY = ['lens', 'light', 'face', 'steady', 'focus', 'glare']
@@ -18,7 +26,15 @@ const mk = (status, hint = null, extra = {}) => ({ status, hint, ...extra })
 
 // frame: a small frame (frame.js buildFrame). motion: recent motion samples or null.
 // face: an evaluateFace() result for this task, or null when not applicable / not run yet.
-export function analyzeLive(frame, { motion = null, face = null } = {}) {
+// For the HUD numbers (all optional; without them the rows that need them are simply blank):
+//   task      { face: 'off'|'optional'|'required' }  (defaults to 'required' when `face` is given)
+//   faceSeq   increments each time the face detector finishes (to count consecutive misses)
+//   video     { width, height } of the camera stream (the resolution row)
+//   nativeCrop { gray, width, height }: a centre crop at the camera's native resolution (noise)
+//   now       a millisecond clock reading (so a skipped tick isn't read as double motion)
+//   prev      the `state` returned last tick
+// Every pixel metric is computed ONCE here and shared by the chips and the HUD rows.
+export function analyzeLive(frame, { motion = null, face = null, task = null, faceSeq = null, video = null, nativeCrop = null, now = null, liveness = null, prev = initialHudState() } = {}) {
   const live = THRESHOLDS.live
   const checks = {}
 
@@ -31,26 +47,82 @@ export function analyzeLive(frame, { motion = null, face = null } = {}) {
   else if (blur.score < live.blurSoft) checks.focus = mk(STATUS.WARN, 'A little soft. Hold steady.', { value: blur.score })
   else checks.focus = mk(STATUS.PASS, null, { value: blur.score })
 
-  const lens = obstructionMetrics(frame)
-  const t = THRESHOLDS.obstruction
+  const lens = checkObstruction(frame) // same thresholds as the capture check; details = the raw metrics
   checks.lens =
-    lens.fullCover || lens.area >= t.failArea
-      ? mk(STATUS.FAIL, lens.fullCover ? 'Almost completely dark: uncover the lens or find more light.' : 'Something is covering part of the lens.')
-      : lens.area >= t.warnArea
+    lens.status === STATUS.FAIL
+      ? mk(STATUS.FAIL, lens.details.fullCover ? 'Almost completely dark: uncover the lens or find more light.' : 'Something is covering part of the lens.')
+      : lens.status === STATUS.WARN
         ? mk(STATUS.WARN, 'Something may be covering part of the lens.')
         : mk(STATUS.PASS)
 
-  const g = glareStatus(glareMetrics(frame, { ...THRESHOLDS.glare, cell: live.glareCell }))
+  const glareM = glareMetrics(frame, { ...THRESHOLDS.glare, cell: live.glareCell })
+  const g = glareStatus(glareM)
   checks.glare = mk(g.status, g.hint)
 
+  // Steadiness has two independent sources: the phone's motion sensors (when it has them) and
+  // the picture itself (how far the whole image moved since the last tick; works on any camera).
   const steady = motion ? sensorShake(motion) : null
-  checks.steady = steady
-    ? mk(steady.status, steady.status === STATUS.PASS ? null : 'Hold still.', { rotRms: steady.rotRms })
+  const thumb = makeThumb(frame.gray, frame.width, frame.height)
+  const optical = prev.thumb ? opticalMotion(prev.thumb, thumb, now != null && prev.thumbAt != null ? now - prev.thumbAt : null) : null
+  const worse = [steady, optical].filter(Boolean).sort((a, b) => (a.status === STATUS.FAIL ? 0 : a.status === STATUS.WARN ? 1 : 2) - (b.status === STATUS.FAIL ? 0 : b.status === STATUS.WARN ? 1 : 2))[0]
+  checks.steady = worse
+    ? mk(worse.status, worse.status === STATUS.PASS ? null : 'Hold still.', { rotRms: steady?.rotRms ?? null, motionPct: optical?.pct ?? null })
     : mk(STATUS.PASS)
 
   if (face) checks.face = mk(face.status, face.hint, { box: face.details?.box ?? null })
 
-  return summarize(checks)
+  // ---- HUD rows ----
+  const resolution = video ? checkResolution({ native: { width: video.width, height: video.height, patches: [] } }) : null
+  const sigma = nativeCrop ? noiseSigma(nativeCrop.gray, nativeCrop.width, nativeCrop.height) : null
+  const { metrics, overall, state } = computeLiveMetrics(
+    {
+      exposure,
+      blurScore: blur.score,
+      lens,
+      glare: { m: glareM, ...g },
+      steady,
+      optical,
+      sigma,
+      resolution,
+      face,
+      faceSeq,
+      faceMode: task ? task.face : face ? 'required' : 'off',
+      liveness,
+    },
+    prev,
+  )
+
+  // ---- passive screen / print evidence (face tasks only; evidence, not a verdict: see passive/*.js) ----
+  let passive = null
+  let extra = {}
+  if (task && task.face && task.face !== 'off') {
+    const profiles = [...(prev.profiles ?? []), rowProfile(frame.gray, frame.width, frame.height)].slice(-8)
+    // the native crop is only read every other tick: keep the last moire reading in between
+    const moire = nativeCrop ? moireMetrics(nativeCrop.gray, nativeCrop.width, nativeCrop.height) : prev.moire ?? null
+    const faceBox = face?.details?.box ?? null
+    const bezel = bezelMetrics(frame.gray, frame.width, frame.height, faceBox)
+    const banding = bandingEvidence(profiles)
+    const glareFace = faceBox && glareM.bbox ? { overlap: boxOverlap(glareM.bbox, faceBox) } : null
+    const sc = passiveScore({ moire, bezel, banding, glareFace })
+    passive = {
+      moire: { score: moire?.score ?? null, peaks: moire?.peaks ?? 0 },
+      bezel: { score: bezel.score, consistent: bezel.consistent },
+      banding: { score: banding.score, driftRows: banding.driftRows ?? null },
+      glareFace,
+      score: sc.score,
+      status: sc.status,
+    }
+    extra = { profiles, moire }
+  }
+
+  return { ...summarize(checks), metrics, overall, passive, state: { ...state, ...extra, thumb, thumbAt: now } }
+}
+
+// share of the FACE box covered by the glare blob (both normalised; glare uses x0/x1/y0/y1, the face box x/y/w/h)
+export function boxOverlap(g, f) {
+  const ix = Math.max(0, Math.min(g.x1, f.x + f.w) - Math.max(g.x0, f.x))
+  const iy = Math.max(0, Math.min(g.y1, f.y + f.h) - Math.max(g.y0, f.y))
+  return f.w > 0 && f.h > 0 ? (ix * iy) / (f.w * f.h) : 0
 }
 
 // Pick the headline hint and decide whether things look good enough to shoot.

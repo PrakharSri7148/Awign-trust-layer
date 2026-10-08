@@ -1,7 +1,7 @@
 """Compare what the device claimed about its photo with what the server measured."""
 from .config import FAIL, PASS, SKIP, V_BLOCK, V_PASS
 
-BLOCKING_CHECKS = ("blur", "exposure", "resolution", "obstruction", "face")
+BLOCKING_CHECKS = ("blur", "exposure", "resolution", "obstruction", "face", "liveness")
 DIMENSION_TOLERANCE = 0.02
 
 

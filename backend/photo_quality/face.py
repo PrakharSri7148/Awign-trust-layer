@@ -96,12 +96,12 @@ def evaluate_face(faces, gray, cfg=None):
     srt = sorted(faces, key=lambda f: (-f["score"], -_area(f["box"])))
     main = srt[0]
     b = main["box"]
-    problems = []  # (kind, status, hint)
+    problems = []  # (kind, status, hint, (metric, value, limit))
 
     if main["score"] < cfg["minScoreFail"]:
-        problems.append(("score", FAIL, "No clear face found. Remove anything covering your face, improve the light and face the camera."))
+        problems.append(("score", FAIL, "No clear face found. Remove anything covering your face, improve the light and face the camera.", ("confidence", main["score"], cfg["minScoreFail"])))
     elif main["score"] < cfg["minScoreWarn"]:
-        problems.append(("score", WARN, "Your face is only partly clear. Improve the light and face the camera."))
+        problems.append(("score", WARN, "Your face is only partly clear. Improve the light and face the camera.", ("confidence", main["score"], cfg["minScoreWarn"])))
 
     visible = _visible_fraction(b)
     kp = main.get("keypoints") or []
@@ -113,14 +113,14 @@ def evaluate_face(faces, gray, cfg=None):
 
     eyes_inside = inside(eye_r) and inside(eye_l)
     if visible < cfg["visibleFail"] or (len(kp) >= 2 and not eyes_inside):
-        problems.append(("cut", FAIL, "Your face is cut off by the edge of the photo. Move back or re-centre so the whole face is in frame."))
+        problems.append(("cut", FAIL, "Your face is cut off by the edge of the photo. Move back or re-centre so the whole face is in frame.", ("visible" if visible < cfg["visibleFail"] else "eyesInside", visible, cfg["visibleFail"])))
     elif visible < cfg["visibleWarn"]:
-        problems.append(("cut", WARN, "Part of your face touches the edge of the photo. Re-centre yourself."))
+        problems.append(("cut", WARN, "Part of your face touches the edge of the photo. Re-centre yourself.", ("visible", visible, cfg["visibleWarn"])))
 
     if b["h"] < cfg["minHeightFail"]:
-        problems.append(("size", FAIL, "Your face is too small in the photo. Move closer to the camera."))
+        problems.append(("size", FAIL, "Your face is too small in the photo. Move closer to the camera.", ("height", b["h"], cfg["minHeightFail"])))
     elif b["h"] < cfg["minHeightWarn"]:
-        problems.append(("size", WARN, "Your face is quite small in the photo. Move a little closer."))
+        problems.append(("size", WARN, "Your face is quite small in the photo. Move a little closer.", ("height", b["h"], cfg["minHeightWarn"])))
 
     reliable = main["score"] >= cfg["minScoreFail"]
     yaw = roll = None
@@ -132,11 +132,11 @@ def evaluate_face(faces, gray, cfg=None):
             yaw = (nose["x"] - (eye_r["x"] + eye_l["x"]) / 2) * W / eye_dist
             roll = math.degrees(math.atan2(dy, dx))
     if yaw is not None and abs(yaw) >= cfg["yawFail"]:
-        problems.append(("pose", FAIL, "You are looking away from the camera. Face the camera directly."))
+        problems.append(("pose", FAIL, "You are looking away from the camera. Face the camera directly.", ("yaw", abs(yaw), cfg["yawFail"])))
     elif yaw is not None and abs(yaw) >= cfg["yawWarn"]:
-        problems.append(("pose", WARN, "Your head is turned. Face the camera directly."))
+        problems.append(("pose", WARN, "Your head is turned. Face the camera directly.", ("yaw", abs(yaw), cfg["yawWarn"])))
     if roll is not None and abs(roll) >= cfg["rollWarn"]:
-        problems.append(("pose", WARN, "Your head is tilted. Hold the phone level."))
+        problems.append(("pose", WARN, "Your head is tilted. Hold the phone level.", ("roll", abs(roll), cfg["rollWarn"])))
 
     crop = _crop(gray, b, cfg["cropPad"], cfg["cropMinSide"]) if reliable else None
     inner = _crop(gray, b, -cfg["innerShrink"], cfg["cropMinSide"]) if reliable else None
@@ -144,17 +144,17 @@ def evaluate_face(faces, gray, cfg=None):
     if crop is not None:
         blur = blur_metrics(crop, {"grid": 1, "minTileRange": 12, "minTexturedTiles": 1})["score"]
         exp = exposure_metrics(inner if inner is not None else crop)
-        crop_info = {"blur": blur, "mean": exp["mean"], "clippedFrac": exp["clippedFrac"]}
+        crop_info = {"blur": blur, "mean": exp["mean"], "clippedFrac": exp["clippedFrac"], "width": int(crop.shape[1]), "height": int(crop.shape[0])}
         if blur is not None and blur < cfg["cropBlurFail"]:
-            problems.append(("quality", FAIL, "Your face is blurry. Hold steady and let the camera focus on your face."))
+            problems.append(("quality", FAIL, "Your face is blurry. Hold steady and let the camera focus on your face.", ("cropBlur", blur, cfg["cropBlurFail"])))
         elif blur is not None and blur < cfg["cropBlurWarn"]:
-            problems.append(("quality", WARN, "Your face is a little soft. Hold steady."))
+            problems.append(("quality", WARN, "Your face is a little soft. Hold steady.", ("cropBlur", blur, cfg["cropBlurWarn"])))
         if exp["mean"] < cfg["cropDarkMeanFail"]:
-            problems.append(("quality", FAIL, "Your face is in shadow. Face the light."))
+            problems.append(("quality", FAIL, "Your face is in shadow. Face the light.", ("cropMean", exp["mean"], cfg["cropDarkMeanFail"])))
         elif exp["mean"] < cfg["cropDarkMeanWarn"]:
-            problems.append(("quality", WARN, "Your face is a bit dark. Face the light."))
+            problems.append(("quality", WARN, "Your face is a bit dark. Face the light.", ("cropMean", exp["mean"], cfg["cropDarkMeanWarn"])))
         if exp["clippedFrac"] > cfg["cropClippedWarn"]:
-            problems.append(("quality", WARN, "Your face is washed out by bright light. Move out of direct glare."))
+            problems.append(("quality", WARN, "Your face is washed out by bright light. Move out of direct glare.", ("cropClipped", exp["clippedFrac"], cfg["cropClippedWarn"])))
 
     if eye_r and eye_l and crop is not None:
         r = max(2, round(cfg["eyePatch"] * math.hypot((eye_l["x"] - eye_r["x"]) * W, (eye_l["y"] - eye_r["y"]) * H)))
@@ -167,16 +167,16 @@ def evaluate_face(faces, gray, cfg=None):
         eye_mean = (patch_mean(eye_r) + patch_mean(eye_l)) / 2
         crop_info["eyeRatio"] = eye_mean / crop_info["mean"] if crop_info["mean"] > 0 else 1
         if crop_info["eyeRatio"] < cfg["eyeDarkRatio"]:
-            problems.append(("eyes", WARN, "Your eyes look covered. Take off sunglasses or anything hiding your eyes."))
+            problems.append(("eyes", WARN, "Your eyes look covered. Take off sunglasses or anything hiding your eyes.", ("eyeRatio", crop_info["eyeRatio"], cfg["eyeDarkRatio"])))
 
     others = [f for f in srt[1:] if f["score"] >= cfg["minScoreFail"] and _area(f["box"]) >= cfg["multiRatio"] * _area(b)]
     if others:
-        problems.append(("multi", WARN, "More than one face is in the photo. Make sure only you are in frame."))
+        problems.append(("multi", WARN, "More than one face is in the photo. Make sure only you are in frame.", (None, None, None)))
 
     order = ["cut", "size", "pose", "eyes", "quality", "score", "multi"]
     problems.sort(key=lambda p: order.index(p[0]))
     status = PASS
-    for _k, s, _h in problems:
+    for _k, s, _h, _m in problems:
         if _RANK[s] > _RANK[status]:
             status = s
     first = next((p for p in problems if p[1] == status), None)
@@ -187,7 +187,24 @@ def evaluate_face(faces, gray, cfg=None):
     return check_result("face", status, score, b["h"], first[2] if first else None, {
         "count": len(faces), "score": main["score"], "heightFrac": b["h"], "visibleFrac": visible, "eyesInside": eyes_inside,
         "yaw": yaw, "roll": roll, "crop": crop_info, "box": dict(b),
-        "problems": [f"{s}: {h}" for _k, s, h in problems]})
+        "problems": [f"{s}: {h}" for _k, s, h, _m in problems],
+        # Structured twin of `problems`: which measurement, what value, against which limit.
+        "reasons": [{"k": k, "status": s, "metric": m[0], "value": m[1], "limit": m[2]} for k, s, _h, m in problems]})
+
+
+def soften_crop_blur(face, blur):
+    """One sharpness signal must not block a face on its own: when the whole-photo focus check does not fail, a face whose
+    ONLY failure is the face-crop sharpness becomes a warning. KEEP IN SYNC with facecheck.js::softenCropBlur."""
+    if not face or face["status"] != FAIL or not blur or blur["status"] == FAIL:
+        return face
+    reasons = (face.get("details") or {}).get("reasons") or []
+    fails = [r for r in reasons if r["status"] == FAIL]
+    if not fails or not all(r["metric"] == "cropBlur" for r in fails):
+        return face
+    return {**face, "status": WARN,
+            "hint": "Your face is a little soft. Hold steady and let the camera focus on your face; you can still submit.",
+            "details": {**face["details"], "softened": "crop_blur_only",
+                        "reasons": [{**r, "status": WARN} if r["metric"] == "cropBlur" else r for r in reasons]}}
 
 
 def _unchecked(reason):

@@ -71,10 +71,12 @@ def test_face_geometry_matches_the_client_rules():
     assert two["status"] == "warn" and "More than one" in two["hint"]
 
 
-def test_api_selfie_task_with_a_real_face_is_accepted(client):
+def test_api_selfie_task_with_a_real_face_passes_the_face_check_but_a_picked_file_is_not_live(client):
     body = submit(client, imgs.face_photo(), task="task_selfie_checkin", client_report=passing_client_report(1200, 1200)).json()
-    assert body["photo_verdict"] == "pass", body["quality_flags"]
     assert body["photo_quality"]["server"]["checks"]["face"]["status"] == "pass"
+    # Phase 7: a selfie is only "verified" with a live challenge (see tests/test_liveness_server.py for the full pass);
+    # a picked file has none, so it is accepted for review, not passed.
+    assert body["photo_verdict"] == "warn" and "liveness_unverified" in body["quality_flags"]
 
 
 def test_api_client_claiming_a_face_where_there_is_none_is_caught(client):

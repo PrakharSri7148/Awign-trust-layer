@@ -177,3 +177,26 @@ test('compactReport sends the sensor evidence to the server (and nothing for fil
   assert.equal(c.checks.shake.status, STATUS.FAIL)
   assert.ok(!JSON.stringify(c).includes('tileScores')) // heavy details are not sent
 })
+
+// ---- the worker's message handling (the Worker itself only forwards messages) -----------------
+import { handleMessage } from './workerHandlers.js'
+
+test('worker: a live message gives the same HUD numbers as analyzing on this thread', () => {
+  const rgba = toRgba(scene)
+  const opts = { motion: steadySamples.map((s) => ({ ...s, rot: 2 })), task: { face: 'off' }, video: { width: 1920, height: 1080 }, nativeCrop: null }
+  const direct = analyzeLive(frameFromGray(scene, W, H, { rgba }), opts)
+  const reply = handleMessage({ id: 7, type: 'live', frame: { rgba, width: W, height: H }, opts })
+  assert.equal(reply.id, 7)
+  assert.deepEqual(reply.summary.metrics, direct.metrics)
+  assert.deepEqual(reply.summary.checks, direct.checks)
+  assert.deepEqual(reply.summary.state, direct.state) // the smoothing state comes back for the next tick
+})
+
+test('worker: a full-analysis message still works, and a bad message is an error reply, not a crash', () => {
+  const { payload } = frameToTransfer(frameFromGray(scene, W, H, { native: { width: 2000, height: 1500 } }))
+  const ok = handleMessage({ id: 1, frame: structuredClone(payload), task: {} })
+  assert.equal(ok.report.verdict, VERDICT.PASS)
+  const bad = handleMessage({ id: 2, type: 'live', frame: null, opts: {} })
+  assert.equal(bad.id, 2)
+  assert.match(bad.error, /./)
+})

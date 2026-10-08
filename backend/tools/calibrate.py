@@ -28,7 +28,11 @@ from photo_quality.config import task_config  # noqa: E402
 from photo_quality.frame import ImageDecodeError  # noqa: E402
 
 SAMPLES = ROOT / "edge-validator" / "samples"
-EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+EXTS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif"}
+
+# Folders analysed as a face task (everything else is analysed as a plain photo task, so a good
+# shelf photo is never failed for "no face"). `good_selfies` = clear selfies, the face check's "good".
+FACE_FOLDERS = {"face_not_visible", "good_selfies"}
 
 # folder -> the check that should catch it. (shaky photos may be caught by blur too.)
 EXPECTED = {
@@ -47,6 +51,9 @@ TUNABLE = {
     "glare": ("glare", [("warnArea", "high"), ("failArea", "high")]),
     "obstruction": ("obstruction", [("warnArea", "high"), ("failArea", "high")]),
 }
+
+
+DEFAULT_TASK_CFG = task_config("task_demo_1")
 
 
 def load_samples(root: Path):
@@ -92,13 +99,83 @@ def demo_samples(tmp: Path):
     return tmp
 
 
+SYNTHETIC = {"lens_covered", "noisy_compressed", "overexposed", "glare"}
+
+
+def synthesize(good_files, kinds, dest: Path, n=40, max_side=1600):
+    """Degrade real good photos into the issues that have no real samples yet.
+
+    These are the SAME degradations the checks were designed against, so they prove the checks
+    work and find gross threshold problems, but they cannot tell you how real worker photos of
+    these problems look. The report labels them (synthetic).
+    """
+    import io
+
+    from PIL import Image, ImageDraw, ImageFilter
+
+    rng = np.random.default_rng(7)
+    picks = good_files[:: max(1, len(good_files) // n)][:n]
+
+    def load(f):
+        im = Image.open(f).convert("RGB")
+        im.thumbnail((max_side, max_side))
+        return im
+
+    def save(im, folder, i, q=93):
+        d = dest / folder
+        d.mkdir(parents=True, exist_ok=True)
+        im.save(d / f"synthetic_{i:03d}.jpg", "JPEG", quality=q)
+
+    for i, f in enumerate(picks):
+        im = load(f)
+        w, h = im.size
+        if "lens_covered" in kinds:
+            c = im.copy()
+            d = ImageDraw.Draw(c, "RGBA")
+            kind = i % 3
+            if kind == 0:  # dark patch over a corner (cloth / dirt)
+                d.rectangle([0, 0, int(w * rng.uniform(0.35, 0.55)), int(h * rng.uniform(0.35, 0.55))], fill=(10, 10, 10, 255))
+            elif kind == 1:  # a finger over the lens: warm, flat, soft-edged, from a bottom corner
+                r = int(min(w, h) * rng.uniform(0.35, 0.55))
+                layer = Image.new("RGBA", im.size, (0, 0, 0, 0))
+                ImageDraw.Draw(layer).ellipse([w - r, h - r, w + r, h + r], fill=(205, 140, 115, 255))
+                layer = layer.filter(ImageFilter.GaussianBlur(r * 0.06))
+                c = Image.alpha_composite(c.convert("RGBA"), layer).convert("RGB")
+            else:  # most of the frame dark
+                d.rectangle([0, 0, int(w * rng.uniform(0.6, 0.9)), h], fill=(8, 8, 10, 255))
+            save(c, "lens_covered", i)
+        if "noisy_compressed" in kinds:
+            a = np.asarray(im, dtype=np.float32)
+            if i % 2 == 0:  # grainy low light
+                a = np.clip(a + rng.normal(0, rng.uniform(9, 16), a.shape), 0, 255)
+                save(Image.fromarray(a.astype("uint8")), "noisy_compressed", i, q=92)
+            else:  # heavily recompressed (forwarded copy)
+                save(im, "noisy_compressed", i, q=int(rng.integers(12, 30)))
+        if "overexposed" in kinds:
+            a = np.asarray(im, dtype=np.float32) * rng.uniform(1.7, 2.4) + rng.uniform(50, 100)
+            save(Image.fromarray(np.clip(a, 0, 255).astype("uint8")), "overexposed", i)
+        if "glare" in kinds:
+            c = im.copy().convert("RGBA")
+            for _ in range(int(rng.integers(1, 3))):
+                r = int(min(w, h) * rng.uniform(0.2, 0.4))
+                cx, cy = int(rng.uniform(0.2, 0.8) * w), int(rng.uniform(0.2, 0.8) * h)
+                core = Image.new("RGBA", im.size, (0, 0, 0, 0))
+                ImageDraw.Draw(core).ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 255, 255, 255))
+                halo = Image.new("RGBA", im.size, (0, 0, 0, 0))
+                ImageDraw.Draw(halo).ellipse([cx - r * 2, cy - r * 2, cx + r * 2, cy + r * 2], fill=(255, 255, 250, 150))
+                halo = halo.filter(ImageFilter.GaussianBlur(r * 0.7))
+                c = Image.alpha_composite(Image.alpha_composite(c, halo), core.filter(ImageFilter.GaussianBlur(r * 0.15)))
+            save(c.convert("RGB"), "glare", i)
+
+
 def analyze_all(samples, task):
     results = {}
     for folder, files in samples.items():
+        task = task_config("task_selfie_checkin") if folder in FACE_FOLDERS else DEFAULT_TASK_CFG
         rows = []
         for f in files:
             try:
-                rows.append((f.name, analyze_image(f.read_bytes(), f"image/{f.suffix[1:]}", task)))
+                rows.append((f.name, analyze_image(f.read_bytes(), f"image/{f.suffix[1:].lower()}", task)))
             except ImageDecodeError as exc:
                 print(f"  ! skipped {folder}/{f.name}: {exc}")
         results[folder] = rows
@@ -151,7 +228,9 @@ def main(argv=None):
     ap.add_argument("--samples", type=Path, default=SAMPLES, help="folder of <issue>/ sub-folders")
     ap.add_argument("--demo", action="store_true", help="use bundled photos + synthetic degradations")
     ap.add_argument("--max-false-reject", type=float, default=0.03, help="target share of GOOD photos that may be blocked (default 0.03)")
-    ap.add_argument("--task", default="task_demo_1", help="task id to analyse for (face checks need a face task)")
+    ap.add_argument("--synthesize", default="", help="comma list of folders to generate synthetically from good/ (lens_covered,noisy_compressed,overexposed,glare)")
+    ap.add_argument("--skip", default="", help="comma list of folders to ignore")
+    ap.add_argument("--dump", type=Path, help="write every photo's per-check status/value to this JSON file (for threshold analysis)")
     ap.add_argument("--write", action="store_true", help="write thresholds.suggested.json")
     args = ap.parse_args(argv)
 
@@ -165,6 +244,17 @@ def main(argv=None):
         print(f"DEMO MODE: {sum(len(list(p.iterdir())) for p in root.iterdir())} generated photos (real photographs + synthetic degradations). Not a substitute for worker photos.\n")
 
     samples = load_samples(root)
+    for name in [x for x in args.skip.split(",") if x]:
+        samples.pop(name, None)
+    synth = [x for x in args.synthesize.split(",") if x]
+    if synth and "good" in samples:
+        import tempfile
+
+        sdir = Path(tempfile.mkdtemp(prefix="calib-synth-"))
+        synthesize(samples["good"], set(synth), sdir)
+        for name in synth:
+            if (sdir / name).exists():
+                samples[name] = sorted(f for f in (sdir / name).iterdir() if f.suffix.lower() in EXTS)
     if not samples:
         print(f"No photos found in {root}.\nAdd photos to edge-validator/samples/<issue>/ (see samples/README.md), or try --demo.")
         return 1
@@ -172,12 +262,16 @@ def main(argv=None):
         print("There is no samples/good/ folder: without good photos false rejections cannot be measured. Add at least ~30.")
         return 1
 
-    # Face tasks need the face detector and a face task; fold them in only when asked for.
-    task = task_config("task_selfie_checkin" if "face_not_visible" in samples else args.task)
-    results = analyze_all(samples, task)
+    results = analyze_all(samples, None)
+    if args.dump:
+        args.dump.write_text(json.dumps({
+            folder: [{"file": n, "verdict": r["verdict"], "quality": r["qualityScore"],
+                      "checks": {c: {"status": v["status"], "value": v["value"], "hint": v["hint"]} for c, v in r["checks"].items()}}
+                     for n, r in rows] for folder, rows in results.items()}))
+        print(f"(per-photo results written to {args.dump})")
     good = results["good"]
     n_good = len(good)
-    print(f"{'folder':<18}{'photos':>7}  {'pass':>5} {'warn':>5} {'block':>5}   caught by the expected check (warn+)")
+    print(f"{'folder':<30}{'photos':>7}  {'pass':>5} {'warn':>5} {'block':>5}   caught by the expected check (warn+)")
     for folder, rows in results.items():
         verdicts = Counter(r["verdict"] for _n, r in rows)
         expect = EXPECTED.get(folder)
@@ -185,7 +279,7 @@ def main(argv=None):
         if expect and rows:
             hit = sum(any(r["checks"].get(c, {}).get("status") in ("warn", "fail") for c in expect) for _n, r in rows)
             caught = f"{hit}/{len(rows)} = {100 * hit / len(rows):.0f}%  ({'/'.join(expect)})"
-        print(f"{folder:<18}{len(rows):>7}  {verdicts['pass']:>5} {verdicts['warn']:>5} {verdicts['block']:>5}   {caught}")
+        print(f"{folder + (' (synthetic)' if folder in synth else ''):<30}{len(rows):>7}  {verdicts['pass']:>5} {verdicts['warn']:>5} {verdicts['block']:>5}   {caught}")
 
     bad_good = sum(r["verdict"] == "block" for _n, r in good)
     warn_good = sum(r["verdict"] == "warn" for _n, r in good)
@@ -233,6 +327,20 @@ def main(argv=None):
             if folder in results:
                 vals = [metric(r, "exposure") for _n, r in results[folder]]
                 print(f"      {folder:<12} median mean-luma {np.median(vals):.0f} [min {min(vals):.0f} .. max {max(vals):.0f}]")
+
+    if "face_not_visible" in results:
+        bad_scores = [d["score"] for _n, r in results["face_not_visible"] if (d := r["checks"].get("face", {}).get("details", {})).get("score") is not None]
+        found = sum(1 for _n, r in results["face_not_visible"] if r["checks"].get("face", {}).get("details", {}).get("count", 0) > 0)
+        n = len(results["face_not_visible"])
+        flagged = sum(1 for _n, r in results["face_not_visible"] if r["checks"].get("face", {}).get("status") in ("warn", "fail"))
+        print(f"  face         face_not_visible n={n}: detector found a face in {found}/{n}; flagged warn/fail in {flagged}/{n} ({100 * flagged / n:.0f}%)")
+        if "good_selfies" in results and results["good_selfies"]:
+            g = results["good_selfies"]
+            gf = sum(1 for _n, r in g if r["checks"].get("face", {}).get("status") == "fail")
+            gw = sum(1 for _n, r in g if r["checks"].get("face", {}).get("status") == "warn")
+            print(f"               good_selfies n={len(g)}: {gf} wrongly failed, {gw} warned ({100 * (gf + gw) / len(g):.0f}% flagged)")
+        else:
+            print("               (no good_selfies/ folder: cannot measure how often a CLEAR face is wrongly rejected)")
 
     if args.write and suggestions:
         cur = json.loads(config._PATH.read_text())

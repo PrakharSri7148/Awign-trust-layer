@@ -59,3 +59,32 @@ test('every threshold group the dashboard/calibration relies on exists', () => {
     assert.ok(thresholds.thresholds[g], g)
   assert.equal(pct(0.1234), '12.3%')
 })
+
+// ---- formatMetric: the post-capture checklist uses the HUD's words --------------------------
+import { formatMetric } from './format.js'
+
+const chk = (value, details = {}, status = 'pass') => ({ status, value, details })
+
+test('formatMetric reads each check from the field it actually lives in', () => {
+  assert.equal(formatMetric('blur', chk(0.45)), 'Focus 100%')
+  assert.equal(formatMetric('blur', chk(0.2125)), 'Focus 46%') // same ramp as the live bar: (0.2125-0.05)/0.35 = 46.4%
+  assert.equal(formatMetric('blur', chk(null)), 'Focus —') // flat scene
+  assert.equal(formatMetric('exposure', chk(127.5, { clippedFrac: 0 })), 'Brightness 50%')
+  assert.equal(formatMetric('resolution', chk(2.07, { width: 1920, height: 1080 })), '1920×1080') // value is megapixels
+  assert.equal(formatMetric('noise', chk(2.14)), 'σ 2.1')
+  assert.equal(formatMetric('obstruction', chk(0.01, { fullCover: false })), 'Lens clear')
+  assert.equal(formatMetric('obstruction', chk(0.18, { fullCover: false })), 'Lens partly 18%')
+  assert.equal(formatMetric('obstruction', chk(0.9, { fullCover: true })), 'Lens covered')
+  assert.equal(formatMetric('glare', chk(0.004)), 'Glare 0.4%')
+  assert.equal(formatMetric('shake', chk(1.1, { sensor: { rotRms: 5.2 } })), '5°/s')
+  assert.equal(formatMetric('shake', chk(1.1, {})), 'no sensor') // a picked file has no sensor
+  assert.equal(formatMetric('face', chk(0.21, { count: 1, score: 0.92, heightFrac: 0.21 })), '92% · 21%')
+  assert.equal(formatMetric('face', chk(0, { count: 0 })), 'not found')
+  assert.equal(formatMetric('face', chk(null, { unchecked: true })), 'unchecked')
+})
+
+test('formatMetric has nothing to say about skipped or unknown checks', () => {
+  assert.equal(formatMetric('blur', { status: 'skip', details: {} }), null)
+  assert.equal(formatMetric('blur', undefined), null)
+  assert.equal(formatMetric('nope', chk(1)), null)
+})

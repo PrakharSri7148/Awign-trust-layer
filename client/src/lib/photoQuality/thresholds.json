@@ -2,8 +2,8 @@
   "_doc": "Single source of truth for the photo-quality engine. Read by the client (config.js) and the backend recheck (backend/photo_quality). Every number is a starting value: re-tune with real worker photos (edge-validator/samples/README.md).",
   "thresholds": {
     "blur": {
-      "failBelow": 0.14,
-      "warnBelow": 0.21,
+      "failBelow": 0.16,
+      "warnBelow": 0.25,
       "minTileRange": 20,
       "minTexturedTiles": 2,
       "grid": 3
@@ -47,14 +47,22 @@
       "maxSide": 800,
       "minLocalRange": 25,
       "minBinFrac": 0.002,
-      "warnAniso": 1.4,
-      "failAniso": 1.8,
+      "warnAniso": 1.25,
+      "failAniso": 1.6,
       "sensor": {
         "rotWarn": 25,
         "rotFail": 60,
         "accWarn": 1.2,
         "accFail": 3.0,
         "minSamples": 3
+      },
+      "optical": {
+        "thumbWidth": 160,
+        "maxShift": 6,
+        "warnPct": 1.0,
+        "failPct": 3.0,
+        "perMs": 200,
+        "minContrast": 0.5
       }
     },
     "obstruction": {
@@ -102,7 +110,109 @@
       "burst": {
         "frames": 8,
         "scoreSize": 480
+      },
+      "hud": {
+        "ema": 0.4,
+        "hysteresisTicks": 2,
+        "focusFull": 0.4,
+        "nativeCrop": 256,
+        "cropEvery": 2,
+        "faceMissesBeforeNotFound": 3,
+        "segments": 10,
+        "overallSegments": 20
       }
+    },
+    "liveness": {
+      "challengesPerAttempt": 2,
+      "timeoutMs": 4000,
+      "neutralMs": 200,
+      "faceLostMs": 1200,
+      "validForMs": 30000,
+      "maxAttempts": 3,
+      "sampleEveryMs": 70,
+      "pool": [
+        "blink",
+        "turn_left",
+        "turn_right",
+        "smile",
+        "open_mouth"
+      ],
+      "blink": {
+        "neutralBelow": 0.25,
+        "activeAbove": 0.55,
+        "holdMs": 0,
+        "needReturn": true,
+        "maxActiveMs": 1200
+      },
+      "smile": {
+        "neutralBelow": 0.25,
+        "activeAbove": 0.55,
+        "holdMs": 300
+      },
+      "open_mouth": {
+        "neutralBelow": 0.12,
+        "activeAbove": 0.4,
+        "holdMs": 300
+      },
+      "turn": {
+        "neutralBelowDeg": 8,
+        "activeAboveDeg": 20,
+        "holdMs": 300
+      },
+      "evidence": {
+        "maxSamples": 160
+      }
+    },
+    "passive": {
+      "moire": {
+        "size": 256,
+        "bandLo": 0.0625,
+        "bandHi": 0.4545,
+        "axisExclude": 3,
+        "peakAt": 8,
+        "warn": 8,
+        "fail": 15
+      },
+      "bezel": {
+        "maxSide": 320,
+        "edgeStep": 10,
+        "coverage": 0.6,
+        "span": 0.7,
+        "minGap": 0.3,
+        "inset": 0.02,
+        "band": 4,
+        "minStep": 18,
+        "stepFull": 40,
+        "minArea": 0.3,
+        "faceInside": 0.9
+      },
+      "banding": {
+        "minFrames": 4,
+        "energyPct": 0.8,
+        "periodicity": 0.35,
+        "minDriftRows": 1,
+        "full": 2.5
+      },
+      "planarity": {
+        "minMotion": 0.012,
+        "planarRelBelow": 0.35,
+        "organicRelAbove": 0.8,
+        "windowMs": 1000,
+        "minPoints": 8
+      },
+      "glareFace": {
+        "warnOverlap": 0.15,
+        "fullOverlap": 0.5
+      },
+      "weights": {
+        "moire": 0.6,
+        "bezel": 0.5,
+        "banding": 0.3,
+        "planar": 0.35,
+        "glareFace": 0.2
+      },
+      "warnAt": 0.45,
+      "failAt": 1.01
     }
   },
   "policy": {
@@ -129,6 +239,9 @@
     },
     "noise": {
       "blockOnFail": false
+    },
+    "liveness": {
+      "blockOnFail": true
     }
   },
   "default_task": {

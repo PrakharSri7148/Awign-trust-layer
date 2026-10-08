@@ -38,9 +38,9 @@ export function evaluateFace(faces, frame, cfg = THRESHOLDS.face) {
 
   // Detector confidence: low when the face is covered, in shadow or heavily turned.
   if (main.score < cfg.minScoreFail) {
-    problems.push({ k: 'score', s: STATUS.FAIL, hint: 'No clear face found. Remove anything covering your face, improve the light and face the camera.' })
+    problems.push({ k: 'score', s: STATUS.FAIL, m: 'confidence', value: main.score, limit: cfg.minScoreFail, hint: 'No clear face found. Remove anything covering your face, improve the light and face the camera.' })
   } else if (main.score < cfg.minScoreWarn) {
-    problems.push({ k: 'score', s: STATUS.WARN, hint: 'Your face is only partly clear. Improve the light and face the camera.' })
+    problems.push({ k: 'score', s: STATUS.WARN, m: 'confidence', value: main.score, limit: cfg.minScoreWarn, hint: 'Your face is only partly clear. Improve the light and face the camera.' })
   }
 
   // Cut off by the frame edge.
@@ -50,16 +50,16 @@ export function evaluateFace(faces, frame, cfg = THRESHOLDS.face) {
   const inside = (p) => p && p.x >= cfg.edgeMargin && p.x <= 1 - cfg.edgeMargin && p.y >= cfg.edgeMargin && p.y <= 1 - cfg.edgeMargin
   const eyesInside = inside(eyeR) && inside(eyeL)
   if (visible < cfg.visibleFail || (kp.length >= 2 && !eyesInside)) {
-    problems.push({ k: 'cut', s: STATUS.FAIL, hint: 'Your face is cut off by the edge of the photo. Move back or re-centre so the whole face is in frame.' })
+    problems.push({ k: 'cut', s: STATUS.FAIL, m: visible < cfg.visibleFail ? 'visible' : 'eyesInside', value: visible, limit: cfg.visibleFail, hint: 'Your face is cut off by the edge of the photo. Move back or re-centre so the whole face is in frame.' })
   } else if (visible < cfg.visibleWarn) {
-    problems.push({ k: 'cut', s: STATUS.WARN, hint: 'Part of your face touches the edge of the photo. Re-centre yourself.' })
+    problems.push({ k: 'cut', s: STATUS.WARN, m: 'visible', value: visible, limit: cfg.visibleWarn, hint: 'Part of your face touches the edge of the photo. Re-centre yourself.' })
   }
 
   // Too small / far away.
   if (b.h < cfg.minHeightFail) {
-    problems.push({ k: 'size', s: STATUS.FAIL, hint: 'Your face is too small in the photo. Move closer to the camera.' })
+    problems.push({ k: 'size', s: STATUS.FAIL, m: 'height', value: b.h, limit: cfg.minHeightFail, hint: 'Your face is too small in the photo. Move closer to the camera.' })
   } else if (b.h < cfg.minHeightWarn) {
-    problems.push({ k: 'size', s: STATUS.WARN, hint: 'Your face is quite small in the photo. Move a little closer.' })
+    problems.push({ k: 'size', s: STATUS.WARN, m: 'height', value: b.h, limit: cfg.minHeightWarn, hint: 'Your face is quite small in the photo. Move a little closer.' })
   }
 
   // Pose, from the eye/nose keypoints (pixel space, so a non-square frame doesn't skew angles).
@@ -78,12 +78,12 @@ export function evaluateFace(faces, frame, cfg = THRESHOLDS.face) {
     }
   }
   if (yaw != null && Math.abs(yaw) >= cfg.yawFail) {
-    problems.push({ k: 'pose', s: STATUS.FAIL, hint: 'You are looking away from the camera. Face the camera directly.' })
+    problems.push({ k: 'pose', s: STATUS.FAIL, m: 'yaw', value: Math.abs(yaw), limit: cfg.yawFail, hint: 'You are looking away from the camera. Face the camera directly.' })
   } else if (yaw != null && Math.abs(yaw) >= cfg.yawWarn) {
-    problems.push({ k: 'pose', s: STATUS.WARN, hint: 'Your head is turned. Face the camera directly.' })
+    problems.push({ k: 'pose', s: STATUS.WARN, m: 'yaw', value: Math.abs(yaw), limit: cfg.yawWarn, hint: 'Your head is turned. Face the camera directly.' })
   }
   if (roll != null && Math.abs(roll) >= cfg.rollWarn) {
-    problems.push({ k: 'pose', s: STATUS.WARN, hint: 'Your head is tilted. Hold the phone level.' })
+    problems.push({ k: 'pose', s: STATUS.WARN, m: 'roll', value: Math.abs(roll), limit: cfg.rollWarn, hint: 'Your head is tilted. Hold the phone level.' })
   }
 
   // Is the FACE itself sharp and evenly lit? (The whole-photo checks can pass while the face is blurred or in shadow.)
@@ -96,12 +96,12 @@ export function evaluateFace(faces, frame, cfg = THRESHOLDS.face) {
   if (crop) {
     const blur = blurMetrics(crop.gray, crop.width, crop.height, { grid: 1, minTileRange: 12, minTexturedTiles: 1 }).score
     const exp = exposureMetrics((inner ?? crop).gray)
-    cropInfo = { blur, mean: exp.mean, clippedFrac: exp.clippedFrac }
-    if (blur != null && blur < cfg.cropBlurFail) problems.push({ k: 'quality', s: STATUS.FAIL, hint: 'Your face is blurry. Hold steady and let the camera focus on your face.' })
-    else if (blur != null && blur < cfg.cropBlurWarn) problems.push({ k: 'quality', s: STATUS.WARN, hint: 'Your face is a little soft. Hold steady.' })
-    if (exp.mean < cfg.cropDarkMeanFail) problems.push({ k: 'quality', s: STATUS.FAIL, hint: 'Your face is in shadow. Face the light.' })
-    else if (exp.mean < cfg.cropDarkMeanWarn) problems.push({ k: 'quality', s: STATUS.WARN, hint: 'Your face is a bit dark. Face the light.' })
-    if (exp.clippedFrac > cfg.cropClippedWarn) problems.push({ k: 'quality', s: STATUS.WARN, hint: 'Your face is washed out by bright light. Move out of direct glare.' })
+    cropInfo = { blur, mean: exp.mean, clippedFrac: exp.clippedFrac, width: crop.width, height: crop.height }
+    if (blur != null && blur < cfg.cropBlurFail) problems.push({ k: 'quality', s: STATUS.FAIL, m: 'cropBlur', value: blur, limit: cfg.cropBlurFail, hint: 'Your face is blurry. Hold steady and let the camera focus on your face.' })
+    else if (blur != null && blur < cfg.cropBlurWarn) problems.push({ k: 'quality', s: STATUS.WARN, m: 'cropBlur', value: blur, limit: cfg.cropBlurWarn, hint: 'Your face is a little soft. Hold steady.' })
+    if (exp.mean < cfg.cropDarkMeanFail) problems.push({ k: 'quality', s: STATUS.FAIL, m: 'cropMean', value: exp.mean, limit: cfg.cropDarkMeanFail, hint: 'Your face is in shadow. Face the light.' })
+    else if (exp.mean < cfg.cropDarkMeanWarn) problems.push({ k: 'quality', s: STATUS.WARN, m: 'cropMean', value: exp.mean, limit: cfg.cropDarkMeanWarn, hint: 'Your face is a bit dark. Face the light.' })
+    if (exp.clippedFrac > cfg.cropClippedWarn) problems.push({ k: 'quality', s: STATUS.WARN, m: 'cropClipped', value: exp.clippedFrac, limit: cfg.cropClippedWarn, hint: 'Your face is washed out by bright light. Move out of direct glare.' })
   }
 
   // Eyes hidden (sunglasses, a hand, a cap pulled down): the detector still "finds"
@@ -125,7 +125,7 @@ export function evaluateFace(faces, frame, cfg = THRESHOLDS.face) {
     const eyeMean = (patchMean(eyeR) + patchMean(eyeL)) / 2
     cropInfo.eyeRatio = cropMean > 0 ? eyeMean / cropMean : 1
     if (cropInfo.eyeRatio < cfg.eyeDarkRatio) {
-      problems.push({ k: 'eyes', s: STATUS.WARN, hint: 'Your eyes look covered. Take off sunglasses or anything hiding your eyes.' })
+      problems.push({ k: 'eyes', s: STATUS.WARN, m: 'eyeRatio', value: cropInfo.eyeRatio, limit: cfg.eyeDarkRatio, hint: 'Your eyes look covered. Take off sunglasses or anything hiding your eyes.' })
     }
   }
 
@@ -161,8 +161,27 @@ export function evaluateFace(faces, frame, cfg = THRESHOLDS.face) {
       crop: cropInfo,
       box: { x: b.x, y: b.y, w: b.w, h: b.h },
       problems: problems.map((p) => `${p.s}: ${p.hint}`),
+      // Structured twin of `problems`: which measurement, what value, against which limit (for "why was this refused").
+      reasons: problems.map((p) => ({ k: p.k, status: p.s, metric: p.m ?? null, value: p.value ?? null, limit: p.limit ?? null })),
     },
   })
+}
+
+// One sharpness signal must not block a face on its own. The face-crop blur is measured on a small crop of mostly
+// smooth skin (noisier than the whole-frame score), so when the whole-photo focus check does NOT fail, a face whose
+// ONLY failure is the crop sharpness becomes a warning ("Submit anyway", recorded) instead of a block. Measured on the
+// real blurry/shaky faces: 0 of 17 are caught by the crop alone (the whole-frame focus catches them), so no catch is lost.
+// KEEP IN SYNC with backend/photo_quality/face.py::soften_crop_blur.
+export function softenCropBlur(face, blur) {
+  if (!face || face.status !== STATUS.FAIL || !blur || blur.status === STATUS.FAIL) return face
+  const fails = (face.details?.reasons ?? []).filter((r) => r.status === STATUS.FAIL)
+  if (!fails.length || !fails.every((r) => r.metric === 'cropBlur')) return face
+  return {
+    ...face,
+    status: STATUS.WARN,
+    hint: 'Your face is a little soft. Hold steady and let the camera focus on your face; you can still submit.',
+    details: { ...face.details, softened: 'crop_blur_only', reasons: face.details.reasons.map((r) => (r.metric === 'cropBlur' ? { ...r, status: STATUS.WARN } : r)) },
+  }
 }
 
 // pad > 0 grows the face box by that share of its size on every side, pad < 0 shrinks it.

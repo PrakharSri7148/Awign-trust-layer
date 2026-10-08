@@ -1,12 +1,12 @@
 import { CHECKS } from './checks/index.js'
 import { DEFAULT_TASK, POLICY } from './config.js'
 import { decodeToFrame } from './decode.js'
-import { checkFace } from './face/facecheck.js'
+import { checkFace, softenCropBlur } from './face/facecheck.js'
 import { aggregate } from './policy.js'
 import { REPORT_VERSION, STATUS, checkResult } from './schema.js'
 
 export { decodeToFrame } from './decode.js'
-export { checkFace, evaluateFace } from './face/facecheck.js'
+export { checkFace, evaluateFace, softenCropBlur } from './face/facecheck.js'
 export { buildFrame } from './frame.js'
 export * from './schema.js'
 
@@ -58,7 +58,7 @@ export async function analyzeFrameAsync(frame, { task = {}, checks = CHECKS, pol
   const t0 = now()
   const taskCfg = { ...DEFAULT_TASK, ...task }
   const results = runChecks(frame, taskCfg, checks)
-  if (taskCfg.face !== 'off') results.push(await checkFace(frame, { task: taskCfg, detector }))
+  if (taskCfg.face !== 'off') results.push(softenCropBlur(await checkFace(frame, { task: taskCfg, detector }), results.find((r) => r.id === 'blur')))
   return finish(frame, results, taskCfg, policy, t0)
 }
 

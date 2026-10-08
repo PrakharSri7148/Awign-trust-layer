@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "_note": "STARTING VALUES, UNCALIBRATED. Chosen from physical reasoning (walking cadence ~1.8 Hz, GPS error ~ reported accuracy, ...), not measured on real worker traces. Read by BOTH the browser recorder and the Python engine (backend/fusion/config.py; env FUSION_CONFIG overrides the path). Change a value only with evidence and record it in Sensor-fusion/thresholds-changelog.md.",
+  "trail": {
+    "windowS": 5,
+    "fixIntervalS": 5,
+    "maxFixes": 240,
+    "maxWindows": 120,
+    "maxTrailS": 600,
+    "minTrailS": 60,
+    "maxBytes": 262144,
+    "clockSkewS": 120,
+    "visitTtlH": 12
+  },
+  "policy": {
+    "_note": "Per task: off | optional | required. 'required' + not enough evidence sends the case to review (never blocks).",
+    "default": "optional",
+    "tasks": {}
+  },
+  "geo": {
+    "accMaxUsableM": 50,
+    "errorAllowanceFactor": 2.0,
+    "jumpSpeedMs": 55,
+    "jumpDistanceM": 1000,
+    "jumpWindowS": 60,
+    "blockHalfS": 15,
+    "blockMinSpanS": 15,
+    "minReliableFixes": 3,
+    "mock": {
+      "minFixes": 6,
+      "minDurationS": 30,
+      "maxPosStdM": 0.5,
+      "constAccShare": 0.9,
+      "maxAccForGpsGradeM": 15,
+      "minLinearM": 200,
+      "linearResidualM": 1.0
+    }
+  },
+  "activity": {
+    "minHzForCadence": 20,
+    "cadenceFs": 25,
+    "still": { "accRms": 0.15, "gyroRms": 8 },
+    "walking": { "cadPw": 0.35, "cadHzMin": 1.2, "cadHzMax": 2.8, "accRms": 0.6 }
+  },
+  "consistency": {
+    "walkSpeedMinMs": 0.6,
+    "stillSpeedMs": 0.3,
+    "vehicleSpeedMs": 5.0,
+    "jumpContextS": 10,
+    "jumpMotionShare": 0.25,
+    "approachFarM": 150,
+    "approachMinMovingShare": 0.3,
+    "minEvaluableWindows": 3,
+    "minMovingWindows": 2,
+    "vehicleWeightScale": 0.3,
+    "baseScore": 0.9,
+    "rhythmBonus": 0.1,
+    "unknownValue": 0.5,
+    "speedMismatchMs": 3.0,
+    "speedMismatchMinBlocks": 5,
+    "rawMismatch": { "ratio": 3.0, "absDiff": 0.5 },
+    "weights": {
+      "jumpFlat": 0.7,
+      "jumpUnverified": 0.35,
+      "jumpWithMotion": 0.1,
+      "flatWhileMoving": 0.6,
+      "arrivalNoApproach": 0.4,
+      "outsideSite": 0.3,
+      "tooPerfect": 0.2,
+      "speedMismatch": 0.15,
+      "windowRawMismatch": 0.3,
+      "energyWhileStill": 0.1
+    }
+  },
+  "environment": {
+    "profileMin": 3,
+    "unknownValue": 0.5,
+    "ipFarKm": 300,
+    "tzToleranceH": 4,
+    "hostingKeywords": ["amazon", "aws", "google cloud", "microsoft azure", "digitalocean", "ovh", "hetzner", "linode", "vultr", "m247", "choopa", "leaseweb", "datacamp", "nordvpn", "expressvpn", "proton", "mullvad", "vpn", "proxy", "hosting", "datacenter", "data center"],
+    "weights": {
+      "linkUnseen": 0.2,
+      "asnUnseen": 0.2,
+      "ipFar": 0.35,
+      "ipCountry": 0.7,
+      "hosting": 0.3,
+      "tz": 0.1,
+      "radioNoOverlap": 0.6
+    }
+  }
+}

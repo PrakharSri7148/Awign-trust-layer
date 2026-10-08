@@ -5,6 +5,13 @@ from dataclasses import dataclass, field
 import numpy as np
 from PIL import Image, ImageOps
 
+try:  # iPhones save HEIC; browsers usually convert it on upload, but a file picker can deliver it as is
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except ImportError:  # optional: without it HEIC photos are rejected as undecodable
+    pass
+
 ANALYSIS_MAX = 1280
 PATCH_SIZE = 384
 MAX_PIXELS = 100_000_000  # refuse decompression bombs

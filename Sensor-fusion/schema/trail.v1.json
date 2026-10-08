@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sensor-fusion trail v1 (the `trail` field of POST /submissions)",
+  "description": "Recorded by client/src/lib/sensorFusion/tripRecorder.js, validated by backend/fusion/trail.py. Every field is optional; a malformed trail becomes the flag trail_invalid, never an error. Times are epoch milliseconds corrected to the SERVER's clock by the offset measured when the visit was opened.",
+  "type": "object",
+  "properties": {
+    "v": { "const": 1 },
+    "started_at": { "type": "number" },
+    "ended_at": { "type": "number" },
+    "time_origin": { "type": ["number", "null"], "description": "performance.timeOrigin (server-corrected); lets the server turn the raw 3 s sample's timestamps into epoch time for the cross-check" },
+    "fixes": {
+      "type": "array", "maxItems": 240,
+      "items": { "type": "object", "required": ["t", "lat", "lng"], "properties": {
+        "t": { "type": "number" }, "lat": { "type": "number", "minimum": -90, "maximum": 90 }, "lng": { "type": "number", "minimum": -180, "maximum": 180 },
+        "acc": { "type": ["number", "null"], "description": "metres (68% radius)" }, "speed": { "type": ["number", "null"], "description": "m/s as reported by the device" },
+        "heading": { "type": ["number", "null"] }, "alt": { "type": ["number", "null"] } } }
+    },
+    "windows": {
+      "type": "array", "maxItems": 120,
+      "items": { "type": "object", "required": ["t0", "t1"], "properties": {
+        "t0": { "type": "number" }, "t1": { "type": "number" }, "n": { "type": "number", "description": "samples in the window" }, "hz": { "type": ["number", "null"] },
+        "acc_rms": { "type": ["number", "null"], "description": "m/s^2, gravity removed; null = no accelerometer data (never 0)" },
+        "acc_peak": { "type": ["number", "null"] }, "gyro_rms": { "type": ["number", "null"], "description": "deg/s" },
+        "cad_hz": { "type": ["number", "null"], "description": "walking rhythm; null when the sensor rate is below 20 Hz or the signal is flat" }, "cad_pw": { "type": ["number", "null"], "minimum": 0, "maximum": 1 } } }
+    },
+    "sensors": { "type": "object", "properties": {
+      "geo": { "enum": ["granted", "denied", "absent", null] },
+      "motion": { "enum": ["granted", "denied", "absent", "null_events", null], "description": "null_events = the browser fired devicemotion with every field null (a desktop): no sensor, NOT 'still'" },
+      "gyro": { "type": "boolean" }, "linear_accel": { "type": "boolean" }, "hz_median": { "type": ["number", "null"] } } },
+    "env": { "type": "object", "properties": { "tz": { "type": ["string", "null"] }, "tz_offset_min": { "type": ["number", "null"] }, "locale": { "type": ["string", "null"] } } }
+  },
+  "x-radio-note": "The separate `radio` field ({wifi:[{bssid_h, rssi}], cell:[{mcc,mnc,tac,cid,rssi}]}) is for a native app only; identifiers must already be hashed. A web page cannot read them."
+}

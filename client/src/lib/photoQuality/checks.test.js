@@ -237,8 +237,18 @@ test('shake: names the direction on a real photo when it is unambiguous', async 
   assert.equal(checkShake(v).details.direction, 'vertical')
 })
 
-test('shake: plain defocus blur is not reported as shake (that is the blur check)', () => {
-  assert.equal(checkShake(frameOf(boxBlur(scene, W, H, 4))).status, STATUS.PASS)
+test('shake: plain defocus blur on real photos is not reported as shake (that is the blur check)', async () => {
+  // (A box blur of the synthetic axis-aligned scene is anisotropic, ~1.3, so real photos are the right test.)
+  for (const name of ['china.jpg', 'flower.jpg']) {
+    const soft = await realFrame(name, (px, w, h) => mapChannels(px, w, h, (g) => boxBlur(g, w, h, 3, 3)))
+    assert.equal(checkShake(soft).status, STATUS.PASS, name)
+  }
+})
+
+test('obstruction: a flat cream/beige wall is not a covered lens, a finger-coloured area still is', () => {
+  const flat = (rgb) => frameFromGray(scene, W, H, { rgba: Uint8ClampedArray.from({ length: W * H * 4 }, (_, i) => (i % 4 === 3 ? 255 : rgb[i % 4])) })
+  assert.equal(checkObstruction(flat([215, 190, 140])).status, STATUS.PASS) // hue ~40: cream wall
+  assert.equal(checkObstruction(flat([205, 140, 115])).status, STATUS.FAIL) // hue ~17: skin
 })
 
 test('shake: too few edges to judge is skip, not fail', () => {
