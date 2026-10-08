@@ -71,3 +71,28 @@ test('every scripted case is deterministic and wire-safe after rounding', () => 
     assert.ok(Object.values(w).every((v) => v === null || Number.isFinite(v)), name)
   }
 })
+
+// A real phone (Oppo F19 Pro, flat on a table, 2026-10-08) reported a constant 0.22 m/s2 from its gravity-free acceleration sensor and
+// rotation 0.0: that offset is a sensor bias, not movement. It must not turn "still" into "moving".
+const biased = (bias, { shake = 0, n = 250, hz = 50, seed = 3 } = {}) => {
+  let s = seed
+  const rnd = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296 - 0.5)
+  return Array.from({ length: n }, (_, i) => {
+    const sh = shake * Math.sin((2 * Math.PI * 1.9 * i) / hz)
+    return { t: i * (1000 / hz), x: bias * 0.6 + sh + rnd() * 0.02, y: bias * 0.7 + rnd() * 0.02, z: bias * 0.39 + rnd() * 0.02, alpha: rnd() * 0.2, beta: rnd() * 0.2, gamma: rnd() * 0.2 }
+  })
+}
+
+test('a constant sensor offset is not movement: a phone flat on a table with a 0.22 m/s2 offset is still', () => {
+  const f = windowFeatures(biased(0.22))
+  assert.ok(f.acc_rms < 0.03, `acc_rms ${f.acc_rms}`)
+  assert.equal(activity(f), 'still')
+})
+
+test('a real shake on top of an offset still counts as movement, and the offset does not hide or inflate it', () => {
+  const flat = windowFeatures(biased(0.22, { shake: 2 }))
+  const noOffset = windowFeatures(biased(0, { shake: 2 }))
+  assert.ok(flat.acc_rms > 1, `acc_rms ${flat.acc_rms}`)
+  assert.ok(Math.abs(flat.acc_rms - noOffset.acc_rms) < 0.02)
+  assert.equal(activity(flat), 'walking')
+})

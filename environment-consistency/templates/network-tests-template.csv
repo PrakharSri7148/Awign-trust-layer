@@ -1,0 +1,2 @@
+run_id,date,worker_id,scenario,phone_model,os_browser,network_used,carrier_or_wifi_name,physically_at_site,site_id,vpn_on,submission_id_if_known,notes
+1,2026-10-09,test_genuine_cell_01,test_genuine_cell,Pixel 7,Android 15 Chrome,mobile data,Jio,yes,site_example_001,no,,example row: delete

@@ -85,13 +85,7 @@ def _points(trail):
     return [[round((f["t"] - t0) / 1000.0, 1), round(f["lat"], 6), round(f["lng"], 6), None if f["acc"] is None else round(f["acc"], 1)] for f in pts]
 
 
-def _mask_ip(ip):
-    if not ip:
-        return None
-    if ":" in ip:
-        return ":".join(ip.split(":")[:3]) + "::"
-    parts = ip.split(".")
-    return ".".join(parts[:3] + ["0"]) if len(parts) == 4 else None
+_mask_ip = ipctx.mask_ip  # privacy: never store a raw address
 
 
 def run_fusion(session: Session, payload, *, client_ip=None, now=None, retry=False) -> dict:
@@ -135,11 +129,20 @@ def run_fusion(session: Session, payload, *, client_ip=None, now=None, retry=Fal
     ip_ctx = provider.lookup(client_ip) if client_ip else None
     ip = ip_ctx.as_dict() if ip_ctx else None
     net = payload.network_info.model_dump() if payload.network_info else {}
+    last_fix = ((trail or {}).get("fixes") or [None])[-1]
+    gps_point = {"lat": last_fix["lat"], "lng": last_fix["lng"]} if (site is None and last_fix) else None
     env = environment.evaluate(site=site, network_info=net, profile=load_profile(session, payload.site_id), ip=ip,
-                               tz_offset_min=(trail or {}).get("env", {}).get("tz_offset_min"), radio=payload.radio if isinstance(payload.radio, dict) else None)
+                               tz_offset_min=(trail or {}).get("env", {}).get("tz_offset_min"), radio=payload.radio if isinstance(payload.radio, dict) else None,
+                               gps_point=gps_point)
 
+    prof = load_profile(session, payload.site_id)
+    visits_learned = max([sum(v.values()) for k, v in prof.items() if k in ("link", "asn", "wifi", "cell")] or [0])
+    ipdb = ipctx.status() if ip else None
     policy = C.task_policy(payload.task_id)
     notes = []
+    if site is None:
+        notes.append("No site is registered for this task: the arrival and area checks were skipped" +
+                     ("; the network was compared with the phone's own GPS position only" if gps_point else ""))
     if not (cons["motion_known"] and cons["sensor_used"]):
         # The phone's movement was not compared with the GPS trail (no motion data, no trail, a trail too short). A GPS-only check
         # against the site may still have run: that is 'known' for the score, but it is not the comparison this signal is about.
@@ -155,8 +158,11 @@ def run_fusion(session: Session, payload, *, client_ip=None, now=None, retry=Fal
         "motion": {"score": cons["motion_consistency"], "known": cons["motion_known"], "sensor_used": cons["sensor_used"],
                    "penalties": cons["penalties"], "reason": cons["reason"], "evidence": cons["evidence"]},
         "environment": {"score": env["environment_consistency"], "known": env["environment_known"], "penalties": env["penalties"],
-                        "reason": env["reason"], "components": env["components"], "keys": env["keys"]},
-        "ip": None if not ip else {k: ip.get(k) for k in ("country", "region", "city", "asn", "org", "private")} | {"ip": _mask_ip(ip.get("ip")), "provider": provider.name},
+                        "reason": env["reason"], "components": env["components"], "keys": env["keys"],
+                        # how much the site's learned network profile rested on: shown as "learned from N visits" / "fewer than 3 visits"
+                        "profile": {"visits": visits_learned, "needed": C.ENVIRONMENT["profileMin"]}},
+        "ip": None if not ip else {k: ip.get(k) for k in ("country", "region", "city", "asn", "org", "private")}
+        | {"ip": _mask_ip(ip.get("ip")), "provider": provider.name, "db_date": (ipdb or {}).get("date"), "db_age_days": (ipdb or {}).get("age_days")},
         "sensors": (trail or {}).get("sensors") or {},
         "trail": {"points": _points(trail) if trail else [], "span_s": cons["evidence"]["duration_s"]},
         "site": None if site is None else {"lat": site["lat"], "lng": site["lng"], "radius_m": site["radius_m"]},
@@ -190,10 +196,27 @@ def teach_profile(session: Session, site_id: str, keys: dict):
     session.commit()
 
 
-def record_outcome(session: Session, site_id: str, keys: dict, accepted: bool):
-    """Only an ACCEPTED visit teaches the site profile, so a spoofed submission cannot poison what 'normal' looks like."""
-    if accepted:
+def learning_decision(accepted: bool, motion_known: bool, sensor_used: bool, motion_score: float) -> tuple:
+    """-> (teach?, reason). A visit may teach the site's network profile only if it was ACCEPTED and its movement was really compared
+    with the GPS trail (phone sensors used, motion known) with a consistency of at least `learnMinMotion`. Otherwise a spoofed
+    submission that slipped through (flat motion, or no sensors to contradict it) would make its own network 'normal' for the site."""
+    need = C.ENVIRONMENT["learnMinMotion"]
+    if not accepted:
+        return False, "not accepted"
+    if not (motion_known and sensor_used):
+        return False, "movement was not compared with the GPS trail"
+    if motion_score < need:
+        return False, f"motion consistency {motion_score:.2f} below {need}"
+    return True, "accepted with verified movement"
+
+
+def record_outcome(session: Session, site_id: str, keys: dict, accepted: bool, *, motion_known: bool = True, sensor_used: bool = True,
+                   motion_score: float = 1.0) -> tuple:
+    """Only a TRUSTED, accepted visit teaches the site profile (see learning_decision). -> (taught, reason)."""
+    ok, why = learning_decision(accepted, motion_known, sensor_used, motion_score)
+    if ok:
         teach_profile(session, site_id, keys)
+    return ok, why
 
 
 def approve_into_profile(session: Session, submission: Submission):

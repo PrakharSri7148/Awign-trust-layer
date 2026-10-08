@@ -1,0 +1,13 @@
+{
+  "appId": "com.trustlayer.demo",
+  "appName": "Trust Layer",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": true
+  }
+}

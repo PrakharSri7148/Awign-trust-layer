@@ -22,6 +22,7 @@ export const FUSION_FLAG_META = {
   anonymizing_network: { label: 'Hosting / VPN network', kind: 'info', help: 'The request came from a hosting or VPN provider (heuristic, by the provider\'s name).' },
   ip_country_mismatch: { label: 'Network in another country', kind: 'integrity', help: 'The request\'s IP address is in a different country than the site.' },
   ip_region_mismatch: { label: 'Network far from the site', kind: 'info', help: 'The IP address resolves hundreds of km from the site. Mobile carriers often resolve far away, so this is weak.' },
+  ip_far_from_gps: { label: 'Network far from the phone\'s GPS', kind: 'info', help: 'No site is registered, so the network was compared with the phone\'s own GPS position: they are hundreds of km apart. Weak (the GPS is device-reported and mobile carriers resolve far away).' },
   tz_mismatch: { label: 'Time zone mismatch', kind: 'info', help: 'The device\'s time zone does not fit the site\'s longitude (very weak).' },
   wifi_not_seen_at_site: { label: 'WiFi not known here', kind: 'integrity', help: 'None of the WiFi networks around the device have been seen at this site before (native app only).' },
   cell_not_seen_at_site: { label: 'Cell tower not known here', kind: 'integrity', help: 'None of the cell towers the device sees have been seen at this site before (native app only).' },

@@ -55,6 +55,7 @@ export function createTripRecorder({
   storage = safeStorage,
   wakeLockApi = globalThis.navigator?.wakeLock,
   timeOrigin = () => globalThis.performance?.timeOrigin ?? null,
+  visibilityTarget = globalThis.document,
   setIntervalFn = (f, ms) => setInterval(f, ms),
   clearIntervalFn = (h) => clearInterval(h),
   env = () => ({
@@ -89,6 +90,15 @@ export function createTripRecorder({
   const st = { geo: null, motion: null, gyro: false, linearAccel: false, nullEvents: 0, validEvents: 0, hz: [] }
   const subs = new Set()
   let lastSave = 0
+  let lastFix = null
+  let lastMotion = null // { acc: |linear acceleration| m/s^2, gyro: |rotation rate| deg/s, t }
+  let lastWindow = null
+  let lastEmit = 0
+  let hiddenSince = null
+  let hiddenTotalMs = 0
+  let hiddenCount = 0
+  let watchRestarts = 0
+  let lastWatchStart = 0
 
   const emit = () => subs.forEach((f) => f(getState()))
 
@@ -103,7 +113,8 @@ export function createTripRecorder({
     while (winStart + winMs <= t) {
       const chunk = samples.filter((s) => s.t >= winStart && s.t < winStart + winMs)
       const f = windowFeatures(chunk, act)
-      windows.push(roundWindow(winStart, winStart + winMs, f))
+      lastWindow = roundWindow(winStart, winStart + winMs, f)
+      windows.push(lastWindow)
       if (f.hz != null) st.hz.push(f.hz)
       samples = samples.filter((s) => s.t >= winStart + winMs)
       winStart += winMs
@@ -136,15 +147,21 @@ export function createTripRecorder({
       return
     }
     st.validEvents++
+    lastMotion = { acc: acc ? Math.hypot(acc.x, acc.y, acc.z) : null, gyro: rot ? Math.hypot(rot.alpha, rot.beta, rot.gamma) : null, t }
     if (rot) st.gyro = true
     if (winStart == null) winStart = t
     samples.push({ t, x: acc?.x ?? null, y: acc?.y ?? null, z: acc?.z ?? null, alpha: rot?.alpha ?? null, beta: rot?.beta ?? null, gamma: rot?.gamma ?? null })
+    if (t - lastEmit >= 250) {
+      lastEmit = t // the numbers on screen refresh about 4 times a second, not at the sensor rate
+      emit()
+    }
   }
 
   function onPosition(pos) {
     const c = pos?.coords
     if (!c || !Number.isFinite(c.latitude) || !Number.isFinite(c.longitude)) return
     st.geo = 'granted'
+    lastFix = { t: Number.isFinite(pos.timestamp) ? pos.timestamp : now(), lat: c.latitude, lng: c.longitude, acc: Number.isFinite(c.accuracy) ? c.accuracy : null, speed: Number.isFinite(c.speed) ? c.speed : null, heading: Number.isFinite(c.heading) ? c.heading : null, alt: Number.isFinite(c.altitude) ? c.altitude : null }
     const t = Number.isFinite(pos.timestamp) ? pos.timestamp : now()
     // Keep one fix per fixIntervalS (a little slack so a 5.0 s cadence is not dropped by 4.99 s of jitter).
     if (fixes.length && t - lastKept < cfg.fixIntervalS * 1000 - 500) return
@@ -160,8 +177,66 @@ export function createTripRecorder({
     emit()
   }
 
+  function startWatch() {
+    if (!geolocation?.watchPosition) return
+    lastWatchStart = now()
+    watchId = geolocation.watchPosition(onPosition, onGeoError, { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 })
+  }
+
+  // Phones stop delivering fixes now and then (a lost GPS lock, a throttled tab): if none arrived for a while while the page is
+  // visible, restart the watch instead of recording a silent gap.
+  function watchdog(t) {
+    if (!running || hiddenSince != null || st.geo === 'denied' || st.geo === 'absent') return
+    const lastT = lastFix ? lastFix.t : lastWatchStart
+    if (t - Math.max(lastT, lastWatchStart) > cfg.watchdogS * 1000) {
+      if (watchId != null) geolocation?.clearWatch?.(watchId)
+      watchRestarts++
+      startWatch()
+    }
+  }
+
+  async function takeWakeLock() {
+    try {
+      const l = (await wakeLockApi?.request?.('screen')) ?? null
+      if (!running) {
+        l?.release?.() // stopped while the request was pending
+        return
+      }
+      lock = l
+      // The system can drop the lock without hiding the page (battery saver, a system dialog): show it instead of claiming it.
+      l?.addEventListener?.('release', () => {
+        if (lock === l) {
+          lock = null
+          emit()
+        }
+      })
+    } catch {
+      lock = null // unsupported (some WebViews) or refused: the recording works while the screen stays on
+    }
+  }
+
+  // The screen wake lock is RELEASED whenever the page is hidden (screen off, app switched): note the gap and take it again on return.
+  function onVisibility() {
+    const hidden = visibilityTarget?.visibilityState === 'hidden'
+    const t = now()
+    if (hidden && hiddenSince == null) {
+      hiddenSince = t
+      hiddenCount++
+    } else if (!hidden && hiddenSince != null) {
+      hiddenTotalMs += t - hiddenSince
+      hiddenSince = null
+      if (running) {
+        lock = null
+        takeWakeLock().then(emit)
+        lastWatchStart = t // give the GPS a moment to deliver again before the watchdog judges it
+      }
+    }
+    emit()
+  }
+
   function tick() {
     const t = now()
+    watchdog(t)
     closeWindows(t)
     if (t - lastSave > 10_000) {
       lastSave = t
@@ -228,12 +303,9 @@ export function createTripRecorder({
       motionTarget.addEventListener('devicemotion', handler)
     }
     if (!geolocation?.watchPosition) st.geo = 'absent'
-    else watchId = geolocation.watchPosition(onPosition, onGeoError, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20_000 })
-    try {
-      lock = (await wakeLockApi?.request?.('screen')) ?? null
-    } catch {
-      lock = null // not allowed / unsupported: the recording still works while the screen stays on
-    }
+    else startWatch()
+    visibilityTarget?.addEventListener?.('visibilitychange', onVisibility)
+    await takeWakeLock()
     timer = setIntervalFn(tick, 1000)
     emit()
     return { geo: st.geo, motion: st.motion }
@@ -254,6 +326,7 @@ export function createTripRecorder({
     handler = null
     if (watchId != null) geolocation?.clearWatch?.(watchId)
     watchId = null
+    visibilityTarget?.removeEventListener?.('visibilitychange', onVisibility)
     if (timer != null) clearIntervalFn(timer)
     timer = null
     try {
@@ -275,6 +348,11 @@ export function createTripRecorder({
     gravity = null
     startedAt = null
     visitId = null
+    lastFix = lastMotion = lastWindow = null
+    hiddenSince = null
+    hiddenTotalMs = 0
+    hiddenCount = 0
+    watchRestarts = 0
     Object.assign(st, { geo: null, motion: null, gyro: false, linearAccel: false, nullEvents: 0, validEvents: 0, hz: [] })
     storage.remove(STORE_KEY)
     emit()
@@ -296,7 +374,7 @@ export function createTripRecorder({
       time_origin: origin == null ? null : origin + o,
       fixes: fixes.slice(-cfg.maxFixes).map((f) => ({ ...f, t: f.t + o })),
       windows: windows.slice(-cfg.maxWindows).map((w) => ({ ...w, t0: w.t0 + o, t1: w.t1 + o })),
-      sensors: { geo: st.geo, motion, gyro: st.gyro, linear_accel: st.linearAccel, hz_median: hz.length ? hz[Math.floor(hz.length / 2)] : null },
+      sensors: { geo: st.geo, motion, gyro: st.gyro, linear_accel: st.linearAccel, hz_median: hz.length ? hz[Math.floor(hz.length / 2)] : null, hidden_s: Math.round((hiddenTotalMs + (hiddenSince != null ? t - hiddenSince : 0)) / 1000), hidden_count: hiddenCount, watch_restarts: watchRestarts },
       env: env(),
     }
   }
@@ -316,6 +394,21 @@ export function createTripRecorder({
       spanS: fixes.length > 1 ? Math.round((fixes[fixes.length - 1].t - fixes[0].t) / 1000) : 0,
       activities: windows.slice(-24).map((w) => activity(w, act)),
       visitId,
+      // live readout (what is on the phone right now)
+      lastFix,
+      lastFixAgoS: lastFix ? Math.max(0, Math.round((now() - lastFix.t) / 1000)) : null,
+      lastMotion,
+      lastWindow: lastWindow ? { ...lastWindow, activity: activity(lastWindow, act) } : null,
+      hz: st.hz.length ? Math.round(st.hz[st.hz.length - 1]) : null,
+      gyro: st.gyro,
+      wakeLock: !!lock,
+      hiddenS: Math.round((hiddenTotalMs + (hiddenSince != null ? now() - hiddenSince : 0)) / 1000),
+      hiddenCount,
+      watchRestarts,
+      visible: hiddenSince == null,
+      offsetMs: offset,
+      startedAt,
+      points: fixes.map((f) => [0, f.lat, f.lng, f.acc]),
     }
   }
 

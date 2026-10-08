@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react'
 
-const STEPS = ['Photo', 'Sensors', 'AI scan', 'Verdict']
+const STEPS = ['Photo', 'Arrival', 'AI scan', 'Verdict']
 
 export default function Stepper({ current }) {
   return (

@@ -213,3 +213,141 @@ test('reset clears everything and the stored copy', async () => {
   assert.equal(w.rec.getState().fixes, 0)
   assert.equal(w.mem.get('fusion.trail.v1'), undefined)
 })
+
+// ---------------------------------------------------------------- phone hardening (H3c): visibility, wake lock, GPS watchdog
+
+function phone({ wakeLock = true } = {}) {
+  let t = T0
+  let watches = 0
+  let cleared = 0
+  let geoCb = null
+  const geolocation = { watchPosition: (ok, err) => ((geoCb = { ok, err }), ++watches), clearWatch: () => { cleared++; geoCb = null } }
+  const vis = { visibilityState: 'visible', ls: new Set(), addEventListener(_n, f) { this.ls.add(f) }, removeEventListener(_n, f) { this.ls.delete(f) } }
+  const locks = []
+  const wakeLockApi = wakeLock ? {
+    request: async () => {
+      const l = { released: false, ls: new Set(), addEventListener(_n, f) { this.ls.add(f) }, release() { this.released = true; this.ls.forEach((f) => f()) } }
+      locks.push(l)
+      return l
+    },
+  } : { request: async () => { throw new Error('NotAllowedError') } }
+  const target = { addEventListener() {}, removeEventListener() {} }
+  const rec = createTripRecorder({
+    geolocation, motionTarget: target, DeviceMotionEventCtor: function Dm() {}, now: () => t, wakeLockApi, visibilityTarget: vis,
+    storage: { get: () => null, set: () => true, remove() {} }, setIntervalFn: () => 1, clearIntervalFn() {}, timeOrigin: () => null, env: () => ({}),
+  })
+  const flush = () => new Promise((r) => setImmediate(r))
+  return {
+    rec, locks, flush,
+    watches: () => watches, cleared: () => cleared,
+    advance: (ms) => (t += ms),
+    pos: (lat, lng) => geoCb?.ok({ coords: { latitude: lat, longitude: lng, accuracy: 6 }, timestamp: t }),
+    geoError: (code) => geoCb?.err({ code }),
+    setVisible(v) { vis.visibilityState = v ? 'visible' : 'hidden'; vis.ls.forEach((f) => f()) },
+  }
+}
+
+test('hidden time is counted (also while still hidden) and goes into trail.sensors', async () => {
+  const p = phone()
+  await p.rec.start()
+  p.advance(2000)
+  p.setVisible(false)
+  p.advance(7000)
+  assert.equal(p.rec.getState().visible, false)
+  assert.equal(p.rec.getState().hiddenS, 7) // counted while still hidden
+  p.setVisible(true)
+  p.advance(3000)
+  p.setVisible(false)
+  p.advance(4000)
+  p.setVisible(true)
+  const st = p.rec.getState()
+  assert.deepEqual([st.hiddenS, st.hiddenCount, st.visible], [11, 2, true])
+  const sn = p.rec.snapshot()
+  assert.deepEqual([sn.sensors.hidden_s, sn.sensors.hidden_count, sn.sensors.watch_restarts], [11, 2, 0])
+  p.setVisible(true) // a duplicate "visible" event does not count twice
+  assert.equal(p.rec.getState().hiddenCount, 2)
+})
+
+test('the screen wake lock is taken at start, re-taken when the page comes back, and released at stop', async () => {
+  const p = phone()
+  await p.rec.start()
+  assert.equal(p.locks.length, 1)
+  assert.equal(p.rec.getState().wakeLock, true)
+  // the browser releases the lock when the page is hidden
+  p.setVisible(false)
+  p.locks[0].release()
+  assert.equal(p.rec.getState().wakeLock, false)
+  p.setVisible(true)
+  await p.flush()
+  assert.equal(p.locks.length, 2)
+  assert.equal(p.rec.getState().wakeLock, true)
+  p.rec.stop()
+  assert.equal(p.locks[1].released, true)
+  assert.equal(p.rec.getState().wakeLock, false)
+})
+
+test('a lock dropped by the system while visible is shown as not held; a refused lock never breaks the recording', async () => {
+  const p = phone()
+  await p.rec.start()
+  p.locks[0].release() // battery saver
+  assert.equal(p.rec.getState().wakeLock, false)
+  const q = phone({ wakeLock: false })
+  await q.rec.start()
+  assert.equal(q.rec.getState().running, true)
+  assert.equal(q.rec.getState().wakeLock, false)
+})
+
+test('GPS watchdog: a stalled watch is restarted after watchdogS, not while fixes arrive, not while hidden, not when denied', async () => {
+  const p = phone()
+  await p.rec.start()
+  assert.equal(p.watches(), 1)
+  for (let i = 0; i < 6; i++) { // fixes every 5 s: no restart
+    p.advance(5000)
+    p.pos(12.97, 77.59 + i * 1e-5)
+    p.rec.tick()
+  }
+  assert.equal(p.watches(), 1)
+  p.advance(24_000)
+  p.rec.tick()
+  assert.equal(p.watches(), 1) // 24 s < 25 s
+  p.advance(2000)
+  p.rec.tick()
+  assert.deepEqual([p.watches(), p.cleared(), p.rec.getState().watchRestarts], [2, 1, 1])
+  p.advance(10_000)
+  p.rec.tick()
+  assert.equal(p.watches(), 2) // the restart itself resets the clock
+
+  p.setVisible(false) // hidden: the page cannot get fixes, so no restarts
+  p.advance(120_000)
+  p.rec.tick()
+  assert.equal(p.watches(), 2)
+  p.setVisible(true) // back: a grace period before judging the GPS again
+  p.advance(20_000)
+  p.rec.tick()
+  assert.equal(p.watches(), 2)
+  p.advance(6000)
+  p.rec.tick()
+  assert.equal(p.watches(), 3)
+  assert.equal(p.rec.snapshot().sensors.watch_restarts, 2)
+
+  const d = phone()
+  await d.rec.start()
+  d.geoError(1)
+  d.advance(60_000)
+  d.rec.tick()
+  assert.equal(d.watches(), 1) // denied: restarting would only re-prompt / fail
+})
+
+test('stop and reset detach from visibility events and clear the hardening counters', async () => {
+  const p = phone()
+  await p.rec.start()
+  p.setVisible(false)
+  p.advance(3000)
+  p.setVisible(true)
+  p.rec.reset()
+  const st = p.rec.getState()
+  assert.deepEqual([st.hiddenS, st.hiddenCount, st.watchRestarts], [0, 0, 0])
+  p.setVisible(false) // no longer listening
+  p.advance(5000)
+  assert.equal(p.rec.getState().hiddenCount, 0)
+})

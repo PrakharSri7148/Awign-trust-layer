@@ -28,3 +28,14 @@ export function downloadTrace(doc) {
 }
 
 export const recordModeOn = (search = globalThis.location?.search ?? '') => new URLSearchParams(search).get('record') === '1'
+
+// Inside the Android wrapper (Capacitor injects window.Capacitor into its WebView). There is no address bar there, so the demo
+// tools cannot be switched on with ?demo=1.
+export const isNativeApp = (g = globalThis) => { try { return !!g.Capacitor?.isNativePlatform?.() } catch { return false } }
+
+// Developer tools (register this spot as the site, the backend address): ?record=1 (also download traces), ?demo=1, the native
+// wrapper, or a build made with VITE_DEMO_TOOLS=1 (npm run apk does that).
+export const demoToolsOn = (search = globalThis.location?.search ?? '', { native = isNativeApp(), buildFlag = import.meta.env?.VITE_DEMO_TOOLS === '1' } = {}) => {
+  const q = new URLSearchParams(search)
+  return q.get('record') === '1' || q.get('demo') === '1' || native || buildFlag
+}

@@ -5,6 +5,7 @@ import Analysis from '../components/capture/Analysis.jsx'
 import PhotoOverlay, { overlayBoxes } from '../components/capture/PhotoOverlay.jsx'
 import LiveCamera, { cameraSupported } from '../components/capture/LiveCamera.jsx'
 import QualityChecklist from '../components/capture/QualityChecklist.jsx'
+import SensorFeed from '../components/capture/SensorFeed.jsx'
 import SensorTile from '../components/capture/SensorTile.jsx'
 import Stepper from '../components/capture/Stepper.jsx'
 import TrailTile from '../components/capture/TrailTile.jsx'
@@ -19,6 +20,7 @@ import { runPhotoQualityBrowser } from '../lib/photoQuality/client.js'
 import { compactReport } from '../lib/photoQuality/index.js'
 import { VERDICT } from '../lib/photoQuality/schema.js'
 import { CONSENT_KEY } from '../lib/sensorFusion/consent.js'
+import { recentFix } from '../lib/sensorFusion/display.js'
 import { createTripRecorder, safeStorage } from '../lib/sensorFusion/tripRecorder.js'
 import { captureMotionSample, getGPS, getNetworkInfo } from '../lib/sensors.js'
 
@@ -185,7 +187,8 @@ export default function Capture() {
         setReadout((r) => ({ ...r, motion: m.length ? `${m.length} samples · mean ${mean.toFixed(2)} m/s²` : 'No samples (sensor unavailable or denied)' }))
         return m
       })
-      const gpsP = getGPS().then((g) => {
+      // A cold one-shot fix often times out on phones; the visit recording's own fresh fix (same device) stands in for it.
+      const gpsP = getGPS().then((g) => g ?? recentFix(recorder.getState())).then((g) => {
         setSensors((s) => ({ ...s, gps: g ? 'ok' : 'na' }))
         setReadout((r) => ({ ...r, gps: g ? `${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}` : 'Location unavailable or denied' }))
         return g
@@ -285,7 +288,7 @@ export default function Capture() {
               </div>
             </div>
 
-            <VisitPanel recorder={recorder} onStart={startRecording} onStop={() => recorder.reset()} note={visitNote} />
+            <VisitPanel recorder={recorder} onStart={startRecording} onStop={() => recorder.reset()} note={visitNote} siteId={SITE_ID} />
 
             {error && (
               <div className="banner banner--error" role="alert">
@@ -362,10 +365,16 @@ export default function Capture() {
                 {quality && (
                   <motion.div className={`panel panel--glow-${glow} capture-grid__side`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
                     <QualityChecklist report={quality.report} />
+                    {canSubmit && (
+                      <p className="dim" style={{ fontSize: 13, margin: 'var(--s2) 0 0' }} data-testid="arrival-hint">
+                        Photo checked. When you are standing at the site, tap the button: we then send your GPS location{recorder.getState().running ? ' and the movement recorded on the way' : ''} and verify you reached it.
+                        {!recorder.getState().running && ' (Without the visit recording only your location can be checked.)'}
+                      </p>
+                    )}
                     <div className="row" style={{ marginTop: 'var(--s2)' }}>
                       {canSubmit && (
-                        <button className="btn btn--primary" onClick={onSubmit}>
-                          <Send size={16} /> {warned ? 'Submit anyway' : 'Submit'}
+                        <button className="btn btn--primary" onClick={onSubmit} data-testid="arrived-btn">
+                          <Send size={16} /> {warned ? "I've reached the site · send location anyway" : "I've reached the site · send my location"}
                         </button>
                       )}
                       <button className={`btn ${blocked ? 'btn--primary' : ''}`} onClick={() => reset({ reopenCamera: true })}>
@@ -394,15 +403,17 @@ export default function Capture() {
               </div>
             )}
 
+            <SensorFeed recorder={recorder} siteId={SITE_ID} />
+
           </motion.div>
         )}
 
         {step === 'sensors' && (
           <motion.div key="sensors" className="panel stack stack--lg capture-narrow" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.22 }}>
             <div>
-              <div className="eyebrow eyebrow--cyan">Sensor fusion</div>
-              <h2 style={{ fontSize: 20, marginTop: 4 }}>Reading the environment</h2>
-              <p className="dim" style={{ fontSize: 13, marginTop: 4 }}>Hold the phone naturally for ~3 seconds.</p>
+              <div className="eyebrow eyebrow--cyan">Verifying your arrival</div>
+              <h2 style={{ fontSize: 20, marginTop: 4 }}>Sending your location</h2>
+              <p className="dim" style={{ fontSize: 13, marginTop: 4 }}>Your photo is verified. Hold the phone naturally for ~3 seconds while we send your GPS location and the movement recorded on the way, and check you reached the site.</p>
             </div>
             <div className="sensors">
               <SensorTile icon={Satellite} title="GPS" state={sensors.gps} value={readout.gps} />
@@ -445,7 +456,7 @@ export default function Capture() {
 
         {step === 'verdict' && result && (
           <motion.div key="verdict" className="capture-narrow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <Verdict result={result} onReset={() => { reset({ reopenCamera: true }); if (safeStorage.get(CONSENT_KEY) === '1') startRecording() }} />
+            <Verdict result={result} onReset={() => { globalThis.scrollTo?.({ top: 0 }); reset({ reopenCamera: true }); if (safeStorage.get(CONSENT_KEY) === '1') startRecording() }} />
             {sensorNotes.length > 0 && (
               <div className="banner banner--warn" style={{ marginTop: 'var(--s2)' }}>
                 <ScanLine size={18} />

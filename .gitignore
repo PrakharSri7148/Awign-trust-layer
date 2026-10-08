@@ -14,3 +14,6 @@ client/public/mediapipe/vision_wasm*.js
 # Sensor fusion: the DB-IP lite databases (tools/fetch_geoip.py) are large and licensed, not committed
 backend/data/geoip/*.mmdb
 backend/data/geoip/*.part
+
+# macOS
+.DS_Store

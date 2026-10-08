@@ -35,13 +35,14 @@ To reach the backend from a phone, bind it to every interface: `uvicorn main:app
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health` | `{"status": "ok"}` |
+| GET | `/health` | `{"status": "ok", "ip_database": {provider, installed, data date, age_days, stale, ...}, "public_mode": bool, "env_check": bool}` |
+| GET | `/env/check?site_id=` | **only when `ENV_CHECK=1`** (404 otherwise): what the server sees for THIS request (masked IP, country, provider, VPN or not, km to the site, environment score, a sentence). Never returns the site's coordinates. For checking from the phone before a demo |
 | POST | `/submissions` | **multipart/form-data**: `payload` (JSON string) + `photo` (file). `payload`: `worker_id, task_id, site_id, gps{lat,lng}\|null, motion_samples[{x,y,z,t}], network_info{effectiveType,downlink,rtt}`, **`visit_id`, `trail`, `radio`** (sensor fusion, all optional: [format](Sensor-fusion/schema/trail.v1.json)), `photo_quality` (the device's own report, advisory), `photo_override` (worker pressed *Submit anyway*), `capture_source` (`camera`\|`file`), `capture_burst`. A plain JSON body (no photo) is still accepted but cannot be verified (see below) |
 | GET | `/submissions` | newest first; light rows: `photo_verdict`, `photo_quality_score`, `quality_flags`, `has_photo`, `photo_url`, `feature_importances` as an object |
 | GET | `/submissions/{id}` | the same plus `photo_quality`: `{server, client, evidence}` (per-check report from the server and the device, EXIF, capture source, burst). 404 if missing |
 | GET | `/submissions/{id}/photo` | the stored photo |
 | POST | `/visits` | `{worker_id, task_id, site_id}` -> `{visit_id, server_time_ms, ...}`: opens the session the approach trail must fit inside (by the server's clock; one submission per visit) |
-| GET / PUT | `/sites`, `/sites/{site_id}` | where a site really is: `{lat, lng, radius_m, country?, label?}`. Nothing is seeded; the arrival, outside-the-site and IP-distance checks need it |
+| GET / PUT | `/sites`, `/sites/{site_id}` | where a site really is: `{lat, lng, radius_m, country?, label?, reset_network?}`. `reset_network: true` also forgets the network learned at the old place (only when asked); every change is written to a change log (`GET /sites/{id}/changes`). Nothing is seeded; the arrival, outside-the-site and IP-distance checks need it |
 | POST | `/sites/{site_id}/reset-fingerprint` | forgets the network profile learned for this site (and the old fingerprint) |
 
 `status` is `flagged` if `fraud_probability > 0.5`, otherwise `accepted`.
@@ -65,7 +66,9 @@ Routes: `/` (Capture: 4-step flow Photo → Sensors → AI scan → Verdict; a t
 
 The Capture page now also has a **Visit recording** box: the worker agrees once (draft consent text), the app opens a server visit and records the approach (GPS fixes + 5-second motion summaries, at most 10 minutes) until the photo is submitted.
 
-By default the client calls `http://<page hostname>:8000`, which is `http://localhost:8000` on desktop. Set `VITE_API_URL` to override it.
+By default the client calls `http://<page hostname>:8000`, which is `http://localhost:8000` on desktop. Override it with `?api=<url>` in the page address (saved on the device; `?api=reset` forgets it), the **Server** box in the Sensor feed's developer tools, or `VITE_API_URL` at build time (first match wins in that order).
+
+The Capture page also shows a live **Sensor feed** under the camera (what the visit recording reads right now, and what a web page cannot read, with the reason), and the verdict screen a **What was fetched** panel.
 
 ## Testing from a phone on the same Wi-Fi
 
@@ -84,7 +87,27 @@ By default the client calls `http://<page hostname>:8000`, which is `http://loca
 4. iOS asks for motion permission when you tap **Start recording my visit** (it has to be a tap).
 5. To record real traces for calibration open `https://<ip>:5174/?record=1` (a download button appears in the Visit recording box; see [Sensor-fusion/samples/README.md](Sensor-fusion/samples/README.md)).
 
-CORS allows `http://localhost:5173`/`5174` and `http(s)://<any IPv4>:5173`/`5174`.
+CORS allows `http://localhost:5173`/`5174`, `http(s)://<any IPv4>:5173`/`5174`, the Android app's origins (`http(s)://localhost`, `capacitor://localhost`, `ionic://localhost`) and anything listed in `EXTRA_CORS_ORIGINS` (comma separated, e.g. a tunnel).
+
+**Android app (hackathon):** a Capacitor wrapper around the same web app; build steps in [Sensor-fusion/apk-notes.md](Sensor-fusion/apk-notes.md) (`npm run apk`; needs a one-time `npm i @capacitor/...` that is not done yet). The demo itself: [Sensor-fusion/demo-script.md](Sensor-fusion/demo-script.md); without a phone, `cd client && npm run demo:laptop`.
+
+## Public demo: one address, a tunnel, an Android app
+
+For a demo that judges can reach, the backend serves the **built client and the API from one HTTPS address** (no CORS, no mixed content) through a tunnel from your laptop; an Android Trusted Web Activity opens that address full screen in the phone's real Chrome. Nothing fake ships: real IP lookups, real sensors, a real registered site.
+
+| What | Where |
+|---|---|
+| The demo in one command (backend in **public mode** on 127.0.0.1:8002, preflight, tunnel) | `demo/demo-up.sh`; setup and troubleshooting: [environment-consistency/tunnel-runbook.md](environment-consistency/tunnel-runbook.md) |
+| What `PUBLIC_MODE=1` does: refuses to start unless `DASHBOARD_TOKEN`, `TRUSTED_PROXY_HEADER`, `TRUST_LAYER_DB`, the model and the IP database are set/present; no `/docs`; exact-origin CORS; request-size caps; security headers (`Permissions-Policy`: geolocation, camera, motion for this origin only); logs without IPs or tokens; the test IP provider refuses to load | `backend/public_mode.py`, `backend/serving.py` |
+| The production client build (same-origin `/api`, no developer tools, no third-party requests: the fonts fall back to the system's) | `cd client && npm run build:prod` (writes `dist/build-info.json`) |
+| Before you go live: a green/red table, exit 0 only if nothing is red | `cd backend && .venv/bin/python tools/preflight.py --url https://<your-domain>` (`--pre-tunnel` before the tunnel exists) |
+| Start a rehearsal clean (dry run first, backup on `--apply`, keeps the registered sites) / see how many trusted visits a site has learned | `backend/tools/demo_reset.py`, `backend/tools/seed_check.py` |
+| The Android app: manifest, icons (drawn from the logo), Bubblewrap settings, how to build it yourself | `client/public/manifest.webmanifest`, `backend/tools/make_icons.py`, `android/twa-manifest.template.json`, [docs/apk-build.md](docs/apk-build.md) |
+| Rehearsal against the public-mode build in headless Chrome (isolated port 8003; real DB-IP lookups; scripted GPS/motion/forwarded address) | `cd client && npm run e2e:public` |
+| The 5-minute script, the judge Q&A and the failure table | [environment-consistency/demo-runbook.md](environment-consistency/demo-runbook.md) |
+| The final test on a real phone (steps, pass criteria, triage) | [environment-consistency/phone-test.md](environment-consistency/phone-test.md) |
+
+The API is also reachable under an `/api` prefix (`/api/health`, `/api/submissions`, ...): that is what the production client uses.
 
 ## How scoring works
 
@@ -92,10 +115,10 @@ Three signals go into the classifier. Details and the full design: [Sensor-fusio
 
 - **photo_quality_score**: the server-measured 0..1 aggregate of the photo checks (0.5 x the worst check + 0.5 x the mean; 0 when there is no photo).
 - **motion_consistency** (stored in `motion_score`): does the phone's accelerometer/gyroscope tell the same story as the GPS trail? From the trail: speed (with the GPS error subtracted), **jumps** faster or farther than any device can move, signs of a fake provider (no jitter, constant accuracy, ruler-straight path), the distance to the site. From the sensors, per 5 seconds: still / walking (a rhythm at 1.2-2.8 Hz) / moving. Then: *GPS jump while the phone stayed still*, *GPS says walking but the phone is still*, *arrived at the site with no approach*, *ended outside the site*, *walking rhythm that matches the walking speed* (raises the score). 1 = consistent, low = the sensors contradict the GPS. The evidence per 5-second window is stored and drawn in the case file.
-- **environment_consistency** (stored in `ambient_score`): does the network fit the claimed area? A per-site profile learned from **accepted** visits only (no more "the first submission is the baseline"), the request IP's country / region / provider when the optional IP database is installed, hosting/VPN networks, time zone, and, for a native app only, WiFi/cell identifiers. Weak on the web by nature.
+- **environment_consistency** (stored in `ambient_score`): does the network fit the claimed area? A per-site profile learned from **trusted** visits only (accepted, and the phone's movement was compared with the GPS trail with a consistency of at least 0.8, so a spoofer who slips through cannot make their own network "normal"), the request IP's country / region / provider from the DB-IP database, hosting/VPN networks, time zone, and, for a native app only, WiFi/cell identifiers. With no site registered, the IP is compared with the phone's own GPS at a low weight and the case file says so. Weak on the web by nature.
 - **Unknown is not suspicious.** If nothing could be compared (no motion sensor, a desktop, a worker who declined the recording, a short trail, a new site) the score is a neutral 0.5, `motion_known` / `env_known` are false and the case carries the note `fusion_insufficient_evidence`. The model is trained with such cases and does not flag them for it.
-- **classifier**: a GradientBoosting model on `[photo_quality, motion_consistency, environment_consistency, motion_known, env_known]`. `feature_importances` are |SHAP| values for that one submission (the known-flags are folded into their score's bar), normalized to sum to 1. `top_reason` is a sentence the fusion engines wrote from what they measured ("GPS jumped 14.0 km in 6 s while the phone stayed still"), the photo problems for a photo reason, or "No issues detected" below p = 0.3.
-- **What the model assumes** (see `backend/fusion/simulate.py`): it is trained on a **simulator** of GPS trails, sensor streams and networks that pushes them through the real fusion engines. The scenarios, the gait/GPS/network models and the label for each scenario are the authors' assumptions. As before, a poor photo *alone* does not flag a worker; with the same weak evidence a poor photo tips a case towards review (an assumption encoded in the labels, not learned). Accuracy figures printed by the training script or the report are properties of the simulator unless a table says REAL.
+- **classifier**: a histogram gradient-boosting model, **monotone by construction** (a worse photo, a less consistent motion trail or a less consistent environment can never lower the fraud probability, other inputs fixed; a guard in `classifier.py` enforces it again), on `[photo_quality, motion_consistency, environment_consistency, motion_known, env_known]`. If SHAP's additivity check fails for an input, the score still comes back and the explanation is marked approximate (`explanation: "approximate"`). `feature_importances` are |SHAP| values for that one submission (the known-flags are folded into their score's bar), normalized to sum to 1. `top_reason` is a sentence the fusion engines wrote from what they measured ("GPS jumped 14.0 km in 6 s while the phone stayed still"), the photo problems for a photo reason, or "No issues detected" below p = 0.3.
+- **What the model assumes** (see `backend/fusion/simulate.py`): it is trained on a **simulator** of GPS trails, sensor streams and networks that pushes them through the real fusion engines. The IP database's own error (wrong country, positions off by more than 50 km) is modelled from published figures where they exist and from stated assumptions where they do not; a worker whose network is in another country than the site is labelled "send to review" (an assumption, not a measurement). The scenarios, the gait/GPS/network models and the label for each scenario are the authors' assumptions. As before, a poor photo *alone* does not flag a worker; with the same weak evidence a poor photo tips a case towards review (an assumption encoded in the labels, not learned). Accuracy figures printed by the training script or the report are properties of the simulator unless a table says REAL.
 
 ## Verified behaviour
 
@@ -114,7 +137,7 @@ These show the pipeline works end to end. They are **not** accuracy figures: rea
 ## Known limitations
 
 - **No real-world evidence for the sensor-fusion signal yet.** All thresholds (`client/src/lib/sensorFusion/fusion.json`) are uncalibrated starting values and every accuracy number comes from a simulator. Record real traces (`?record=1`, [Sensor-fusion/samples/README.md](Sensor-fusion/samples/README.md)) and re-run `npm run report`.
-- **WiFi/cell cannot be read by a web page.** The network side is the learned per-site profile (link speed class), the IP database (country / region / provider, once installed with `tools/fetch_geoip.py`) and the time zone. Real WiFi/cell identifiers need a **native phone app** (the server already accepts and scores them; no app exists). *Deciding whether you want a native app is still open.*
+- **WiFi/cell cannot be read by a web page.** The network side is the learned per-site profile (link speed class), the IP database (country / region / provider; DB-IP lite, CC BY 4.0, credit "IP Geolocation by DB-IP" is shown in the dashboard) and the time zone. IP geolocation is coarse: mobile carriers and anycast addresses resolve far from the phone (measured on the real files: Cloudflare's 103.21.244.1 resolves to Toronto), so the distance rule is lenient and a far-but-same-country IP never flags by itself. Real WiFi/cell identifiers need a **native phone app** (the server already accepts and scores them; no app exists). *Deciding whether you want a native app is still open.*
 - **No background tracking.** The trail covers the time the app was open with the screen on; "movement leading up to arrival" means that. A native app is the only way to record the whole journey.
 - **Forgeable by a determined attacker.** A modified client or an emulator that injects realistic sensor streams can send anything; replayed real motion on a frozen fake location is invisible to the motion rules (only the "too perfect GPS" sign and the network can see it). The visit session and the replay checks raise the cost, they do not make it impossible.
 - **Honest workers can be flagged** in awkward situations (a smooth tunnel or highway ride with a quiet phone, indoor GPS, a VPN, a carrier whose IP resolves far away). The accuracy report prints that rate for the simulated cases (section 5b); the real rate is unknown.

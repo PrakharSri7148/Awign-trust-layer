@@ -11,7 +11,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import shap
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 
@@ -27,7 +27,10 @@ PROBES = [
     ("GPS jump + still phone, perfect photo", (0.9, 0.15, 0.95, 1, 1), "flagged"),
     ("GPS says walking, phone never moves", (0.9, 0.35, 0.95, 1, 1), "flagged"),
     ("frozen mock GPS (too perfect), good photo", (0.9, 0.72, 0.95, 1, 1), "flagged"),
-    ("network from another country, motion fine", (0.9, 0.97, 0.3, 1, 1), "flagged"),
+    ("foreign VPN exit (env 0.17), motion fine", (0.9, 0.97, 0.17, 1, 1), "flagged"),
+    ("foreign ISP (env 0.24), motion fine", (0.9, 0.97, 0.24, 1, 1), "flagged"),
+    ("same-country VPN (env 0.56), motion fine", (0.9, 0.97, 0.56, 1, 1), "accepted"),
+    ("carrier gateway far (env 0.65), motion fine", (0.9, 0.97, 0.65, 1, 1), "accepted"),
     ("nothing could be compared, good photo", (0.9, 0.5, 0.5, 0, 0), "accepted"),
     ("nothing could be compared, poor photo", (0.15, 0.5, 0.5, 0, 0), "accepted"),
     ("weak evidence + bad photo", (0.15, 0.73, 0.78, 1, 1), "flagged"),
@@ -39,7 +42,11 @@ def main():
     df = pd.read_csv(DATA_PATH)
     X, y = df[FEATURES], df["is_fraud"]
     idx_tr, idx_te = train_test_split(np.arange(len(df)), test_size=0.2, stratify=y, random_state=42)
-    model = GradientBoostingClassifier(n_estimators=100, max_depth=3, random_state=42)
+    # MONOTONE BY CONSTRUCTION: a worse photo, a less consistent motion trail or a less consistent environment can never LOWER the
+    # fraud probability (the other inputs fixed). The two known-flags are unconstrained. This is the root fix for the 2026-10-08 defect where a
+    # worse network was judged safer; classifier.py keeps a guard as defence in depth. The previous model (fraud_classifier_v2_pre_env.pkl)
+    # was an unconstrained GradientBoostingClassifier.
+    model = HistGradientBoostingClassifier(max_depth=3, max_iter=150, learning_rate=0.1, monotonic_cst=[-1, -1, -1, 0, 0], random_state=42)
     model.fit(X.iloc[idx_tr], y.iloc[idx_tr])
 
     pred = model.predict(X.iloc[idx_te])
@@ -54,7 +61,7 @@ def main():
     print(f"Saved model to {MODEL_PATH}")
 
     explainer = shap.Explainer(model, shap.sample(X.iloc[idx_tr], 100, random_state=42))
-    mean_abs = np.abs(explainer(X.iloc[idx_te]).values).mean(axis=0)
+    mean_abs = np.abs(explainer(X.iloc[idx_te], check_additivity=False).values).mean(axis=0)  # summary only; the API has its own fallback
     print("Mean |SHAP| per feature (held-back rows):")
     for name, val in zip(FEATURES, mean_abs):
         print(f"  {name:20s} {val:.4f}")

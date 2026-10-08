@@ -40,6 +40,11 @@ def window_features(samples, cfg=None):
     if len(ts) >= 2 and ts[-1] > ts[0]:
         out["hz"] = (len(ts) - 1) / ((ts[-1] - ts[0]) / 1000.0)
     if acc_m:
+        # Movement = variation around the window's own mean: a constant offset in the sensor (a phone lying on a table read 0.22 m/s2
+        # on an Oppo F19 Pro, 2026-10-08) is not movement. Fewer than 3 samples cannot tell an offset from a movement: keep the raw size.
+        if len(acc_m) >= 3:
+            mx, my, mz = sum(ax) / len(ax), sum(ay) / len(ay), sum(az) / len(az)
+            acc_m = [math.sqrt((x - mx) ** 2 + (y - my) ** 2 + (z - mz) ** 2) for x, y, z in zip(ax, ay, az)]
         out["acc_rms"] = math.sqrt(sum(m * m for m in acc_m) / len(acc_m))
         out["acc_peak"] = max(acc_m)
     if gyro_m:

@@ -170,20 +170,27 @@ def test_a_trail_from_the_future_is_invalid(client, monkeypatch):
 
 # ---------------------------------------------------------------- the site profile and the environment
 
-def test_the_network_profile_is_learned_from_accepted_visits_only(client):
+def trusted_visit(client, monkeypatch, i, net, site="s1"):
+    """An accepted visit whose movement WAS verified against the GPS trail (what E5 requires before a visit may teach the site's network)."""
+    w = f"w{i}"
+    v = open_visit(client, monkeypatch, worker=w, site=site)
+    return sub(client, live(genuine_walk(seed=i + 1)), visit=v, seed=100 + i, worker=w, network_info=net, site=site)
+
+
+def test_the_network_profile_is_learned_from_accepted_visits_only(client, monkeypatch):
     from models import SiteNetworkProfile
     import db
 
     net = {"effectiveType": "4g", "downlink": 10, "rtt": 40}
     for i in range(3):
-        b = sub(client, seed=10 + i, worker=f"w{i}", network_info=net)
+        b = trusted_visit(client, monkeypatch, i, net)
         assert b["status"] == "accepted" and b["env_known"] is False  # cold start: unknown, not a trusted baseline
     with Session(db.engine) as s:
         rows = s.exec(select(SiteNetworkProfile)).all()
     assert any(r.kind == "link" and r.count == 3 for r in rows)
-    same = sub(client, seed=20, worker="w9", network_info=net)
+    same = trusted_visit(client, monkeypatch, 9, net)
     assert same["env_known"] is True and same["ambient_score"] == 1.0 and "network_unseen_at_site" not in flags(same)
-    other = sub(client, seed=21, worker="w10", network_info={"effectiveType": "3g", "downlink": 1.2, "rtt": 300})
+    other = trusted_visit(client, monkeypatch, 10, {"effectiveType": "3g", "downlink": 1.2, "rtt": 300})
     assert "network_unseen_at_site" in flags(other) and other["ambient_score"] < 1.0
 
 
@@ -203,13 +210,13 @@ def test_a_flagged_submission_does_not_teach_the_profile_but_a_reviewer_approval
         assert [x.kind for x in s.exec(select(SiteNetworkProfile)).all()] == ["link"]
 
 
-def test_reset_fingerprint_clears_the_learned_profile(client):
+def test_reset_fingerprint_clears_the_learned_profile(client, monkeypatch):
     net = {"effectiveType": "4g", "downlink": 10, "rtt": 40}
     for i in range(3):
-        sub(client, seed=30 + i, worker=f"w{i}", network_info=net)
+        trusted_visit(client, monkeypatch, 30 + i, net)
     r = client.post("/sites/s1/reset-fingerprint")
     assert r.status_code == 200 and r.json()["deleted"] is True and r.json()["profile_rows"] >= 1
-    assert sub(client, seed=40, worker="w9", network_info=net)["env_known"] is False
+    assert trusted_visit(client, monkeypatch, 40, net)["env_known"] is False
 
 
 class FarProvider:
@@ -224,8 +231,9 @@ class HostingProvider(FarProvider):
         return ipctx.IpContext(ip="5.0.0.1", country="NL", lat=52.3, lng=4.9, asn=9009, org="M247 Ltd")
 
 
-def test_ip_context_feeds_the_environment_signal(client):
+def test_ip_context_feeds_the_environment_signal(client, monkeypatch):
     set_site(client)
+    monkeypatch.setattr(ipctx, "client_ip", lambda request: "49.0.0.1")  # the test client's own peer name is not an address
     ipctx.set_provider(FarProvider())
     try:
         b = sub(client)
@@ -235,8 +243,9 @@ def test_ip_context_feeds_the_environment_signal(client):
         ipctx.set_provider(None)
 
 
-def test_a_foreign_hosting_network_is_flagged_for_review(client):
+def test_a_foreign_hosting_network_is_flagged_for_review(client, monkeypatch):
     set_site(client)
+    monkeypatch.setattr(ipctx, "client_ip", lambda request: "5.0.0.1")
     ipctx.set_provider(HostingProvider())
     try:
         b = sub(client, seed=50)

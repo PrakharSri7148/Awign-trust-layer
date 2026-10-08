@@ -11,12 +11,11 @@ Thresholds in force: `thresholds.json` sha256 `85128bed4e96` (history: `edge-val
 1. **Liveness / anti-spoofing is unmeasured on real data.** Without `live_selfies/` and `spoof_*` samples there is no real APCER/BPCER; the thresholds are starting values.
 2. **Sensor fusion has no real trace behind it.** Every motion/network number is SYNTHETIC (section 5b); the thresholds in `fusion.json` are uncalibrated starting values. Record traces into `Sensor-fusion/samples/`.
 3. **The fraud classifier has never seen real data.** Its accuracy is a property of the simulator (section 5b); a shifted world already costs it noticeable accuracy.
-4. **Replayed motion on a frozen mock location and wrong-area networks are only partly caught**: 138/200 = 69% (95% CI 62%-75%) (SYNTHETIC, by construction the hardest spoofs).
-5. **No real positive examples for:** Exposure: over-exposed, Lens obstruction, Glare, Noise / compression. They are validated on synthetic degradations only, which cannot show how real photos of these problems behave.
-6. **Face check false-reject rate on clear faces is unknown** (no `good_selfies/`), and the face check can block a face-required task.
-7. **Shake (motion blur) misses real issues**: recall 79/120 = 66% (95% CI 57%-74%) (REAL).
-8. **The `good/` set is stock photography**, sharper and more uniform than worker phone photos, so false-flag rates on real worker photos are probably higher than shown.
-9. No fairness slice evidence (skin tone, lighting, head coverings, device) exists in any section; the samples carry no such tags.
+4. **No real positive examples for:** Exposure: over-exposed, Lens obstruction, Glare, Noise / compression. They are validated on synthetic degradations only, which cannot show how real photos of these problems behave.
+5. **Face check false-reject rate on clear faces is unknown** (no `good_selfies/`), and the face check can block a face-required task.
+6. **Shake (motion blur) misses real issues**: recall 79/120 = 66% (95% CI 57%-74%) (REAL).
+7. **The `good/` set is stock photography**, sharper and more uniform than worker phone photos, so false-flag rates on real worker photos are probably higher than shown.
+8. No fairness slice evidence (skin tone, lighting, head coverings, device) exists in any section; the samples carry no such tags.
 
 ### What this report does and does not tell you
 
@@ -803,7 +802,7 @@ Feature ranking identical in all 5 runs: **yes**. Stable importances only mean t
 
 > **Every number below the REAL block is SYNTHETIC.** The deployed model was trained on a simulator of trails, sensors and networks (`backend/fusion/simulate.py`) and is tested on the same simulator, in the same world, in a new random draw and in a shifted world. That shows how the model behaves in the authors' assumed world. It says nothing about how often real spoofers are caught or real workers wrongly flagged.
 
-Model: `GradientBoostingClassifier` on `photo_quality_score, motion_score, ambient_score, motion_known, env_known`; the API flags a submission when P(fraud) > 0.5. fusion.json sha256 `6dcc60ebfe0b` (all thresholds are uncalibrated starting values). Simulator scale: 1.0.
+Model: `HistGradientBoostingClassifier` on `photo_quality_score, motion_score, ambient_score, motion_known, env_known`; the API flags a submission when P(fraud) > 0.5. fusion.json sha256 `89a87f236c9d` (all thresholds are uncalibrated starting values). Simulator scale: 1.0.
 
 ### REAL: recorded traces
 
@@ -813,30 +812,30 @@ Model: `GradientBoostingClassifier` on `photo_quality_score, motion_score, ambie
 
 | set | rows | fraud | recall | false-flag rate (honest flagged) | precision | F1 | AUC | Brier | ECE | how generated |
 |---|---|---|---|---|---|---|---|---|---|---|
-| in_distribution_test_split | 430 | 170 | 146/170 = 86% (95% CI 80%-90%) | 7/260 = 3% (95% CI 1%-5%) | 146/153 = 95% (95% CI 91%-98%) | 0.904 | 0.977 (95% CI 0.966-0.987) | 0.055 | 0.043 | 20% split of the training data (same simulator, same seed; train_classifier.py) |
-| different_seed | 2150 | 850 | 751/850 = 88% (95% CI 86%-90%) | 28/1300 = 2% (95% CI 1%-3%) | 751/779 = 96% (95% CI 95%-98%) | 0.922 | 0.983 (95% CI 0.978-0.988) | 0.044 | 0.032 | same simulated world, new random draws (seed 1234) |
-| shifted_world | 2150 | 850 | 689/850 = 81% (95% CI 78%-84%) | 67/1300 = 5% (95% CI 4%-6%) | 689/756 = 91% (95% CI 89%-93%) | 0.858 | 0.917 (95% CI 0.901-0.931) | 0.090 | 0.044 | a different world: gps_sigma=1.6, acc_scale=0.7, tremor_scale=1.5, cad_mean=1.65, cad_sd=0.2, hz=25.0, gateway_far=0.35, speed_scale=0.85 |
+| in_distribution_test_split | 486 | 218 | 206/218 = 94% (95% CI 91%-97%) | 8/268 = 3% (95% CI 2%-6%) | 206/214 = 96% (95% CI 93%-98%) | 0.954 | 0.984 (95% CI 0.975-0.993) | 0.036 | 0.020 | 20% split of the training data (same simulator, same seed; train_classifier.py) |
+| different_seed | 2430 | 1090 | 1025/1090 = 94% (95% CI 92%-95%) | 47/1340 = 4% (95% CI 3%-5%) | 1025/1072 = 96% (95% CI 94%-97%) | 0.948 | 0.979 (95% CI 0.973-0.984) | 0.042 | 0.020 | same simulated world, new random draws (seed 1234) |
+| shifted_world | 2430 | 1090 | 869/1090 = 80% (95% CI 77%-82%) | 69/1340 = 5% (95% CI 4%-6%) | 869/938 = 93% (95% CI 91%-94%) | 0.857 | 0.919 (95% CI 0.908-0.930) | 0.103 | 0.070 | a different world: gps_sigma=1.6, acc_scale=0.7, tremor_scale=1.5, cad_mean=1.65, cad_sd=0.2, hz=25.0, gateway_far=0.35, ip_country_err=0.04, ip_city_miss=0.5, ip_miss_median_km=200.0, speed_scale=0.85 |
 
 #### Confusion matrix: in_distribution_test_split (SYNTHETIC, threshold 0.5)
 
 |  | flagged | not flagged |
 |---|---|---|
-| actually fraud | TP 146 | FN 24 |
-| actually genuine | FP 7 | TN 253 |
+| actually fraud | TP 206 | FN 12 |
+| actually genuine | FP 8 | TN 260 |
 
 #### Confusion matrix: different_seed (SYNTHETIC, threshold 0.5)
 
 |  | flagged | not flagged |
 |---|---|---|
-| actually fraud | TP 751 | FN 99 |
-| actually genuine | FP 28 | TN 1272 |
+| actually fraud | TP 1025 | FN 65 |
+| actually genuine | FP 47 | TN 1293 |
 
 #### Confusion matrix: shifted_world (SYNTHETIC, threshold 0.5)
 
 |  | flagged | not flagged |
 |---|---|---|
-| actually fraud | TP 689 | FN 161 |
-| actually genuine | FP 67 | TN 1233 |
+| actually fraud | TP 869 | FN 221 |
+| actually genuine | FP 69 | TN 1271 |
 
 ### What happens to honest workers in awkward situations (SYNTHETIC)
 
@@ -846,118 +845,130 @@ These are the numbers that matter most for workers: the false-flag rate on the *
 
 | group | truth | rows | false-flag rate / recall |
 |---|---|---|---|
-| ambiguous (label rests on the photo assumption) | fraud | 43 | 14/43 = 33% (95% CI 20%-47%) |
-| fraud | fraud | 108 | 106/108 = 98% (95% CI 93%-99%) |
-| hard fraud (replayed motion / wrong network only) | fraud | 46 | 29/46 = 63% (95% CI 49%-75%) |
-| genuine | genuine | 128 | 1/128 = 1% (95% CI 0%-4%) |
-| hard genuine (false-positive traps) | genuine | 105 | 3/105 = 3% (95% CI 1%-8%) |
+| ambiguous (label rests on the photo assumption) | fraud | 42 | 23/42 = 55% (95% CI 40%-69%) |
+| foreign network (labelled 'send to review' by assumption) | fraud | 47 | 46/47 = 98% (95% CI 89%-100%) |
+| fraud | fraud | 114 | 104/114 = 91% (95% CI 85%-95%) |
+| hard fraud (replayed motion / wrong network only) | fraud | 39 | 39/39 = 100% (95% CI 91%-100%) |
+| genuine | genuine | 131 | 1/131 = 1% (95% CI 0%-4%) |
+| hard genuine (false-positive traps) | genuine | 113 | 1/113 = 1% (95% CI 0%-5%) |
 
 #### different_seed
 
 | group | truth | rows | false-flag rate / recall |
 |---|---|---|---|
-| ambiguous (label rests on the photo assumption) | fraud | 200 | 98/200 = 49% (95% CI 42%-56%) |
-| fraud | fraud | 550 | 529/550 = 96% (95% CI 94%-97%) |
-| hard fraud (replayed motion / wrong network only) | fraud | 200 | 138/200 = 69% (95% CI 62%-75%) |
-| genuine | genuine | 660 | 2/660 = 0% (95% CI 0%-1%) |
-| hard genuine (false-positive traps) | genuine | 540 | 12/540 = 2% (95% CI 1%-4%) |
+| ambiguous (label rests on the photo assumption) | fraud | 200 | 103/200 = 52% (95% CI 45%-58%) |
+| foreign network (labelled 'send to review' by assumption) | fraud | 180 | 178/180 = 99% (95% CI 96%-100%) |
+| fraud | fraud | 610 | 565/610 = 93% (95% CI 90%-94%) |
+| hard fraud (replayed motion / wrong network only) | fraud | 200 | 199/200 = 100% (95% CI 97%-100%) |
+| genuine | genuine | 660 | 10/660 = 2% (95% CI 1%-3%) |
+| hard genuine (false-positive traps) | genuine | 580 | 17/580 = 3% (95% CI 2%-5%) |
 
 #### shifted_world
 
 | group | truth | rows | false-flag rate / recall |
 |---|---|---|---|
-| ambiguous (label rests on the photo assumption) | fraud | 200 | 112/200 = 56% (95% CI 49%-63%) |
-| fraud | fraud | 550 | 478/550 = 87% (95% CI 84%-89%) |
-| hard fraud (replayed motion / wrong network only) | fraud | 200 | 141/200 = 70% (95% CI 64%-76%) |
-| genuine | genuine | 660 | 23/660 = 3% (95% CI 2%-5%) |
-| hard genuine (false-positive traps) | genuine | 540 | 2/540 = 0% (95% CI 0%-1%) |
+| ambiguous (label rests on the photo assumption) | fraud | 200 | 114/200 = 57% (95% CI 50%-64%) |
+| foreign network (labelled 'send to review' by assumption) | fraud | 180 | 168/180 = 93% (95% CI 89%-96%) |
+| fraud | fraud | 610 | 428/610 = 70% (95% CI 66%-74%) |
+| hard fraud (replayed motion / wrong network only) | fraud | 200 | 197/200 = 98% (95% CI 96%-99%) |
+| genuine | genuine | 660 | 22/660 = 3% (95% CI 2%-5%) |
+| hard genuine (false-positive traps) | genuine | 580 | 9/580 = 2% (95% CI 1%-3%) |
 
 #### Errors by scenario: in_distribution_test_split (SYNTHETIC)
 
 | scenario | group | truth | rows | wrong | error rate | mean motion | mean environment |
 |---|---|---|---|---|---|---|---|
-| a_weak_good_photo | ambiguous | genuine | 27 | 3 | 3/27 = 11% (95% CI 4%-28%) | 0.74 | 0.76 |
-| a_weak_poor_photo | ambiguous | fraud | 16 | 5 | 5/16 = 31% (95% CI 14%-56%) | 0.79 | 0.78 |
-| f_linear_mock_drive | fraud | fraud | 15 | 0 | 0/15 = 0% (95% CI 0%-20%) | 0.59 | 0.89 |
-| f_linear_mock_walk | fraud | fraud | 18 | 0 | 0/18 = 0% (95% CI 0%-18%) | 0.31 | 0.99 |
-| f_mock_replayed_motion | fraud_hard | fraud | 23 | 0 | 0/23 = 0% (95% CI 0%-14%) | 0.65 | 0.94 |
-| f_realistic_spoof_still_phone | fraud | fraud | 27 | 2 | 2/27 = 7% (95% CI 2%-23%) | 0.42 | 0.94 |
-| f_static_mock_home | fraud | fraud | 22 | 0 | 0/22 = 0% (95% CI 0%-15%) | 0.72 | 0.97 |
-| f_teleport_still | fraud | fraud | 26 | 0 | 0/26 = 0% (95% CI 0%-13%) | 0.24 | 0.92 |
-| f_wrong_area_network | fraud_hard | fraud | 23 | 17 | 17/23 = 74% (95% CI 54%-87%) | 0.97 | 0.60 |
-| g_at_site | genuine | genuine | 31 | 0 | 0/31 = 0% (95% CI 0%-11%) | 0.90 | 0.95 |
-| g_bad_photo | genuine | genuine | 8 | 0 | 0/8 = 0% (95% CI 0%-32%) | 0.98 | 0.93 |
-| g_drive_then_walk | genuine | genuine | 15 | 0 | 0/15 = 0% (95% CI 0%-20%) | 0.97 | 0.92 |
-| g_odd_network_new_worker | genuine | genuine | 10 | 1 | 1/10 = 10% (95% CI 2%-40%) | 0.97 | 0.71 |
-| g_walk_hand | genuine | genuine | 43 | 0 | 0/43 = 0% (95% CI 0%-8%) | 0.98 | 0.92 |
-| g_walk_pocket | genuine | genuine | 21 | 0 | 0/21 = 0% (95% CI 0%-15%) | 0.97 | 0.96 |
-| h_desktop | hard_genuine | genuine | 5 | 0 | 0/5 = 0% (95% CI 0%-43%) | 0.66 | 1.00 |
+| a_weak_good_photo | ambiguous | genuine | 24 | 6 | 6/24 = 25% (95% CI 12%-45%) | 0.81 | 0.77 |
+| a_weak_poor_photo | ambiguous | fraud | 18 | 1 | 1/18 = 6% (95% CI 1%-26%) | 0.80 | 0.77 |
+| f_linear_mock_drive | fraud | fraud | 9 | 0 | 0/9 = 0% (95% CI 0%-30%) | 0.65 | 0.92 |
+| f_linear_mock_walk | fraud | fraud | 19 | 0 | 0/19 = 0% (95% CI 0%-17%) | 0.39 | 0.93 |
+| f_mock_replayed_motion | fraud_hard | fraud | 21 | 0 | 0/21 = 0% (95% CI 0%-15%) | 0.65 | 0.92 |
+| f_realistic_spoof_still_phone | fraud | fraud | 24 | 2 | 2/24 = 8% (95% CI 2%-26%) | 0.52 | 0.89 |
+| f_static_mock_home | fraud | fraud | 24 | 0 | 0/24 = 0% (95% CI 0%-14%) | 0.72 | 0.92 |
+| f_teleport_still | fraud | fraud | 29 | 3 | 3/29 = 10% (95% CI 4%-26%) | 0.35 | 0.97 |
+| f_wrong_area_network | fraud_hard | fraud | 18 | 0 | 0/18 = 0% (95% CI 0%-18%) | 0.97 | 0.18 |
+| g_at_site | genuine | genuine | 20 | 0 | 0/20 = 0% (95% CI 0%-16%) | 0.90 | 0.88 |
+| g_bad_photo | genuine | genuine | 19 | 1 | 1/19 = 5% (95% CI 1%-25%) | 0.98 | 0.90 |
+| g_drive_then_walk | genuine | genuine | 27 | 0 | 0/27 = 0% (95% CI 0%-12%) | 0.97 | 0.96 |
+| g_odd_network_new_worker | genuine | genuine | 14 | 0 | 0/14 = 0% (95% CI 0%-22%) | 0.97 | 0.73 |
+| g_walk_hand | genuine | genuine | 30 | 0 | 0/30 = 0% (95% CI 0%-11%) | 0.99 | 0.89 |
+| g_walk_pocket | genuine | genuine | 21 | 0 | 0/21 = 0% (95% CI 0%-15%) | 0.98 | 0.92 |
+| h_desktop | hard_genuine | genuine | 13 | 0 | 0/13 = 0% (95% CI 0%-23%) | 0.59 | 0.97 |
 | h_first_visit | hard_genuine | genuine | 15 | 0 | 0/15 = 0% (95% CI 0%-20%) | 0.98 | 0.73 |
-| h_indoor_drift | hard_genuine | genuine | 7 | 0 | 0/7 = 0% (95% CI 0%-35%) | 0.61 | 0.91 |
-| h_legacy_client | hard_genuine | genuine | 9 | 0 | 0/9 = 0% (95% CI 0%-30%) | 0.81 | 0.90 |
-| h_short_trail | hard_genuine | genuine | 9 | 0 | 0/9 = 0% (95% CI 0%-30%) | 0.88 | 0.93 |
-| h_smooth_highway | hard_genuine | genuine | 18 | 0 | 0/18 = 0% (95% CI 0%-18%) | 0.86 | 0.95 |
-| h_throttled_sensor | hard_genuine | genuine | 12 | 0 | 0/12 = 0% (95% CI 0%-24%) | 0.90 | 0.90 |
-| h_tunnel_dropout | hard_genuine | genuine | 16 | 3 | 3/16 = 19% (95% CI 7%-43%) | 0.78 | 0.93 |
-| h_vpn | hard_genuine | genuine | 14 | 0 | 0/14 = 0% (95% CI 0%-22%) | 0.99 | 0.62 |
+| h_indoor_drift | hard_genuine | genuine | 19 | 0 | 0/19 = 0% (95% CI 0%-17%) | 0.71 | 0.90 |
+| h_legacy_client | hard_genuine | genuine | 11 | 0 | 0/11 = 0% (95% CI 0%-26%) | 0.72 | 0.96 |
+| h_short_trail | hard_genuine | genuine | 7 | 1 | 1/7 = 14% (95% CI 3%-51%) | 0.88 | 0.92 |
+| h_smooth_highway | hard_genuine | genuine | 6 | 0 | 0/6 = 0% (95% CI 0%-39%) | 0.84 | 1.00 |
+| h_throttled_sensor | hard_genuine | genuine | 18 | 0 | 0/18 = 0% (95% CI 0%-18%) | 0.90 | 0.89 |
+| h_tunnel_dropout | hard_genuine | genuine | 10 | 0 | 0/10 = 0% (95% CI 0%-28%) | 0.83 | 0.95 |
+| n_isp_foreign_genuine_walk | foreign_network | fraud | 17 | 1 | 1/17 = 6% (95% CI 1%-27%) | 0.90 | 0.25 |
+| n_vpn_foreign_genuine_walk | foreign_network | fraud | 30 | 0 | 0/30 = 0% (95% CI 0%-11%) | 0.93 | 0.19 |
+| n_vpn_same_country_honest | hard_genuine | genuine | 14 | 0 | 0/14 = 0% (95% CI 0%-22%) | 0.89 | 0.76 |
+| n_vpn_same_country_spoof | fraud | fraud | 9 | 5 | 5/9 = 56% (95% CI 27%-81%) | 0.66 | 0.64 |
 
 #### Errors by scenario: different_seed (SYNTHETIC)
 
 | scenario | group | truth | rows | wrong | error rate | mean motion | mean environment |
 |---|---|---|---|---|---|---|---|
-| a_weak_good_photo | ambiguous | genuine | 100 | 14 | 14/100 = 14% (95% CI 9%-22%) | 0.74 | 0.76 |
-| a_weak_poor_photo | ambiguous | fraud | 100 | 16 | 16/100 = 16% (95% CI 10%-24%) | 0.72 | 0.76 |
-| f_linear_mock_drive | fraud | fraud | 90 | 4 | 4/90 = 4% (95% CI 2%-11%) | 0.61 | 0.93 |
-| f_linear_mock_walk | fraud | fraud | 90 | 2 | 2/90 = 2% (95% CI 1%-8%) | 0.30 | 0.91 |
-| f_mock_replayed_motion | fraud_hard | fraud | 110 | 0 | 0/110 = 0% (95% CI 0%-3%) | 0.65 | 0.93 |
-| f_realistic_spoof_still_phone | fraud | fraud | 110 | 15 | 15/110 = 14% (95% CI 8%-21%) | 0.41 | 0.94 |
+| a_weak_good_photo | ambiguous | genuine | 100 | 20 | 20/100 = 20% (95% CI 13%-29%) | 0.79 | 0.77 |
+| a_weak_poor_photo | ambiguous | fraud | 100 | 17 | 17/100 = 17% (95% CI 11%-26%) | 0.78 | 0.76 |
+| f_linear_mock_drive | fraud | fraud | 90 | 0 | 0/90 = 0% (95% CI 0%-4%) | 0.65 | 0.92 |
+| f_linear_mock_walk | fraud | fraud | 90 | 0 | 0/90 = 0% (95% CI 0%-4%) | 0.47 | 0.93 |
+| f_mock_replayed_motion | fraud_hard | fraud | 110 | 0 | 0/110 = 0% (95% CI 0%-3%) | 0.65 | 0.95 |
+| f_realistic_spoof_still_phone | fraud | fraud | 110 | 30 | 30/110 = 27% (95% CI 20%-36%) | 0.58 | 0.92 |
 | f_static_mock_home | fraud | fraud | 110 | 0 | 0/110 = 0% (95% CI 0%-3%) | 0.72 | 0.94 |
-| f_teleport_still | fraud | fraud | 150 | 0 | 0/150 = 0% (95% CI 0%-2%) | 0.29 | 0.93 |
-| f_wrong_area_network | fraud_hard | fraud | 90 | 62 | 62/90 = 69% (95% CI 59%-78%) | 0.97 | 0.60 |
-| g_at_site | genuine | genuine | 120 | 0 | 0/120 = 0% (95% CI 0%-3%) | 0.90 | 0.93 |
-| g_bad_photo | genuine | genuine | 80 | 0 | 0/80 = 0% (95% CI 0%-5%) | 0.98 | 0.91 |
-| g_drive_then_walk | genuine | genuine | 120 | 0 | 0/120 = 0% (95% CI 0%-3%) | 0.96 | 0.94 |
-| g_odd_network_new_worker | genuine | genuine | 60 | 2 | 2/60 = 3% (95% CI 1%-11%) | 0.98 | 0.75 |
-| g_walk_hand | genuine | genuine | 160 | 0 | 0/160 = 0% (95% CI 0%-2%) | 0.98 | 0.95 |
-| g_walk_pocket | genuine | genuine | 120 | 0 | 0/120 = 0% (95% CI 0%-3%) | 0.98 | 0.94 |
-| h_desktop | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.66 | 0.96 |
-| h_first_visit | hard_genuine | genuine | 70 | 0 | 0/70 = 0% (95% CI 0%-5%) | 0.98 | 0.73 |
-| h_indoor_drift | hard_genuine | genuine | 70 | 0 | 0/70 = 0% (95% CI 0%-5%) | 0.66 | 0.94 |
-| h_legacy_client | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.80 | 0.95 |
-| h_short_trail | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.85 | 0.94 |
-| h_smooth_highway | hard_genuine | genuine | 70 | 4 | 4/70 = 6% (95% CI 2%-14%) | 0.85 | 0.92 |
-| h_throttled_sensor | hard_genuine | genuine | 60 | 0 | 0/60 = 0% (95% CI 0%-6%) | 0.90 | 0.94 |
-| h_tunnel_dropout | hard_genuine | genuine | 70 | 8 | 8/70 = 11% (95% CI 6%-21%) | 0.83 | 0.95 |
-| h_vpn | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.98 | 0.56 |
+| f_teleport_still | fraud | fraud | 150 | 7 | 7/150 = 5% (95% CI 2%-9%) | 0.29 | 0.93 |
+| f_wrong_area_network | fraud_hard | fraud | 90 | 1 | 1/90 = 1% (95% CI 0%-6%) | 0.97 | 0.19 |
+| g_at_site | genuine | genuine | 120 | 2 | 2/120 = 2% (95% CI 0%-6%) | 0.90 | 0.92 |
+| g_bad_photo | genuine | genuine | 80 | 1 | 1/80 = 1% (95% CI 0%-7%) | 0.98 | 0.94 |
+| g_drive_then_walk | genuine | genuine | 120 | 2 | 2/120 = 2% (95% CI 0%-6%) | 0.96 | 0.91 |
+| g_odd_network_new_worker | genuine | genuine | 60 | 1 | 1/60 = 2% (95% CI 0%-9%) | 0.98 | 0.76 |
+| g_walk_hand | genuine | genuine | 160 | 2 | 2/160 = 1% (95% CI 0%-4%) | 0.98 | 0.93 |
+| g_walk_pocket | genuine | genuine | 120 | 2 | 2/120 = 2% (95% CI 0%-6%) | 0.98 | 0.90 |
+| h_desktop | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.64 | 0.92 |
+| h_first_visit | hard_genuine | genuine | 70 | 1 | 1/70 = 1% (95% CI 0%-8%) | 0.98 | 0.78 |
+| h_indoor_drift | hard_genuine | genuine | 70 | 2 | 2/70 = 3% (95% CI 1%-10%) | 0.67 | 0.90 |
+| h_legacy_client | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.80 | 0.90 |
+| h_short_trail | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.82 | 0.95 |
+| h_smooth_highway | hard_genuine | genuine | 70 | 2 | 2/70 = 3% (95% CI 1%-10%) | 0.87 | 0.91 |
+| h_throttled_sensor | hard_genuine | genuine | 60 | 0 | 0/60 = 0% (95% CI 0%-6%) | 0.90 | 0.92 |
+| h_tunnel_dropout | hard_genuine | genuine | 70 | 9 | 9/70 = 13% (95% CI 7%-23%) | 0.84 | 0.91 |
+| n_isp_foreign_genuine_walk | foreign_network | fraud | 80 | 1 | 1/80 = 1% (95% CI 0%-7%) | 0.88 | 0.26 |
+| n_vpn_foreign_genuine_walk | foreign_network | fraud | 100 | 1 | 1/100 = 1% (95% CI 0%-5%) | 0.88 | 0.18 |
+| n_vpn_same_country_honest | hard_genuine | genuine | 90 | 3 | 3/90 = 3% (95% CI 1%-9%) | 0.87 | 0.70 |
+| n_vpn_same_country_spoof | fraud | fraud | 60 | 8 | 8/60 = 13% (95% CI 7%-24%) | 0.54 | 0.68 |
 
 #### Errors by scenario: shifted_world (SYNTHETIC)
 
 | scenario | group | truth | rows | wrong | error rate | mean motion | mean environment |
 |---|---|---|---|---|---|---|---|
-| a_weak_good_photo | ambiguous | genuine | 100 | 42 | 42/100 = 42% (95% CI 33%-52%) | 0.70 | 0.76 |
-| a_weak_poor_photo | ambiguous | fraud | 100 | 30 | 30/100 = 30% (95% CI 22%-40%) | 0.74 | 0.76 |
-| f_linear_mock_drive | fraud | fraud | 90 | 0 | 0/90 = 0% (95% CI 0%-4%) | 0.67 | 0.90 |
-| f_linear_mock_walk | fraud | fraud | 90 | 1 | 1/90 = 1% (95% CI 0%-6%) | 0.56 | 0.94 |
-| f_mock_replayed_motion | fraud_hard | fraud | 110 | 0 | 0/110 = 0% (95% CI 0%-3%) | 0.65 | 0.93 |
-| f_realistic_spoof_still_phone | fraud | fraud | 110 | 70 | 70/110 = 64% (95% CI 54%-72%) | 0.70 | 0.93 |
-| f_static_mock_home | fraud | fraud | 110 | 0 | 0/110 = 0% (95% CI 0%-3%) | 0.72 | 0.95 |
-| f_teleport_still | fraud | fraud | 150 | 1 | 1/150 = 1% (95% CI 0%-4%) | 0.56 | 0.94 |
-| f_wrong_area_network | fraud_hard | fraud | 90 | 59 | 59/90 = 66% (95% CI 55%-75%) | 0.94 | 0.59 |
-| g_at_site | genuine | genuine | 120 | 0 | 0/120 = 0% (95% CI 0%-3%) | 0.90 | 0.90 |
-| g_bad_photo | genuine | genuine | 80 | 6 | 6/80 = 8% (95% CI 3%-15%) | 0.92 | 0.91 |
-| g_drive_then_walk | genuine | genuine | 120 | 0 | 0/120 = 0% (95% CI 0%-3%) | 0.92 | 0.92 |
-| g_odd_network_new_worker | genuine | genuine | 60 | 8 | 8/60 = 13% (95% CI 7%-24%) | 0.92 | 0.76 |
-| g_walk_hand | genuine | genuine | 160 | 6 | 6/160 = 4% (95% CI 2%-8%) | 0.92 | 0.91 |
-| g_walk_pocket | genuine | genuine | 120 | 3 | 3/120 = 2% (95% CI 1%-7%) | 0.92 | 0.89 |
-| h_desktop | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.68 | 0.90 |
-| h_first_visit | hard_genuine | genuine | 70 | 0 | 0/70 = 0% (95% CI 0%-5%) | 0.92 | 0.75 |
-| h_indoor_drift | hard_genuine | genuine | 70 | 0 | 0/70 = 0% (95% CI 0%-5%) | 0.51 | 0.92 |
-| h_legacy_client | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.80 | 0.91 |
-| h_short_trail | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.81 | 0.94 |
-| h_smooth_highway | hard_genuine | genuine | 70 | 1 | 1/70 = 1% (95% CI 0%-8%) | 0.87 | 0.89 |
-| h_throttled_sensor | hard_genuine | genuine | 60 | 0 | 0/60 = 0% (95% CI 0%-6%) | 0.90 | 0.89 |
-| h_tunnel_dropout | hard_genuine | genuine | 70 | 1 | 1/70 = 1% (95% CI 0%-8%) | 0.88 | 0.93 |
-| h_vpn | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.94 | 0.53 |
+| a_weak_good_photo | ambiguous | genuine | 100 | 38 | 38/100 = 38% (95% CI 29%-48%) | 0.77 | 0.74 |
+| a_weak_poor_photo | ambiguous | fraud | 100 | 24 | 24/100 = 24% (95% CI 17%-33%) | 0.76 | 0.73 |
+| f_linear_mock_drive | fraud | fraud | 90 | 0 | 0/90 = 0% (95% CI 0%-4%) | 0.69 | 0.92 |
+| f_linear_mock_walk | fraud | fraud | 90 | 0 | 0/90 = 0% (95% CI 0%-4%) | 0.62 | 0.94 |
+| f_mock_replayed_motion | fraud_hard | fraud | 110 | 0 | 0/110 = 0% (95% CI 0%-3%) | 0.65 | 0.94 |
+| f_realistic_spoof_still_phone | fraud | fraud | 110 | 93 | 93/110 = 85% (95% CI 77%-90%) | 0.83 | 0.92 |
+| f_static_mock_home | fraud | fraud | 110 | 0 | 0/110 = 0% (95% CI 0%-3%) | 0.72 | 0.92 |
+| f_teleport_still | fraud | fraud | 150 | 47 | 47/150 = 31% (95% CI 24%-39%) | 0.59 | 0.92 |
+| f_wrong_area_network | fraud_hard | fraud | 90 | 3 | 3/90 = 3% (95% CI 1%-9%) | 0.93 | 0.19 |
+| g_at_site | genuine | genuine | 120 | 0 | 0/120 = 0% (95% CI 0%-3%) | 0.89 | 0.92 |
+| g_bad_photo | genuine | genuine | 80 | 9 | 9/80 = 11% (95% CI 6%-20%) | 0.93 | 0.88 |
+| g_drive_then_walk | genuine | genuine | 120 | 0 | 0/120 = 0% (95% CI 0%-3%) | 0.92 | 0.90 |
+| g_odd_network_new_worker | genuine | genuine | 60 | 3 | 3/60 = 5% (95% CI 2%-14%) | 0.92 | 0.73 |
+| g_walk_hand | genuine | genuine | 160 | 5 | 5/160 = 3% (95% CI 1%-7%) | 0.92 | 0.87 |
+| g_walk_pocket | genuine | genuine | 120 | 5 | 5/120 = 4% (95% CI 2%-9%) | 0.92 | 0.90 |
+| h_desktop | hard_genuine | genuine | 50 | 2 | 2/50 = 4% (95% CI 1%-13%) | 0.66 | 0.92 |
+| h_first_visit | hard_genuine | genuine | 70 | 0 | 0/70 = 0% (95% CI 0%-5%) | 0.91 | 0.73 |
+| h_indoor_drift | hard_genuine | genuine | 70 | 0 | 0/70 = 0% (95% CI 0%-5%) | 0.50 | 0.95 |
+| h_legacy_client | hard_genuine | genuine | 50 | 2 | 2/50 = 4% (95% CI 1%-13%) | 0.81 | 0.86 |
+| h_short_trail | hard_genuine | genuine | 50 | 0 | 0/50 = 0% (95% CI 0%-7%) | 0.83 | 0.94 |
+| h_smooth_highway | hard_genuine | genuine | 70 | 0 | 0/70 = 0% (95% CI 0%-5%) | 0.89 | 0.93 |
+| h_throttled_sensor | hard_genuine | genuine | 60 | 0 | 0/60 = 0% (95% CI 0%-6%) | 0.90 | 0.90 |
+| h_tunnel_dropout | hard_genuine | genuine | 70 | 1 | 1/70 = 1% (95% CI 0%-8%) | 0.89 | 0.90 |
+| n_isp_foreign_genuine_walk | foreign_network | fraud | 80 | 6 | 6/80 = 8% (95% CI 3%-15%) | 0.86 | 0.28 |
+| n_vpn_foreign_genuine_walk | foreign_network | fraud | 100 | 6 | 6/100 = 6% (95% CI 3%-12%) | 0.87 | 0.20 |
+| n_vpn_same_country_honest | hard_genuine | genuine | 90 | 4 | 4/90 = 4% (95% CI 2%-11%) | 0.87 | 0.68 |
+| n_vpn_same_country_spoof | fraud | fraud | 60 | 42 | 42/60 = 70% (95% CI 57%-80%) | 0.77 | 0.62 |
 
 ### When evidence is missing (SYNTHETIC; shifted world)
 
@@ -965,35 +976,36 @@ These are the numbers that matter most for workers: the false-flag rate on the *
 
 | motion known | environment known | rows | honest flagged | fraud caught |
 |---|---|---|---|---|
-| False | True | 124 | 0/123 = 0% (95% CI 0%-3%) | 0/1 = 0% (95% CI 0%-79%) |
-| True | False | 27 | 0/27 = 0% (95% CI 0%-12%) | n/a |
-| True | True | 1999 | 67/1150 = 6% (95% CI 5%-7%) | 689/849 = 81% (95% CI 78%-84%) |
+| False | False | 1 | 0/1 = 0% (95% CI 0%-79%) | n/a |
+| False | True | 165 | 3/137 = 2% (95% CI 1%-6%) | 21/28 = 75% (95% CI 57%-87%) |
+| True | False | 26 | 0/26 = 0% (95% CI 0%-13%) | n/a |
+| True | True | 2238 | 66/1176 = 6% (95% CI 4%-7%) | 848/1062 = 80% (95% CI 77%-82%) |
 
 ### Which input matters? (SYNTHETIC; models retrained without one input, scored on the shifted world)
 
 | variant | AUC | fraud caught | honest flagged |
 |---|---|---|---|
-| all inputs | 0.918 (95% CI 0.903-0.932) | 695/850 = 82% (95% CI 79%-84%) | 76/1300 = 6% (95% CI 5%-7%) |
-| without motion (motion_score, motion_known) | 0.612 (95% CI 0.584-0.636) | 235/850 = 28% (95% CI 25%-31%) | 177/1300 = 14% (95% CI 12%-16%) |
-| without environment (ambient_score, env_known) | 0.882 (95% CI 0.865-0.897) | 654/850 = 77% (95% CI 74%-80%) | 74/1300 = 6% (95% CI 5%-7%) |
-| without photo quality | 0.908 (95% CI 0.891-0.921) | 673/850 = 79% (95% CI 76%-82%) | 87/1300 = 7% (95% CI 5%-8%) |
+| all inputs | 0.926 (95% CI 0.915-0.937) | 875/1090 = 80% (95% CI 78%-83%) | 70/1340 = 5% (95% CI 4%-7%) |
+| without motion (motion_score, motion_known) | 0.674 (95% CI 0.654-0.694) | 417/1090 = 38% (95% CI 35%-41%) | 122/1340 = 9% (95% CI 8%-11%) |
+| without environment (ambient_score, env_known) | 0.786 (95% CI 0.767-0.805) | 609/1090 = 56% (95% CI 53%-59%) | 58/1340 = 4% (95% CI 3%-6%) |
+| without photo quality | 0.925 (95% CI 0.914-0.935) | 825/1090 = 76% (95% CI 73%-78%) | 66/1340 = 5% (95% CI 4%-6%) |
 
-Permutation importance on the deployed model (AUC lost when one input is shuffled; base AUC 0.917): `photo_quality_score` -0.011, `motion_score` -0.336, `ambient_score` -0.041, `motion_known` -0.040, `env_known` -0.002.
+Permutation importance on the deployed model (AUC lost when one input is shuffled; base AUC 0.919): `photo_quality_score` -0.013, `motion_score` -0.272, `ambient_score` -0.158, `motion_known` -0.083, `env_known` -0.001.
 
 #### Calibration (reliability) on the shifted world (SYNTHETIC)
 
 | P(fraud) bin | rows | mean predicted | observed fraud rate |
 |---|---|---|---|
-| 0.0-0.1 | 1066 | 0.03 | 0.07 |
-| 0.1-0.2 | 182 | 0.14 | 0.21 |
-| 0.2-0.3 | 64 | 0.24 | 0.31 |
-| 0.3-0.4 | 39 | 0.35 | 0.31 |
-| 0.4-0.5 | 43 | 0.44 | 0.42 |
-| 0.5-0.6 | 23 | 0.54 | 0.61 |
-| 0.6-0.7 | 48 | 0.66 | 0.85 |
-| 0.7-0.8 | 27 | 0.74 | 0.78 |
-| 0.8-0.9 | 49 | 0.87 | 0.73 |
-| 0.9-1.0 | 609 | 0.97 | 0.95 |
+| 0.0-0.1 | 1179 | 0.02 | 0.11 |
+| 0.1-0.2 | 206 | 0.15 | 0.27 |
+| 0.2-0.3 | 50 | 0.25 | 0.40 |
+| 0.3-0.4 | 48 | 0.33 | 0.27 |
+| 0.4-0.5 | 9 | 0.46 | 0.67 |
+| 0.5-0.6 | 6 | 0.57 | 0.83 |
+| 0.6-0.7 | 49 | 0.64 | 0.73 |
+| 0.7-0.8 | 21 | 0.75 | 0.62 |
+| 0.8-0.9 | 70 | 0.85 | 0.90 |
+| 0.9-1.0 | 792 | 0.97 | 0.95 |
 
 ### GPS-jump rule: sensitivity of its speed ceiling (SYNTHETIC; feature level, no model)
 
@@ -1001,7 +1013,7 @@ Share of rows in which a GPS jump was reported. A higher ceiling misses more tel
 
 | ceiling (m/s) | f_teleport_still | g_walk_hand | h_tunnel_dropout | h_smooth_highway | h_indoor_drift |
 |---|---|---|---|---|---|
-| 10 | 60/60 = 100% (95% CI 94%-100%) | 0/60 = 0% (95% CI 0%-6%) | 32/40 = 80% (95% CI 65%-90%) | 40/40 = 100% (95% CI 91%-100%) | 0/40 = 0% (95% CI 0%-9%) |
+| 10 | 60/60 = 100% (95% CI 94%-100%) | 0/60 = 0% (95% CI 0%-6%) | 26/40 = 65% (95% CI 50%-78%) | 40/40 = 100% (95% CI 91%-100%) | 0/40 = 0% (95% CI 0%-9%) |
 | 25 | 60/60 = 100% (95% CI 94%-100%) | 0/60 = 0% (95% CI 0%-6%) | 0/40 = 0% (95% CI 0%-9%) | 0/40 = 0% (95% CI 0%-9%) | 0/40 = 0% (95% CI 0%-9%) |
 | 55 (deployed) | 60/60 = 100% (95% CI 94%-100%) | 0/60 = 0% (95% CI 0%-6%) | 0/40 = 0% (95% CI 0%-9%) | 0/40 = 0% (95% CI 0%-9%) | 0/40 = 0% (95% CI 0%-9%) |
 | 120 | 60/60 = 100% (95% CI 94%-100%) | 0/60 = 0% (95% CI 0%-6%) | 0/40 = 0% (95% CI 0%-9%) | 0/40 = 0% (95% CI 0%-9%) | 0/40 = 0% (95% CI 0%-9%) |
@@ -1011,26 +1023,70 @@ Share of rows in which a GPS jump was reported. A higher ceiling misses more tel
 
 | bar | mean share of |SHAP| | min - max |
 |---|---|---|
-| photo_quality | 0.114 | 0.105 - 0.125 |
-| motion_consistency | 0.768 | 0.742 - 0.787 |
-| ambient_fingerprint | 0.118 | 0.108 - 0.133 |
+| photo_quality | 0.109 | 0.093 - 0.129 |
+| motion_consistency | 0.622 | 0.613 - 0.632 |
+| ambient_fingerprint | 0.269 | 0.258 - 0.286 |
 
 Ranking identical in all 3 runs: **yes**. The `known` flags are folded into their score's bar. Stable importances only mean the simulator is learned consistently.
+
+### Network ('environment') rows (SYNTHETIC)
+
+P(fraud) as the environment score falls, with photo 0.9 and motion 0.97 (the real classifier, including its monotone guard). Fine-grid scan (101 points) monotone: **yes**; the guard changed the result in 0 of 21 rows below.
+
+| environment score | P(fraud) | guard applied |
+|---|---|---|
+| 0.00 | 0.986 |  |
+| 0.05 | 0.986 |  |
+| 0.10 | 0.986 |  |
+| 0.15 | 0.986 |  |
+| 0.20 | 0.986 |  |
+| 0.25 | 0.821 |  |
+| 0.30 | 0.602 |  |
+| 0.35 | 0.023 |  |
+| 0.40 | 0.023 |  |
+| 0.45 | 0.023 |  |
+| 0.50 | 0.023 |  |
+| 0.55 | 0.023 |  |
+| 0.60 | 0.023 |  |
+| 0.65 | 0.015 |  |
+| 0.70 | 0.015 |  |
+| 0.75 | 0.013 |  |
+| 0.80 | 0.013 |  |
+| 0.85 | 0.013 |  |
+| 0.90 | 0.013 |  |
+| 0.95 | 0.008 |  |
+| 1.00 | 0.008 |  |
+
+Per scenario, in a fresh random draw (same simulated world):
+
+| scenario | what | truth (by assumption) | rows | wrong | error rate | mean environment |
+|---|---|---|---|---|---|---|
+| f_wrong_area_network | spoof from a foreign network | fraud | 90 | 1 | 1/90 = 1% (95% CI 0%-6%) | 0.19 |
+| g_odd_network_new_worker | honest worker on an unusual link | genuine | 60 | 1 | 1/60 = 2% (95% CI 0%-9%) | 0.76 |
+| n_isp_foreign_genuine_walk | foreign ISP, genuine-looking walk | fraud | 80 | 1 | 1/80 = 1% (95% CI 0%-7%) | 0.26 |
+| n_vpn_foreign_genuine_walk | foreign VPN exit, genuine-looking walk | fraud | 100 | 1 | 1/100 = 1% (95% CI 0%-5%) | 0.18 |
+| n_vpn_same_country_honest | honest worker, VPN exit in the SAME country | genuine | 90 | 3 | 3/90 = 3% (95% CI 1%-9%) | 0.70 |
+| n_vpn_same_country_spoof | spoofer behind a same-country VPN | fraud | 60 | 8 | 8/60 = 13% (95% CI 7%-24%) | 0.68 |
+
+Honest-worker false-flag rate in this draw: genuine 10/660 = 2% (95% CI 1%-3%), hard genuine (false-positive traps) 17/580 = 3% (95% CI 2%-5%). **Read the foreign-network rows as policy, not accuracy:** their labels are assumptions (see the leakage notes), and the simulator's IP error model is built from published figures only where they exist.
 
 ### Probe grid (SYNTHETIC)
 
 | case | photo / motion / environment / motion known / env known | P(fraud) | expected | got |  |
 |---|---|---|---|---|---|
-| all good | 0.9 / 0.97 / 0.95 / 1 / 1 | 0.016 | accepted | accepted | ok |
-| honest bad photo, everything else fine | 0.15 / 0.97 / 0.95 / 1 / 1 | 0.021 | accepted | accepted | ok |
-| GPS jump + still phone, perfect photo | 0.9 / 0.15 / 0.95 / 1 / 1 | 0.992 | flagged | flagged | ok |
-| GPS says walking, phone never moves | 0.9 / 0.35 / 0.95 / 1 / 1 | 0.992 | flagged | flagged | ok |
-| frozen mock GPS (too perfect), good photo | 0.9 / 0.72 / 0.95 / 1 / 1 | 0.951 | flagged | flagged | ok |
-| network from another country, motion fine | 0.9 / 0.97 / 0.3 / 1 / 1 | 0.950 | flagged | flagged | ok |
-| nothing could be compared, good photo | 0.9 / 0.5 / 0.5 / 0 / 0 | 0.002 | accepted | accepted | ok |
-| nothing could be compared, poor photo | 0.15 / 0.5 / 0.5 / 0 / 0 | 0.024 | accepted | accepted | ok |
-| weak evidence + bad photo | 0.15 / 0.73 / 0.78 / 1 / 1 | 0.957 | flagged | flagged | ok |
-| weak evidence + good photo | 0.9 / 0.73 / 0.78 / 1 / 1 | 0.080 | accepted | accepted | ok |
+| all good | 0.9 / 0.97 / 0.95 / 1 / 1 | 0.008 | accepted | accepted | ok |
+| honest bad photo, everything else fine | 0.15 / 0.97 / 0.95 / 1 / 1 | 0.060 | accepted | accepted | ok |
+| GPS jump + still phone, perfect photo | 0.9 / 0.15 / 0.95 / 1 / 1 | 1.000 | flagged | flagged | ok |
+| GPS says walking, phone never moves | 0.9 / 0.35 / 0.95 / 1 / 1 | 1.000 | flagged | flagged | ok |
+| frozen mock GPS (too perfect), good photo | 0.9 / 0.72 / 0.95 / 1 / 1 | 0.907 | flagged | flagged | ok |
+| foreign VPN exit (env 0.17), motion fine | 0.9 / 0.97 / 0.17 / 1 / 1 | 0.986 | flagged | flagged | ok |
+| foreign ISP (env 0.24), motion fine | 0.9 / 0.97 / 0.24 / 1 / 1 | 0.821 | flagged | flagged | ok |
+| same-country VPN (env 0.56), motion fine | 0.9 / 0.97 / 0.56 / 1 / 1 | 0.023 | accepted | accepted | ok |
+| carrier gateway far (env 0.65), motion fine | 0.9 / 0.97 / 0.65 / 1 / 1 | 0.015 | accepted | accepted | ok |
+| nothing could be compared, good photo | 0.9 / 0.5 / 0.5 / 0 / 0 | 0.006 | accepted | accepted | ok |
+| nothing could be compared, poor photo | 0.15 / 0.5 / 0.5 / 0 / 0 | 0.075 | accepted | accepted | ok |
+| weak evidence + bad photo | 0.15 / 0.73 / 0.78 / 1 / 1 | 0.876 | flagged | flagged | ok |
+| weak evidence + good photo | 0.9 / 0.73 / 0.78 / 1 / 1 | 0.181 | accepted | accepted | ok |
 
 ### Leakage and validity notes
 
@@ -1040,7 +1096,8 @@ Ranking identical in all 3 runs: **yes**. The `known` flags are folded into thei
 - Fraud labels are by scenario: a 'fraud' row is fraud because the simulator made it a spoof. Real spoofing apps, real emulators and real fraud patterns are unknown.
 - The rule 'with the same weak evidence a poor photo tips a case to review' (the `ambiguous` pair) is an ASSUMPTION encoded in the labels, as in the old generator; it was not learned from reviewed cases.
 - Replayed real accelerometer data on a frozen mock location is, by construction, invisible to the motion rules; only the 'too perfect GPS' sign and the network can see it. The `fraud_hard` group shows how often that is enough.
-- The IP-context rows are simulated; the real DB-IP databases were not used for any number here.
+- The IP-context rows are simulated; the real DB-IP databases were not used for any number in this section. The IP error model comes from MaxMind's published figures (about 99.8% country-level accuracy, about 63% of US IPs within 50 km) plus stated assumptions (the country error for a 'lite' database, the shape of the position error); India-specific figures were not available. REAL lookups through the real engine are listed in environment-consistency/progress.md and are not accuracy numbers.
+- Labels of the network scenarios are policy assumptions: a worker whose network is in ANOTHER country than the claimed area is labelled 'send to review' (a genuine traveller and a spoofer behind a foreign network cannot be told apart by this signal); an honest worker behind a VPN that exits in the SAME country is labelled genuine.
 
 
 ## 6. Latency (this machine; wall time; will differ elsewhere)
@@ -1049,17 +1106,17 @@ Server-side engine, single process, 30 evenly spaced REAL good photos (median 2.
 
 | stage | p50 ms | p95 ms |
 |---|---|---|
-| decode + frame | 75 | 110 |
-| blur | 32 | 44 |
-| resolution | 0 | 0 |
-| exposure | 5 | 6 |
-| obstruction | 11 | 14 |
-| glare | 35 | 47 |
-| shake | 38 | 51 |
-| noise | 5 | 5 |
-| end to end (7 checks) | 200 | 279 |
+| decode + frame | 123 | 167 |
+| blur | 50 | 67 |
+| resolution | 1 | 1 |
+| exposure | 8 | 9 |
+| obstruction | 17 | 21 |
+| glare | 55 | 75 |
+| shake | 60 | 78 |
+| noise | 7 | 7 |
+| end to end (7 checks) | 323 | 422 |
 
-Whole `analyze_image` call over all 595 analysed photos (all folders, run in parallel workers, so slower per photo than the single-process table above): p50 328 ms, p95 994 ms (includes face check for face folders).
+Whole `analyze_image` call over all 595 analysed photos (all folders, run in parallel workers, so slower per photo than the single-process table above): p50 565 ms, p95 1515 ms (includes face check for face folders).
 
 ### Client (JavaScript) vs server (Python) agreement
 

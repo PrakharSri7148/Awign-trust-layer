@@ -59,6 +59,28 @@ class Site(SQLModel, table=True):
     label: Optional[str] = Field(default=None)
 
 
+class SiteChange(SQLModel, table=True):
+    """Every create / move / edit of a site's claimed area, so the location cannot be changed silently (E4). Old submissions keep the
+    site coordinates they were scored with (inside their own fusion_report); this table is the history of the site itself."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    site_id: str = Field(index=True)
+    changed_at: datetime = Field(default_factory=utcnow, index=True)
+    kind: str = Field(default="update")  # create | update
+    old_lat: Optional[float] = Field(default=None)
+    old_lng: Optional[float] = Field(default=None)
+    old_radius_m: Optional[float] = Field(default=None)
+    old_country: Optional[str] = Field(default=None)
+    old_label: Optional[str] = Field(default=None)
+    new_lat: float
+    new_lng: float
+    new_radius_m: float
+    new_country: Optional[str] = Field(default=None)
+    new_label: Optional[str] = Field(default=None)
+    moved_m: Optional[float] = Field(default=None)  # distance between the old and new point (None for a create)
+    network_reset: bool = Field(default=False)  # the learned network profile was forgotten together with this change
+    profile_rows_cleared: int = Field(default=0)
+
+
 class SiteNetworkProfile(SQLModel, table=True):
     """What the network usually looks like at a site, learned from ACCEPTED (or reviewer-approved) visits only, so one
     spoofed first submission cannot become the baseline. kind: link | asn | wifi | cell."""

@@ -23,7 +23,8 @@ FEATURES = ["photo_quality_score", "motion_score", "ambient_score", "motion_know
 BARS = {"photo_quality_score": "photo_quality", "motion_score": "motion_consistency", "motion_known": "motion_consistency",
         "ambient_score": "ambient_fingerprint", "env_known": "ambient_fingerprint"}
 DECISION = 0.5
-GROUP_LABELS = {"genuine": "genuine", "hard_genuine": "hard genuine (false-positive traps)", "fraud": "fraud", "fraud_hard": "hard fraud (replayed motion / wrong network only)", "ambiguous": "ambiguous (label rests on the photo assumption)"}
+GROUP_LABELS = {"genuine": "genuine", "hard_genuine": "hard genuine (false-positive traps)", "fraud": "fraud", "fraud_hard": "hard fraud (replayed motion / wrong network only)", "ambiguous": "ambiguous (label rests on the photo assumption)",
+                "foreign_network": "foreign network (labelled 'send to review' by assumption)"}
 
 LEAKAGE = [
     "The simulator and the detectors were written by the same people. The gait frequency (1.8 Hz), the hand-tremor size, the GPS error model (AR(1) noise, accuracy 1-2x sigma), the share of carrier gateways that resolve far away and the whole scenario list are assumptions, not measurements.",
@@ -32,7 +33,8 @@ LEAKAGE = [
     "Fraud labels are by scenario: a 'fraud' row is fraud because the simulator made it a spoof. Real spoofing apps, real emulators and real fraud patterns are unknown.",
     "The rule 'with the same weak evidence a poor photo tips a case to review' (the `ambiguous` pair) is an ASSUMPTION encoded in the labels, as in the old generator; it was not learned from reviewed cases.",
     "Replayed real accelerometer data on a frozen mock location is, by construction, invisible to the motion rules; only the 'too perfect GPS' sign and the network can see it. The `fraud_hard` group shows how often that is enough.",
-    "The IP-context rows are simulated; the real DB-IP databases were not used for any number here.",
+    "The IP-context rows are simulated; the real DB-IP databases were not used for any number in this section. The IP error model comes from MaxMind's published figures (about 99.8% country-level accuracy, about 63% of US IPs within 50 km) plus stated assumptions (the country error for a 'lite' database, the shape of the position error); India-specific figures were not available. REAL lookups through the real engine are listed in environment-consistency/progress.md and are not accuracy numbers.",
+    "Labels of the network scenarios are policy assumptions: a worker whose network is in ANOTHER country than the claimed area is labelled 'send to review' (a genuine traveller and a spoofer behind a foreign network cannot be told apart by this signal); an honest worker behind a VPN that exits in the SAME country is labelled genuine.",
 ]
 
 
@@ -77,9 +79,11 @@ def _strata(df, p):
 
 
 def _fit(df, feats, seed=42):
-    from sklearn.ensemble import GradientBoostingClassifier
+    """The same model family as the deployed one (monotone histogram gradient boosting, train_classifier.py), on `feats`."""
+    from sklearn.ensemble import HistGradientBoostingClassifier
 
-    return GradientBoostingClassifier(n_estimators=100, max_depth=3, random_state=seed).fit(df[feats], df["is_fraud"])
+    cst = [0 if f in ("motion_known", "env_known") else -1 for f in feats]
+    return HistGradientBoostingClassifier(max_depth=3, max_iter=150, learning_rate=0.1, monotonic_cst=cst, random_state=seed).fit(df[feats], df["is_fraud"])
 
 
 def _ablation(train, test, n_boot, seed):
@@ -106,7 +110,7 @@ def _shap_stability(train, test, seeds=3):
     for s in range(seeds):
         tr, _ = train_test_split(train, test_size=0.2, stratify=train["is_fraud"], random_state=s)
         m = _fit(tr, FEATURES, seed=s)
-        v = np.abs(shap.Explainer(m, tr[FEATURES].sample(n=min(100, len(tr)), random_state=s))(test[FEATURES].head(300)).values).mean(axis=0)
+        v = np.abs(shap.Explainer(m, tr[FEATURES].sample(n=min(100, len(tr)), random_state=s))(test[FEATURES].head(300), check_additivity=False).values).mean(axis=0)
         fold = dict.fromkeys(order, 0.0)
         for f, x in zip(FEATURES, v):
             fold[BARS[f]] += float(x)
@@ -201,6 +205,28 @@ def real_traces(samples_dir, seed=0):
     return out
 
 
+def _environment(model, by_scenario, groups):
+    """The network ('environment') rows: how the deployed model + guard behaves as the environment score falls (photo 0.9, motion 0.97,
+    SYNTHETIC), and the per-scenario rates of the network scenarios in a fresh random draw."""
+    import classifier
+
+    grid = [round(x, 2) for x in np.arange(0, 1.0001, 0.05)]
+    scan = []
+    for e in grid:
+        r = classifier.score_submission(0.9, 0.97, e, env_known=True)
+        scan.append({"environment": e, "p_fraud": r["fraud_probability"], "guard_applied": r["monotone_guard_applied"]})
+    fine = [classifier.score_submission(0.9, 0.97, x / 100.0, env_known=True)["fraud_probability"] for x in range(0, 101)]
+    names = {"n_vpn_foreign_genuine_walk": "foreign VPN exit, genuine-looking walk", "n_isp_foreign_genuine_walk": "foreign ISP, genuine-looking walk",
+             "f_wrong_area_network": "spoof from a foreign network", "n_vpn_same_country_honest": "honest worker, VPN exit in the SAME country",
+             "n_vpn_same_country_spoof": "spoofer behind a same-country VPN", "g_odd_network_new_worker": "honest worker on an unusual link"}
+    rows = [{"scenario": n, "what": names[n], "truth": r["truth"], "n": r["n"], "wrong": r["wrong"], "error": r["error"], "mean_env": r["mean_env"]}
+            for r in by_scenario["different_seed"] for n in [r["scenario"]] if n in names]
+    gen = groups["different_seed"]
+    return {"label": "SYNTHETIC", "scan": scan, "monotone": all(fine[i] >= fine[i + 1] - 1e-9 for i in range(100)),
+            "guard_bands": sum(1 for r in scan if r["guard_applied"]), "scenarios": rows,
+            "honest_false_flag": {g: gen[g].get("false_flag") for g in ("genuine", "hard_genuine") if g in gen}}
+
+
 def run(n_boot=1000, seed=0, scale=1.0, samples_dir=None):
     import generate_fusion_data as gfd
     from sklearn.model_selection import train_test_split
@@ -244,6 +270,7 @@ def run(n_boot=1000, seed=0, scale=1.0, samples_dir=None):
         got = "flagged" if pr > DECISION else "accepted"
         probes.append({"name": name, "features": dict(zip(FEATURES, feats)), "p_fraud": pr, "expected": expect, "got": got, "ok": got == expect})
     out["probes"] = probes
+    out["environment"] = _environment(model, out["by_scenario"], out["groups"])
     out["jump_sensitivity"] = _jump_sensitivity(seed)
     out["real"] = real_traces(samples_dir, seed)
     return out

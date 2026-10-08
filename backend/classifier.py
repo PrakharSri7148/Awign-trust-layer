@@ -1,3 +1,4 @@
+import math
 import os
 from pathlib import Path
 
@@ -57,6 +58,62 @@ _background = pd.read_csv(_data)[MODEL_FEATURES].sample(n=50, random_state=0)
 explainer = shap.Explainer(model, _background)
 
 
+# Environment grid for the monotone guard (see _guarded_probability).
+_ENV_GRID = np.round(np.linspace(0.0, 1.0, 101), 4)
+
+
+def _clean(value, default, lo=0.0, hi=1.0):
+    """A finite float clipped to [lo, hi]; anything else (None, NaN, text) becomes `default`. score_submission must never raise."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    return min(hi, max(lo, v)) if math.isfinite(v) else default
+
+
+def _guarded_probability(raw, X):
+    """-> (probability, guard_applied). MONOTONE GUARD: with the environment known, P(fraud) must never RISE as the environment
+    score FALLS (other inputs fixed), or a worse network could be judged safer than a better one. The trained model is monotone
+    in the regions the simulator covers (see train_classifier.py); where a sparse region still bends the curve, the probability is the
+    LARGEST one over this environment score and every higher one. Applied only when env_known: an unknown environment (a neutral
+    placeholder, not a measurement) is never raised. Only for models that have the env_known input (the v1 model does not)."""
+    p = float(model.predict_proba(X)[0, 1])
+    if "env_known" not in MODEL_FEATURES or raw["env_known"] < 0.5:
+        return p, False
+    e = raw["ambient_score"]
+    higher = _ENV_GRID[_ENV_GRID > e]
+    if higher.size == 0:
+        return p, False
+    G = pd.concat([X] * len(higher), ignore_index=True)
+    G["ambient_score"] = higher
+    best = max(p, float(model.predict_proba(G[MODEL_FEATURES])[:, 1].max()))
+    return best, best > p + 1e-12
+
+
+def _importance_shares(X):
+    """-> (shares per dashboard bar, exact). SHAP's additivity check can fail for some inputs (seen at environment exactly 0.60);
+    that must never become an error on POST /submissions. Fallback 1: the same explainer without the check (the attributions are then
+    only approximate). Fallback 2: equal shares. Both are marked approximate (the result carries `explanation: "approximate"`)."""
+    exact = True
+    try:
+        values = explainer(X).values[0]
+    except Exception:
+        exact = False
+        try:
+            values = explainer(X, check_additivity=False).values[0]
+        except Exception:
+            values = None
+    folded = dict.fromkeys(BAR_ORDER, 0.0)
+    if values is not None and np.all(np.isfinite(values)):
+        for name, v in zip(MODEL_FEATURES, np.abs(values)):
+            folded[IMPORTANCE_KEYS[name]] += float(v)
+    else:
+        exact = False
+    total = sum(folded.values())
+    shares = {k: v / total for k, v in folded.items()} if total > 0 else {k: 1.0 / len(BAR_ORDER) for k in BAR_ORDER}
+    return shares, exact
+
+
 def _photo_reason(photo_issues):
     """"Photo quality problem: blurry, glare" from the server's issue ids, when we know them."""
     names = [PHOTO_ISSUE_LABELS[i] for i in (photo_issues or []) if i in PHOTO_ISSUE_LABELS]
@@ -83,26 +140,19 @@ def score_submission(photo_quality_score, motion_score, ambient_score, photo_iss
     `motion_score` / `ambient_score`: motion_consistency / environment_consistency from fusion/ (or the legacy scores for
     a model that predates it). `*_known`: False when nothing could be compared (the score is then a neutral placeholder).
     `photo_issues`, `motion_reason`, `env_reason`: only used to word the reason."""
+    motion_known = bool(motion_known) and math.isfinite(_clean(motion_score, float("nan")))
+    env_known = bool(env_known) and math.isfinite(_clean(ambient_score, float("nan")))
     raw = {
-        "photo_quality_score": float(photo_quality_score),
-        "motion_score": float(motion_score),
-        "ambient_score": float(ambient_score),
+        "photo_quality_score": _clean(photo_quality_score, 0.0),
+        "motion_score": _clean(motion_score, 0.5),
+        "ambient_score": _clean(ambient_score, 0.5),
         "motion_known": 1.0 if motion_known else 0.0,
         "env_known": 1.0 if env_known else 0.0,
     }
     X = pd.DataFrame([raw], columns=FEATURES)[MODEL_FEATURES]
 
-    fraud_probability = float(model.predict_proba(X)[0, 1])
-
-    abs_shap = np.abs(explainer(X).values[0])
-    folded = dict.fromkeys(BAR_ORDER, 0.0)
-    for name, v in zip(MODEL_FEATURES, abs_shap):
-        folded[IMPORTANCE_KEYS[name]] += float(v)
-    total = sum(folded.values())
-    if total > 0:
-        shares = {k: v / total for k, v in folded.items()}
-    else:
-        shares = {k: 1.0 / len(BAR_ORDER) for k in BAR_ORDER}
+    fraud_probability, guard_applied = _guarded_probability(raw, X)
+    shares, exact = _importance_shares(X)
     feature_importances = {k: round(v, 4) for k, v in shares.items()}
 
     if fraud_probability < LOW_RISK_THRESHOLD:
@@ -127,4 +177,7 @@ def score_submission(photo_quality_score, motion_score, ambient_score, photo_iss
         "fraud_probability": fraud_probability,
         "feature_importances": feature_importances,
         "top_reason": top_reason,
+        # How the number and the explanation were obtained (extra keys; the API response does not need them).
+        "explanation": "exact" if exact else "approximate",
+        "monotone_guard_applied": guard_applied,
     }

@@ -86,7 +86,7 @@ for (const [n, photo] of photos.entries()) {
       rows: [...document.querySelectorAll('.qc__row')].map((r) => r.innerText.replace(/\s+/g, ' ')),
     }))
     Object.assign(rec, ui)
-    rec.canSubmit = ui.submit.some((s) => /^Submit/.test(s))
+    rec.canSubmit = ui.submit.some((s) => /^(Submit|I've reached)/.test(s))
     const b64 = await page.evaluate(async () => { const img = [...document.querySelectorAll('img')].find((i) => i.src.startsWith('blob:')); if (!img) return null; const b = await (await fetch(img.src)).blob(); const buf = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000)); return btoa(s) })
     if (b64) { fs.writeFileSync(path.join(outDir, `${n}.jpg`), Buffer.from(b64, 'base64')); rec.captured = `${n}.jpg` }
     rec.burst = bursts[0] ? JSON.parse(bursts[0]) : null

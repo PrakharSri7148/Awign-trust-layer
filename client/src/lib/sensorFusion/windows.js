@@ -33,8 +33,18 @@ export function windowFeatures(samples, a = ACTIVITY) {
   const out = { n: ts.length, hz: null, acc_rms: null, acc_peak: null, gyro_rms: null, cad_hz: null, cad_pw: null }
   if (ts.length >= 2 && ts[ts.length - 1] > ts[0]) out.hz = (ts.length - 1) / ((ts[ts.length - 1] - ts[0]) / 1000)
   if (accM.length) {
-    out.acc_rms = Math.sqrt(accM.reduce((s, m) => s + m * m, 0) / accM.length)
-    out.acc_peak = Math.max(...accM)
+    // Movement = variation around the window's own mean: a constant offset in the sensor (a phone lying on a table read 0.22 m/s2 on an
+    // Oppo F19 Pro, 2026-10-08) is not movement. Fewer than 3 samples cannot tell an offset from a movement: keep the raw size.
+    let dev = accM
+    if (accM.length >= 3) {
+      const n = accM.length
+      const mx = ax.reduce((s, v) => s + v, 0) / n
+      const my = ay.reduce((s, v) => s + v, 0) / n
+      const mz = az.reduce((s, v) => s + v, 0) / n
+      dev = ax.map((x, i) => Math.sqrt((x - mx) ** 2 + (ay[i] - my) ** 2 + (az[i] - mz) ** 2))
+    }
+    out.acc_rms = Math.sqrt(dev.reduce((s, m) => s + m * m, 0) / dev.length)
+    out.acc_peak = Math.max(...dev)
   }
   if (gyroM.length) out.gyro_rms = Math.sqrt(gyroM.reduce((s, m) => s + m * m, 0) / gyroM.length)
   ;[out.cad_hz, out.cad_pw] = cadence(accT, [ax, ay, az], out.hz, a)

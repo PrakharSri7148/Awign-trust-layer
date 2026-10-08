@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion'
-import { Activity, Camera, FlaskConical, LayoutDashboard } from 'lucide-react'
+import { Activity, Camera, FlaskConical, LayoutDashboard, TriangleAlert } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import Background from './ui/Background.jsx'
 import Logo from './ui/Logo.jsx'
 import { useDemo } from '../lib/contexts.jsx'
+import { DBIP_CREDIT, describeIpDatabase, useIpDatabase } from '../lib/ipDatabase.js'
 import { useHealth } from '../lib/useSubmissions.js'
 
 const LINKS = [
@@ -15,6 +16,7 @@ export default function Shell({ children }) {
   const health = useHealth()
   const { demo, setDemo } = useDemo()
   const { pathname } = useLocation()
+  const ipDb = describeIpDatabase(useIpDatabase())
 
   const color = health == null ? 'var(--amber)' : health ? 'var(--green)' : 'var(--red)'
   const label = health == null ? 'CONNECTING' : health ? 'SYSTEM ONLINE' : 'BACKEND OFFLINE'
@@ -55,6 +57,12 @@ export default function Shell({ children }) {
             <FlaskConical size={13} />
             DEMO {demo ? 'ON' : 'OFF'}
           </button>
+          {(ipDb.state === 'missing' || ipDb.state === 'stale') && (
+            <span className="chip" style={{ color: 'var(--amber)' }} title={ipDb.detail} data-testid="ipdb-chip">
+              <TriangleAlert size={13} />
+              {ipDb.label}
+            </span>
+          )}
           <span className="chip" style={{ color }}>
             <span className="dot dot--pulse" />
             {label}
@@ -74,6 +82,11 @@ export default function Shell({ children }) {
 
       <footer className="footer">
         <Activity size={11} style={{ verticalAlign: '-1px' }} /> Edge validation → <b>Sensor fusion</b> → Explainable AI
+        {ipDb.credit && (
+          <div className="footer__credit" data-testid="dbip-credit">
+            <a href={DBIP_CREDIT.url} target="_blank" rel="noopener noreferrer">{DBIP_CREDIT.text}</a> · CC BY 4.0
+          </div>
+        )}
       </footer>
     </div>
   )

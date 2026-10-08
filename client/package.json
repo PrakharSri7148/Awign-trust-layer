@@ -15,7 +15,13 @@
     "calibrate": "../backend/.venv/bin/python ../backend/tools/calibrate.py",
     "report": "../backend/.venv/bin/python ../backend/tools/accuracy_report.py",
     "e2e": "node tools/e2e/run.mjs",
-    "fusion:parity": "node tools/fusion-parity.mjs"
+    "fusion:parity": "node tools/fusion-parity.mjs",
+    "apk": "node tools/apk.mjs",
+    "demo:laptop": "E2E_HEADFUL=1 node tools/e2e/run.mjs fusion_demo",
+    "demo:reset": "../backend/.venv/bin/python ../backend/tools/demo_reset.py",
+    "prebuild:prod": "node scripts/copy-mediapipe.mjs",
+    "build:prod": "export VITE_API_URL=/api VITE_DEMO_TOOLS= && vite build && node tools/build-info.mjs",
+    "e2e:public": "node tools/e2e/public.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.1.0",

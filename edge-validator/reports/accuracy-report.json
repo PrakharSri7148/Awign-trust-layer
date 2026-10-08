@@ -1,6 +1,6 @@
 {
  "meta": {
-  "generated_at": "2026-10-08T06:34:57+00:00",
+  "generated_at": "2026-10-08T13:06:47+00:00",
   "seed": 0,
   "n_boot": 1000,
   "thresholds_sha256": "85128bed4e96",
@@ -4974,47 +4974,47 @@
   "median_megapixels": 2.76624,
   "stages": {
    "decode + frame": {
-    "p50_ms": 74.75381251424551,
-    "p95_ms": 110.21162097749765
+    "p50_ms": 122.57814549957402,
+    "p95_ms": 166.85457088751713
    },
    "blur": {
-    "p50_ms": 32.43266697973013,
-    "p95_ms": 44.15403399325441
+    "p50_ms": 50.25577047490515,
+    "p95_ms": 67.33212675899266
    },
    "resolution": {
-    "p50_ms": 0.3960415197070688,
-    "p95_ms": 0.4655417142203077
+    "p50_ms": 0.5906880251131952,
+    "p95_ms": 0.6114144140155986
    },
    "exposure": {
-    "p50_ms": 4.738395509775728,
-    "p95_ms": 6.118033683742396
+    "p50_ms": 7.6114165131002665,
+    "p95_ms": 9.061737483716568
    },
    "obstruction": {
-    "p50_ms": 10.532000509556383,
-    "p95_ms": 13.933858289965425
+    "p50_ms": 16.67693752096966,
+    "p95_ms": 20.824543430353508
    },
    "glare": {
-    "p50_ms": 35.18456299207173,
-    "p95_ms": 47.22721232974434
+    "p50_ms": 55.39770852192305,
+    "p95_ms": 75.07536439516113
    },
    "shake": {
-    "p50_ms": 38.25891698943451,
-    "p95_ms": 50.74055349687113
+    "p50_ms": 60.02060347236693,
+    "p95_ms": 77.50650815141849
    },
    "noise": {
-    "p50_ms": 4.537978995358571,
-    "p95_ms": 4.925196056137793
+    "p50_ms": 7.195979502284899,
+    "p95_ms": 7.371598074678332
    },
    "end to end (7 checks)": {
-    "p50_ms": 199.68462598626502,
-    "p95_ms": 279.10812933114346
+    "p50_ms": 322.61316597578116,
+    "p95_ms": 422.2495527530553
    }
   }
  },
  "e2e_latency": {
   "n": 595,
-  "p50_ms": 328.35616695228964,
-  "p95_ms": 994.0801500109953
+  "p50_ms": 565.0186670245603,
+  "p95_ms": 1515.347766684135
  },
  "fraud": {
   "label": "SYNTHETIC",
@@ -5713,7 +5713,7 @@
  },
  "fusion": {
   "label": "SYNTHETIC",
-  "model": "GradientBoostingClassifier",
+  "model": "HistGradientBoostingClassifier",
   "features": [
    "photo_quality_score",
    "motion_score",
@@ -5729,367 +5729,356 @@
    "Fraud labels are by scenario: a 'fraud' row is fraud because the simulator made it a spoof. Real spoofing apps, real emulators and real fraud patterns are unknown.",
    "The rule 'with the same weak evidence a poor photo tips a case to review' (the `ambiguous` pair) is an ASSUMPTION encoded in the labels, as in the old generator; it was not learned from reviewed cases.",
    "Replayed real accelerometer data on a frozen mock location is, by construction, invisible to the motion rules; only the 'too perfect GPS' sign and the network can see it. The `fraud_hard` group shows how often that is enough.",
-   "The IP-context rows are simulated; the real DB-IP databases were not used for any number here."
+   "The IP-context rows are simulated; the real DB-IP databases were not used for any number in this section. The IP error model comes from MaxMind's published figures (about 99.8% country-level accuracy, about 63% of US IPs within 50 km) plus stated assumptions (the country error for a 'lite' database, the shape of the position error); India-specific figures were not available. REAL lookups through the real engine are listed in environment-consistency/progress.md and are not accuracy numbers.",
+   "Labels of the network scenarios are policy assumptions: a worker whose network is in ANOTHER country than the claimed area is labelled 'send to review' (a genuine traveller and a spoofer behind a foreign network cannot be told apart by this signal); an honest worker behind a VPN that exits in the SAME country is labelled genuine."
   ],
   "scale": 1.0,
-  "config_sha256": "6dcc60ebfe0b",
+  "config_sha256": "89a87f236c9d",
   "evaluations": {
    "in_distribution_test_split": {
-    "n": 430,
-    "n_fraud": 170,
+    "n": 486,
+    "n_fraud": 218,
     "confusion": {
-     "tp": 146,
-     "fp": 7,
-     "fn": 24,
-     "tn": 253,
-     "n_pos": 170,
-     "n_neg": 260,
+     "tp": 206,
+     "fp": 8,
+     "fn": 12,
+     "tn": 260,
+     "n_pos": 218,
+     "n_neg": 268,
      "precision": {
-      "k": 146,
-      "n": 153,
-      "value": 0.954248366013072,
-      "lo": 0.9085803963238842,
-      "hi": 0.9776640694300996
+      "k": 206,
+      "n": 214,
+      "value": 0.9626168224299065,
+      "lo": 0.9279792817472403,
+      "hi": 0.9809380233037692
      },
      "recall": {
-      "k": 146,
-      "n": 170,
-      "value": 0.8588235294117647,
-      "lo": 0.7985281686290288,
-      "hi": 0.9032601260024057
+      "k": 206,
+      "n": 218,
+      "value": 0.944954128440367,
+      "lo": 0.9062631007867269,
+      "hi": 0.9682347391134541
      },
      "specificity": {
-      "k": 253,
-      "n": 260,
-      "value": 0.9730769230769231,
-      "lo": 0.9454789292692773,
-      "hi": 0.9868986791139343
+      "k": 260,
+      "n": 268,
+      "value": 0.9701492537313433,
+      "lo": 0.9422121572786254,
+      "hi": 0.984798278210277
      },
      "false_positive_rate": {
-      "k": 7,
-      "n": 260,
-      "value": 0.026923076923076925,
-      "lo": 0.013101320886065703,
-      "hi": 0.05452107073072254
+      "k": 8,
+      "n": 268,
+      "value": 0.029850746268656716,
+      "lo": 0.015201721789723056,
+      "hi": 0.05778784272137458
      },
-     "f1": 0.9040247678018575,
+     "f1": 0.9537037037037037,
      "accuracy": {
-      "k": 399,
-      "n": 430,
-      "value": 0.9279069767441861,
-      "lo": 0.8994864994375642,
-      "hi": 0.9487493543855825
+      "k": 466,
+      "n": 486,
+      "value": 0.9588477366255144,
+      "lo": 0.9372935370269958,
+      "hi": 0.9732048771542415
      },
      "small_sample": false
     },
     "auc": {
-     "value": 0.977420814479638,
-     "lo": 0.9659465497737557,
-     "hi": 0.9874445701357466
+     "value": 0.9844070929754896,
+     "lo": 0.9746178796385048,
+     "hi": 0.9931451543886074
     },
-    "brier": 0.05505989226028042,
-    "ece": 0.04342439789823455,
+    "brier": 0.03553579895012117,
+    "ece": 0.020458591030647916,
     "reliability": [
      {
       "bin": "0.0-0.1",
-      "n": 196,
-      "mean_pred": 0.02594363908908509,
-      "observed": 0.01020408163265306
+      "n": 231,
+      "mean_pred": 0.012985149992263398,
+      "observed": 0.021645021645021644
      },
      {
       "bin": "0.1-0.2",
-      "n": 44,
-      "mean_pred": 0.13658101518932803,
-      "observed": 0.29545454545454547
+      "n": 32,
+      "mean_pred": 0.15459623048832644,
+      "observed": 0.1875
      },
      {
       "bin": "0.2-0.3",
-      "n": 18,
-      "mean_pred": 0.26064799368771535,
-      "observed": 0.1111111111111111
+      "n": 7,
+      "mean_pred": 0.2482548564923324,
+      "observed": 0.14285714285714285
      },
      {
       "bin": "0.3-0.4",
-      "n": 10,
-      "mean_pred": 0.35326095583925554,
-      "observed": 0.3
-     },
-     {
-      "bin": "0.4-0.5",
-      "n": 9,
-      "mean_pred": 0.42760114541546596,
-      "observed": 0.4444444444444444
-     },
-     {
-      "bin": "0.5-0.6",
-      "n": 5,
-      "mean_pred": 0.5465096352893062,
-      "observed": 0.4
+      "n": 2,
+      "mean_pred": 0.30420434637109156,
+      "observed": 0.0
      },
      {
       "bin": "0.6-0.7",
-      "n": 4,
-      "mean_pred": 0.639693325691195,
-      "observed": 0.75
+      "n": 8,
+      "mean_pred": 0.6543640064829344,
+      "observed": 0.5
      },
      {
       "bin": "0.7-0.8",
-      "n": 1,
-      "mean_pred": 0.7343241320024779,
-      "observed": 1.0
+      "n": 5,
+      "mean_pred": 0.7254063231127644,
+      "observed": 0.8
      },
      {
       "bin": "0.8-0.9",
-      "n": 8,
-      "mean_pred": 0.8703573259265722,
-      "observed": 0.75
+      "n": 21,
+      "mean_pred": 0.8581167932069482,
+      "observed": 1.0
      },
      {
       "bin": "0.9-1.0",
-      "n": 135,
-      "mean_pred": 0.9717116294963961,
-      "observed": 0.9925925925925926
+      "n": 180,
+      "mean_pred": 0.9780227566800448,
+      "observed": 0.9833333333333333
      }
     ],
     "description": "20% split of the training data (same simulator, same seed; train_classifier.py)"
    },
    "different_seed": {
-    "n": 2150,
-    "n_fraud": 850,
+    "n": 2430,
+    "n_fraud": 1090,
     "confusion": {
-     "tp": 751,
-     "fp": 28,
-     "fn": 99,
-     "tn": 1272,
-     "n_pos": 850,
-     "n_neg": 1300,
+     "tp": 1025,
+     "fp": 47,
+     "fn": 65,
+     "tn": 1293,
+     "n_pos": 1090,
+     "n_neg": 1340,
      "precision": {
-      "k": 751,
-      "n": 779,
-      "value": 0.9640564826700898,
-      "lo": 0.948541800931455,
-      "hi": 0.9750166813975372
+      "k": 1025,
+      "n": 1072,
+      "value": 0.9561567164179104,
+      "lo": 0.942185098904851,
+      "hi": 0.9668706580021138
      },
      "recall": {
-      "k": 751,
-      "n": 850,
-      "value": 0.8835294117647059,
-      "lo": 0.860217542913379,
-      "hi": 0.9033901332644975
+      "k": 1025,
+      "n": 1090,
+      "value": 0.9403669724770642,
+      "lo": 0.9247017684844515,
+      "hi": 0.9529390160679004
      },
      "specificity": {
-      "k": 1272,
-      "n": 1300,
-      "value": 0.9784615384615385,
-      "lo": 0.969046767256657,
-      "hi": 0.985056860055127
+      "k": 1293,
+      "n": 1340,
+      "value": 0.9649253731343284,
+      "lo": 0.953670762268997,
+      "hi": 0.9735218473361826
      },
      "false_positive_rate": {
-      "k": 28,
-      "n": 1300,
-      "value": 0.021538461538461538,
-      "lo": 0.014943139944873013,
-      "hi": 0.0309532327433431
+      "k": 47,
+      "n": 1340,
+      "value": 0.03507462686567164,
+      "lo": 0.026478152663817374,
+      "hi": 0.04632923773100298
      },
-     "f1": 0.9220380601596072,
+     "f1": 0.9481961147086032,
      "accuracy": {
-      "k": 2023,
-      "n": 2150,
-      "value": 0.9409302325581396,
-      "lo": 0.9301561885016618,
-      "hi": 0.9501313869634977
+      "k": 2318,
+      "n": 2430,
+      "value": 0.9539094650205762,
+      "lo": 0.9448317900307852,
+      "hi": 0.9615542295031074
      },
      "small_sample": false
     },
     "auc": {
-     "value": 0.9833049773755657,
-     "lo": 0.9784237104072399,
-     "hi": 0.9877858484162896
+     "value": 0.9788360947555799,
+     "lo": 0.9733619659728879,
+     "hi": 0.9839298404765164
     },
-    "brier": 0.04399593418578792,
-    "ece": 0.03177725033902622,
+    "brier": 0.04177830996471785,
+    "ece": 0.02037996599700227,
     "reliability": [
      {
       "bin": "0.0-0.1",
-      "n": 1034,
-      "mean_pred": 0.02484997595129351,
-      "observed": 0.010638297872340425
+      "n": 1181,
+      "mean_pred": 0.014498940411825959,
+      "observed": 0.03048264182895851
      },
      {
       "bin": "0.1-0.2",
-      "n": 178,
-      "mean_pred": 0.13884833658876983,
-      "observed": 0.2247191011235955
+      "n": 129,
+      "mean_pred": 0.1555838422993738,
+      "observed": 0.12403100775193798
      },
      {
       "bin": "0.2-0.3",
-      "n": 84,
-      "mean_pred": 0.24994503439098967,
-      "observed": 0.20238095238095238
+      "n": 32,
+      "mean_pred": 0.2669388883317757,
+      "observed": 0.25
      },
      {
       "bin": "0.3-0.4",
-      "n": 51,
-      "mean_pred": 0.3476653280650292,
-      "observed": 0.3137254901960784
+      "n": 14,
+      "mean_pred": 0.32305149175115344,
+      "observed": 0.21428571428571427
      },
      {
       "bin": "0.4-0.5",
-      "n": 24,
-      "mean_pred": 0.44523041380896416,
-      "observed": 0.625
+      "n": 2,
+      "mean_pred": 0.48493912846315085,
+      "observed": 1.0
      },
      {
       "bin": "0.5-0.6",
-      "n": 22,
-      "mean_pred": 0.5392219749136983,
-      "observed": 0.4090909090909091
+      "n": 3,
+      "mean_pred": 0.5661550755665268,
+      "observed": 0.3333333333333333
      },
      {
       "bin": "0.6-0.7",
-      "n": 20,
-      "mean_pred": 0.6559511448443871,
-      "observed": 0.9
+      "n": 35,
+      "mean_pred": 0.6335361208809019,
+      "observed": 0.8
      },
      {
       "bin": "0.7-0.8",
-      "n": 10,
-      "mean_pred": 0.7315261752322595,
-      "observed": 0.9
+      "n": 33,
+      "mean_pred": 0.7530068238958646,
+      "observed": 0.7878787878787878
      },
      {
       "bin": "0.8-0.9",
-      "n": 31,
-      "mean_pred": 0.870864954903729,
-      "observed": 0.7419354838709677
+      "n": 73,
+      "mean_pred": 0.8606271147815571,
+      "observed": 0.9726027397260274
      },
      {
       "bin": "0.9-1.0",
-      "n": 696,
-      "mean_pred": 0.9728807185080189,
-      "observed": 0.9942528735632183
+      "n": 928,
+      "mean_pred": 0.9769737789439712,
+      "observed": 0.96875
      }
     ],
     "description": "same simulated world, new random draws (seed 1234)"
    },
    "shifted_world": {
-    "n": 2150,
-    "n_fraud": 850,
+    "n": 2430,
+    "n_fraud": 1090,
     "confusion": {
-     "tp": 689,
-     "fp": 67,
-     "fn": 161,
-     "tn": 1233,
-     "n_pos": 850,
-     "n_neg": 1300,
+     "tp": 869,
+     "fp": 69,
+     "fn": 221,
+     "tn": 1271,
+     "n_pos": 1090,
+     "n_neg": 1340,
      "precision": {
-      "k": 689,
-      "n": 756,
-      "value": 0.9113756613756614,
-      "lo": 0.8889812506226571,
-      "hi": 0.929610413745285
+      "k": 869,
+      "n": 938,
+      "value": 0.9264392324093816,
+      "lo": 0.9079369560219079,
+      "hi": 0.9414627731894585
      },
      "recall": {
-      "k": 689,
-      "n": 850,
-      "value": 0.8105882352941176,
-      "lo": 0.7828709519032189,
-      "hi": 0.8355107245107669
+      "k": 869,
+      "n": 1090,
+      "value": 0.7972477064220184,
+      "lo": 0.7723545084975802,
+      "hi": 0.8200530210752572
      },
      "specificity": {
-      "k": 1233,
-      "n": 1300,
-      "value": 0.9484615384615385,
-      "lo": 0.9350666335512853,
-      "hi": 0.9592137759708531
+      "k": 1271,
+      "n": 1340,
+      "value": 0.9485074626865672,
+      "lo": 0.9353398600056838,
+      "hi": 0.9591107954882375
      },
      "false_positive_rate": {
-      "k": 67,
-      "n": 1300,
-      "value": 0.05153846153846154,
-      "lo": 0.04078622402914699,
-      "hi": 0.06493336644871475
+      "k": 69,
+      "n": 1340,
+      "value": 0.05149253731343283,
+      "lo": 0.04088920451176247,
+      "hi": 0.06466013999431623
      },
-     "f1": 0.8580323785803238,
+     "f1": 0.8570019723865878,
      "accuracy": {
-      "k": 1922,
-      "n": 2150,
-      "value": 0.893953488372093,
-      "lo": 0.8802285228239839,
-      "hi": 0.9062731400652462
+      "k": 2140,
+      "n": 2430,
+      "value": 0.8806584362139918,
+      "lo": 0.867163782312474,
+      "hi": 0.892951419925831
      },
      "small_sample": false
     },
     "auc": {
-     "value": 0.9171628959276018,
-     "lo": 0.9012798416289592,
-     "hi": 0.9308291742081447
+     "value": 0.9189346843762837,
+     "lo": 0.907603981240586,
+     "hi": 0.9303527146378201
     },
-    "brier": 0.08974677231028534,
-    "ece": 0.044383480980097735,
+    "brier": 0.10348047011702848,
+    "ece": 0.0701375650525713,
     "reliability": [
      {
       "bin": "0.0-0.1",
-      "n": 1066,
-      "mean_pred": 0.02601580588359574,
-      "observed": 0.06848030018761726
+      "n": 1179,
+      "mean_pred": 0.01877200804182388,
+      "observed": 0.1077184054283291
      },
      {
       "bin": "0.1-0.2",
-      "n": 182,
-      "mean_pred": 0.13886621204179211,
-      "observed": 0.2087912087912088
+      "n": 206,
+      "mean_pred": 0.1452416142096848,
+      "observed": 0.2669902912621359
      },
      {
       "bin": "0.2-0.3",
-      "n": 64,
-      "mean_pred": 0.24453626724193567,
-      "observed": 0.3125
+      "n": 50,
+      "mean_pred": 0.2490881383732856,
+      "observed": 0.4
      },
      {
       "bin": "0.3-0.4",
-      "n": 39,
-      "mean_pred": 0.34949369381074435,
-      "observed": 0.3076923076923077
+      "n": 48,
+      "mean_pred": 0.32828984911765996,
+      "observed": 0.2708333333333333
      },
      {
       "bin": "0.4-0.5",
-      "n": 43,
-      "mean_pred": 0.44473881996433134,
-      "observed": 0.4186046511627907
+      "n": 9,
+      "mean_pred": 0.457856063797973,
+      "observed": 0.6666666666666666
      },
      {
       "bin": "0.5-0.6",
-      "n": 23,
-      "mean_pred": 0.5446029571003841,
-      "observed": 0.6086956521739131
+      "n": 6,
+      "mean_pred": 0.5665609061657767,
+      "observed": 0.8333333333333334
      },
      {
       "bin": "0.6-0.7",
-      "n": 48,
-      "mean_pred": 0.6590522248321666,
-      "observed": 0.8541666666666666
-     },
-     {
-      "bin": "0.7-0.8",
-      "n": 27,
-      "mean_pred": 0.7415583092228363,
-      "observed": 0.7777777777777778
-     },
-     {
-      "bin": "0.8-0.9",
       "n": 49,
-      "mean_pred": 0.8652311152954412,
+      "mean_pred": 0.6364147814556116,
       "observed": 0.7346938775510204
      },
      {
+      "bin": "0.7-0.8",
+      "n": 21,
+      "mean_pred": 0.7534606080099915,
+      "observed": 0.6190476190476191
+     },
+     {
+      "bin": "0.8-0.9",
+      "n": 70,
+      "mean_pred": 0.8530902194012285,
+      "observed": 0.9
+     },
+     {
       "bin": "0.9-1.0",
-      "n": 609,
-      "mean_pred": 0.9673454943545496,
-      "observed": 0.9474548440065681
+      "n": 792,
+      "mean_pred": 0.9694201819945049,
+      "observed": 0.9494949494949495
      }
     ],
-    "description": "a different world: gps_sigma=1.6, acc_scale=0.7, tremor_scale=1.5, cad_mean=1.65, cad_sd=0.2, hz=25.0, gateway_far=0.35, speed_scale=0.85"
+    "description": "a different world: gps_sigma=1.6, acc_scale=0.7, tremor_scale=1.5, cad_mean=1.65, cad_sd=0.2, hz=25.0, gateway_far=0.35, ip_country_err=0.04, ip_city_miss=0.5, ip_miss_median_km=200.0, speed_scale=0.85"
    }
   },
   "by_scenario": {
@@ -6098,53 +6087,133 @@
      "scenario": "a_weak_good_photo",
      "group": "ambiguous",
      "truth": "genuine",
-     "n": 27,
-     "wrong": 3,
+     "n": 24,
+     "wrong": 6,
      "error": {
-      "k": 3,
-      "n": 27,
-      "value": 0.1111111111111111,
-      "lo": 0.03851964789498724,
-      "hi": 0.2805818254397295
+      "k": 6,
+      "n": 24,
+      "value": 0.25,
+      "lo": 0.1199920347934233,
+      "hi": 0.4489982531210644
      },
-     "mean_motion": 0.7448962962962962,
-     "mean_env": 0.7629629629629632
+     "mean_motion": 0.8081416666666668,
+     "mean_env": 0.765
     },
     {
      "scenario": "a_weak_poor_photo",
      "group": "ambiguous",
      "truth": "fraud",
-     "n": 16,
-     "wrong": 5,
+     "n": 18,
+     "wrong": 1,
      "error": {
-      "k": 5,
-      "n": 16,
-      "value": 0.3125,
-      "lo": 0.14164435051961052,
-      "hi": 0.5559606813326594
+      "k": 1,
+      "n": 18,
+      "value": 0.05555555555555555,
+      "lo": 0.009874935830924525,
+      "hi": 0.2575779980200754
      },
-     "mean_motion": 0.7921875,
-     "mean_env": 0.7825
+     "mean_motion": 0.7973833333333334,
+     "mean_env": 0.768888888888889
     },
     {
      "scenario": "f_linear_mock_drive",
      "group": "fraud",
      "truth": "fraud",
-     "n": 15,
+     "n": 9,
      "wrong": 0,
      "error": {
       "k": 0,
-      "n": 15,
+      "n": 9,
       "value": 0.0,
       "lo": 0.0,
-      "hi": 0.20388926630434784
+      "hi": 0.2991527535509594
      },
-     "mean_motion": 0.5917600000000002,
-     "mean_env": 0.8946666666666666
+     "mean_motion": 0.6513222222222221,
+     "mean_env": 0.9166666666666666
     },
     {
      "scenario": "f_linear_mock_walk",
      "group": "fraud",
+     "truth": "fraud",
+     "n": 19,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 19,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.16818436536845052
+     },
+     "mean_motion": 0.3852,
+     "mean_env": 0.9315789473684211
+    },
+    {
+     "scenario": "f_mock_replayed_motion",
+     "group": "fraud_hard",
+     "truth": "fraud",
+     "n": 21,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 21,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.15464382326420195
+     },
+     "mean_motion": 0.6479999999999999,
+     "mean_env": 0.9190476190476189
+    },
+    {
+     "scenario": "f_realistic_spoof_still_phone",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 24,
+     "wrong": 2,
+     "error": {
+      "k": 2,
+      "n": 24,
+      "value": 0.08333333333333333,
+      "lo": 0.023158327842973503,
+      "hi": 0.258492152014506
+     },
+     "mean_motion": 0.5245833333333333,
+     "mean_env": 0.8920833333333333
+    },
+    {
+     "scenario": "f_static_mock_home",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 24,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 24,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.13798057582897535
+     },
+     "mean_motion": 0.7200000000000001,
+     "mean_env": 0.9208333333333334
+    },
+    {
+     "scenario": "f_teleport_still",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 29,
+     "wrong": 3,
+     "error": {
+      "k": 3,
+      "n": 29,
+      "value": 0.10344827586206896,
+      "lo": 0.035814240381301043,
+      "hi": 0.26385447247069155
+     },
+     "mean_motion": 0.34633448275862067,
+     "mean_env": 0.9672413793103449
+    },
+    {
+     "scenario": "f_wrong_area_network",
+     "group": "fraud_hard",
      "truth": "fraud",
      "n": 18,
      "wrong": 0,
@@ -6155,168 +6224,88 @@
       "lo": 0.0,
       "hi": 0.1758845505823749
      },
-     "mean_motion": 0.3059,
-     "mean_env": 0.9888888888888889
-    },
-    {
-     "scenario": "f_mock_replayed_motion",
-     "group": "fraud_hard",
-     "truth": "fraud",
-     "n": 23,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 23,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.14312112541726274
-     },
-     "mean_motion": 0.6479999999999999,
-     "mean_env": 0.9413043478260869
-    },
-    {
-     "scenario": "f_realistic_spoof_still_phone",
-     "group": "fraud",
-     "truth": "fraud",
-     "n": 27,
-     "wrong": 2,
-     "error": {
-      "k": 2,
-      "n": 27,
-      "value": 0.07407407407407407,
-      "lo": 0.020554221697383523,
-      "hi": 0.2336997729073062
-     },
-     "mean_motion": 0.4241407407407407,
-     "mean_env": 0.938888888888889
-    },
-    {
-     "scenario": "f_static_mock_home",
-     "group": "fraud",
-     "truth": "fraud",
-     "n": 22,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 22,
-      "value": 0.0,
-      "lo": 1.3877787807814457e-17,
-      "hi": 0.14865952572596125
-     },
-     "mean_motion": 0.7200000000000002,
-     "mean_env": 0.9727272727272728
-    },
-    {
-     "scenario": "f_teleport_still",
-     "group": "fraud",
-     "truth": "fraud",
-     "n": 26,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 26,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.12873304380462175
-     },
-     "mean_motion": 0.23811153846153846,
-     "mean_env": 0.9211538461538461
-    },
-    {
-     "scenario": "f_wrong_area_network",
-     "group": "fraud_hard",
-     "truth": "fraud",
-     "n": 23,
-     "wrong": 17,
-     "error": {
-      "k": 17,
-      "n": 23,
-      "value": 0.7391304347826086,
-      "lo": 0.5352960945624944,
-      "hi": 0.8745155411075104
-     },
-     "mean_motion": 0.9672652173913044,
-     "mean_env": 0.6
+     "mean_motion": 0.9713166666666668,
+     "mean_env": 0.17920000000000003
     },
     {
      "scenario": "g_at_site",
      "group": "genuine",
      "truth": "genuine",
-     "n": 31,
+     "n": 20,
      "wrong": 0,
      "error": {
       "k": 0,
-      "n": 31,
+      "n": 20,
       "value": 0.0,
       "lo": 0.0,
-      "hi": 0.11025900073475385
+      "hi": 0.16113012549493322
      },
-     "mean_motion": 0.8999999999999997,
-     "mean_env": 0.946774193548387
+     "mean_motion": 0.8999999999999998,
+     "mean_env": 0.881
     },
     {
      "scenario": "g_bad_photo",
      "group": "genuine",
      "truth": "genuine",
-     "n": 8,
-     "wrong": 0,
+     "n": 19,
+     "wrong": 1,
      "error": {
-      "k": 0,
-      "n": 8,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.3244156195108769
+      "k": 1,
+      "n": 19,
+      "value": 0.05263157894736842,
+      "lo": 0.009351752490529969,
+      "hi": 0.2463921533654521
      },
-     "mean_motion": 0.9825375000000001,
-     "mean_env": 0.925
+     "mean_motion": 0.9789368421052631,
+     "mean_env": 0.898421052631579
     },
     {
      "scenario": "g_drive_then_walk",
      "group": "genuine",
      "truth": "genuine",
-     "n": 15,
+     "n": 27,
      "wrong": 0,
      "error": {
       "k": 0,
-      "n": 15,
+      "n": 27,
       "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.20388926630434784
+      "lo": 6.938893903907228e-18,
+      "hi": 0.12455903714463581
      },
-     "mean_motion": 0.9670333333333333,
-     "mean_env": 0.9179999999999999
+     "mean_motion": 0.9692518518518519,
+     "mean_env": 0.9574074074074074
     },
     {
      "scenario": "g_odd_network_new_worker",
      "group": "genuine",
      "truth": "genuine",
-     "n": 10,
-     "wrong": 1,
+     "n": 14,
+     "wrong": 0,
      "error": {
-      "k": 1,
-      "n": 10,
-      "value": 0.1,
-      "lo": 0.01787574951572113,
-      "hi": 0.4041563854975721
+      "k": 0,
+      "n": 14,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.21531701192718142
      },
-     "mean_motion": 0.9743700000000001,
-     "mean_env": 0.7055999999999999
+     "mean_motion": 0.9722642857142857,
+     "mean_env": 0.7285714285714286
     },
     {
      "scenario": "g_walk_hand",
      "group": "genuine",
      "truth": "genuine",
-     "n": 43,
+     "n": 30,
      "wrong": 0,
      "error": {
       "k": 0,
-      "n": 43,
+      "n": 30,
       "value": 0.0,
       "lo": 0.0,
-      "hi": 0.08201257002322722
+      "hi": 0.113517091390478
      },
-     "mean_motion": 0.9813651162790699,
-     "mean_env": 0.9225581395348836
+     "mean_motion": 0.9888866666666668,
+     "mean_env": 0.8923333333333333
     },
     {
      "scenario": "g_walk_pocket",
@@ -6331,24 +6320,24 @@
       "lo": 0.0,
       "hi": 0.15464382326420195
      },
-     "mean_motion": 0.9743,
-     "mean_env": 0.9619047619047618
+     "mean_motion": 0.9807428571428574,
+     "mean_env": 0.9166666666666666
     },
     {
      "scenario": "h_desktop",
      "group": "hard_genuine",
      "truth": "genuine",
-     "n": 5,
+     "n": 13,
      "wrong": 0,
      "error": {
       "k": 0,
-      "n": 5,
+      "n": 13,
       "value": 0.0,
       "lo": 0.0,
-      "hi": 0.43449149475208104
+      "hi": 0.22810184305529166
      },
-     "mean_motion": 0.6599999999999999,
-     "mean_env": 1.0
+     "mean_motion": 0.5923076923076923,
+     "mean_env": 0.9692307692307692
     },
     {
      "scenario": "h_first_visit",
@@ -6363,59 +6352,75 @@
       "lo": 0.0,
       "hi": 0.20388926630434784
      },
-     "mean_motion": 0.9836933333333334,
+     "mean_motion": 0.9797733333333333,
      "mean_env": 0.7333333333333333
     },
     {
      "scenario": "h_indoor_drift",
      "group": "hard_genuine",
      "truth": "genuine",
-     "n": 7,
+     "n": 19,
      "wrong": 0,
      "error": {
       "k": 0,
-      "n": 7,
+      "n": 19,
       "value": 0.0,
       "lo": 0.0,
-      "hi": 0.35433884297520657
+      "hi": 0.16818436536845052
      },
-     "mean_motion": 0.6142857142857142,
-     "mean_env": 0.9142857142857143
+     "mean_motion": 0.7105263157894737,
+     "mean_env": 0.8957894736842105
     },
     {
      "scenario": "h_legacy_client",
      "group": "hard_genuine",
      "truth": "genuine",
-     "n": 9,
+     "n": 11,
      "wrong": 0,
      "error": {
       "k": 0,
-      "n": 9,
+      "n": 11,
       "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.2991527535509594
+      "lo": 2.7755575615628914e-17,
+      "hi": 0.2588400172488141
      },
-     "mean_motion": 0.8111111111111112,
-     "mean_env": 0.8999999999999999
+     "mean_motion": 0.7181818181818183,
+     "mean_env": 0.9636363636363636
     },
     {
      "scenario": "h_short_trail",
      "group": "hard_genuine",
      "truth": "genuine",
-     "n": 9,
-     "wrong": 0,
+     "n": 7,
+     "wrong": 1,
      "error": {
-      "k": 0,
-      "n": 9,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.2991527535509594
+      "k": 1,
+      "n": 7,
+      "value": 0.14285714285714285,
+      "lo": 0.02567895594897479,
+      "hi": 0.51313450331903
      },
-     "mean_motion": 0.8775,
-     "mean_env": 0.9333333333333333
+     "mean_motion": 0.8753571428571428,
+     "mean_env": 0.9214285714285715
     },
     {
      "scenario": "h_smooth_highway",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 6,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 6,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.3903430336530645
+     },
+     "mean_motion": 0.8444500000000001,
+     "mean_env": 1.0
+    },
+    {
+     "scenario": "h_throttled_sensor",
      "group": "hard_genuine",
      "truth": "genuine",
      "n": 18,
@@ -6427,43 +6432,59 @@
       "lo": 0.0,
       "hi": 0.1758845505823749
      },
-     "mean_motion": 0.8564388888888889,
-     "mean_env": 0.9472222222222223
-    },
-    {
-     "scenario": "h_throttled_sensor",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 12,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 12,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.2425007574992425
-     },
-     "mean_motion": 0.9,
-     "mean_env": 0.9041666666666668
+     "mean_motion": 0.8999999999999999,
+     "mean_env": 0.8861111111111111
     },
     {
      "scenario": "h_tunnel_dropout",
      "group": "hard_genuine",
      "truth": "genuine",
-     "n": 16,
-     "wrong": 3,
+     "n": 10,
+     "wrong": 0,
      "error": {
-      "k": 3,
-      "n": 16,
-      "value": 0.1875,
-      "lo": 0.06591478773586765,
-      "hi": 0.4300935986845823
+      "k": 0,
+      "n": 10,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.2775401687666166
      },
-     "mean_motion": 0.7801,
-     "mean_env": 0.9312499999999999
+     "mean_motion": 0.8312899999999999,
+     "mean_env": 0.9450000000000001
     },
     {
-     "scenario": "h_vpn",
+     "scenario": "n_isp_foreign_genuine_walk",
+     "group": "foreign_network",
+     "truth": "fraud",
+     "n": 17,
+     "wrong": 1,
+     "error": {
+      "k": 1,
+      "n": 17,
+      "value": 0.058823529411764705,
+      "lo": 0.01046013064516424,
+      "hi": 0.269825452035628
+     },
+     "mean_motion": 0.8952,
+     "mean_env": 0.24847058823529414
+    },
+    {
+     "scenario": "n_vpn_foreign_genuine_walk",
+     "group": "foreign_network",
+     "truth": "fraud",
+     "n": 30,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 30,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.113517091390478
+     },
+     "mean_motion": 0.9266966666666665,
+     "mean_env": 0.18508000000000002
+    },
+    {
+     "scenario": "n_vpn_same_country_honest",
      "group": "hard_genuine",
      "truth": "genuine",
      "n": 14,
@@ -6475,8 +6496,24 @@
       "lo": 0.0,
       "hi": 0.21531701192718142
      },
-     "mean_motion": 0.9866857142857143,
-     "mean_env": 0.6237714285714285
+     "mean_motion": 0.8946785714285713,
+     "mean_env": 0.7551428571428572
+    },
+    {
+     "scenario": "n_vpn_same_country_spoof",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 9,
+     "wrong": 5,
+     "error": {
+      "k": 5,
+      "n": 9,
+      "value": 0.5555555555555556,
+      "lo": 0.2666473457440297,
+      "hi": 0.811224570528086
+     },
+     "mean_motion": 0.6644111111111112,
+     "mean_env": 0.640888888888889
     }
    ],
    "different_seed": [
@@ -6485,418 +6522,32 @@
      "group": "ambiguous",
      "truth": "genuine",
      "n": 100,
-     "wrong": 14,
+     "wrong": 20,
      "error": {
-      "k": 14,
+      "k": 20,
       "n": 100,
-      "value": 0.14,
-      "lo": 0.08526265754464905,
-      "hi": 0.22137360383807236
+      "value": 0.2,
+      "lo": 0.1333659225590988,
+      "hi": 0.28883096192650237
      },
-     "mean_motion": 0.735752,
-     "mean_env": 0.7607999999999998
+     "mean_motion": 0.7896529999999999,
+     "mean_env": 0.7691999999999999
     },
     {
      "scenario": "a_weak_poor_photo",
      "group": "ambiguous",
      "truth": "fraud",
      "n": 100,
-     "wrong": 16,
+     "wrong": 17,
      "error": {
-      "k": 16,
+      "k": 17,
       "n": 100,
-      "value": 0.16,
-      "lo": 0.10095202349473717,
-      "hi": 0.24420444558894414
+      "value": 0.17,
+      "lo": 0.10893476059773155,
+      "hi": 0.25548181233642975
      },
-     "mean_motion": 0.7245269999999999,
-     "mean_env": 0.7551999999999999
-    },
-    {
-     "scenario": "f_linear_mock_drive",
-     "group": "fraud",
-     "truth": "fraud",
-     "n": 90,
-     "wrong": 4,
-     "error": {
-      "k": 4,
-      "n": 90,
-      "value": 0.044444444444444446,
-      "lo": 0.01741696001324882,
-      "hi": 0.1087701467709492
-     },
-     "mean_motion": 0.6066999999999999,
-     "mean_env": 0.9336666666666666
-    },
-    {
-     "scenario": "f_linear_mock_walk",
-     "group": "fraud",
-     "truth": "fraud",
-     "n": 90,
-     "wrong": 2,
-     "error": {
-      "k": 2,
-      "n": 90,
-      "value": 0.022222222222222223,
-      "lo": 0.006115313794863603,
-      "hi": 0.07744677380807581
-     },
-     "mean_motion": 0.30110555555555557,
-     "mean_env": 0.912888888888889
-    },
-    {
-     "scenario": "f_mock_replayed_motion",
-     "group": "fraud_hard",
-     "truth": "fraud",
-     "n": 110,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 110,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.03374513358912735
-     },
-     "mean_motion": 0.6479999999999998,
-     "mean_env": 0.9295454545454546
-    },
-    {
-     "scenario": "f_realistic_spoof_still_phone",
-     "group": "fraud",
-     "truth": "fraud",
-     "n": 110,
-     "wrong": 15,
-     "error": {
-      "k": 15,
-      "n": 110,
-      "value": 0.13636363636363635,
-      "lo": 0.0844108182606438,
-      "hi": 0.2128583698041761
-     },
-     "mean_motion": 0.41119090909090905,
-     "mean_env": 0.9374545454545455
-    },
-    {
-     "scenario": "f_static_mock_home",
-     "group": "fraud",
-     "truth": "fraud",
-     "n": 110,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 110,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.03374513358912735
-     },
-     "mean_motion": 0.7199999999999999,
-     "mean_env": 0.9442727272727273
-    },
-    {
-     "scenario": "f_teleport_still",
-     "group": "fraud",
-     "truth": "fraud",
-     "n": 150,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 150,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.02497113914571871
-     },
-     "mean_motion": 0.29194933333333334,
-     "mean_env": 0.9309999999999998
-    },
-    {
-     "scenario": "f_wrong_area_network",
-     "group": "fraud_hard",
-     "truth": "fraud",
-     "n": 90,
-     "wrong": 62,
-     "error": {
-      "k": 62,
-      "n": 90,
-      "value": 0.6888888888888889,
-      "lo": 0.5871698145125097,
-      "hi": 0.7751428485281886
-     },
-     "mean_motion": 0.9657688888888888,
-     "mean_env": 0.5981333333333333
-    },
-    {
-     "scenario": "g_at_site",
-     "group": "genuine",
-     "truth": "genuine",
-     "n": 120,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 120,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.031020271055929513
-     },
-     "mean_motion": 0.9000000000000002,
-     "mean_env": 0.92825
-    },
-    {
-     "scenario": "g_bad_photo",
-     "group": "genuine",
-     "truth": "genuine",
-     "n": 80,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 80,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.0458197362645751
-     },
-     "mean_motion": 0.9800237499999997,
-     "mean_env": 0.9147500000000001
-    },
-    {
-     "scenario": "g_drive_then_walk",
-     "group": "genuine",
-     "truth": "genuine",
-     "n": 120,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 120,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.031020271055929513
-     },
-     "mean_motion": 0.9608291666666666,
-     "mean_env": 0.9410000000000001
-    },
-    {
-     "scenario": "g_odd_network_new_worker",
-     "group": "genuine",
-     "truth": "genuine",
-     "n": 60,
-     "wrong": 2,
-     "error": {
-      "k": 2,
-      "n": 60,
-      "value": 0.03333333333333333,
-      "lo": 0.009189126490150246,
-      "hi": 0.11363987528925378
-     },
-     "mean_motion": 0.9831183333333333,
-     "mean_env": 0.7526666666666665
-    },
-    {
-     "scenario": "g_walk_hand",
-     "group": "genuine",
-     "truth": "genuine",
-     "n": 160,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 160,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.023447036650032713
-     },
-     "mean_motion": 0.97859,
-     "mean_env": 0.9454374999999999
-    },
-    {
-     "scenario": "g_walk_pocket",
-     "group": "genuine",
-     "truth": "genuine",
-     "n": 120,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 120,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.031020271055929513
-     },
-     "mean_motion": 0.9783000000000001,
-     "mean_env": 0.9393333333333335
-    },
-    {
-     "scenario": "h_desktop",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 50,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 50,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.07135003417431873
-     },
-     "mean_motion": 0.66,
-     "mean_env": 0.963
-    },
-    {
-     "scenario": "h_first_visit",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 70,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 70,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.05202487486728348
-     },
-     "mean_motion": 0.9832299999999999,
-     "mean_env": 0.73
-    },
-    {
-     "scenario": "h_indoor_drift",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 70,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 70,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.05202487486728348
-     },
-     "mean_motion": 0.66,
-     "mean_env": 0.9367142857142856
-    },
-    {
-     "scenario": "h_legacy_client",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 50,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 50,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.07135003417431873
-     },
-     "mean_motion": 0.796,
-     "mean_env": 0.951
-    },
-    {
-     "scenario": "h_short_trail",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 50,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 50,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.07135003417431873
-     },
-     "mean_motion": 0.85065,
-     "mean_env": 0.9388
-    },
-    {
-     "scenario": "h_smooth_highway",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 70,
-     "wrong": 4,
-     "error": {
-      "k": 4,
-      "n": 70,
-      "value": 0.05714285714285714,
-      "lo": 0.02244341584741017,
-      "hi": 0.1379214733207552
-     },
-     "mean_motion": 0.8473428571428572,
-     "mean_env": 0.9248571428571428
-    },
-    {
-     "scenario": "h_throttled_sensor",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 60,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 60,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.06017393047793289
-     },
-     "mean_motion": 0.9,
-     "mean_env": 0.9433333333333332
-    },
-    {
-     "scenario": "h_tunnel_dropout",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 70,
-     "wrong": 8,
-     "error": {
-      "k": 8,
-      "n": 70,
-      "value": 0.11428571428571428,
-      "lo": 0.05906058386702606,
-      "hi": 0.20964431960202118
-     },
-     "mean_motion": 0.8342214285714287,
-     "mean_env": 0.9495714285714285
-    },
-    {
-     "scenario": "h_vpn",
-     "group": "hard_genuine",
-     "truth": "genuine",
-     "n": 50,
-     "wrong": 0,
-     "error": {
-      "k": 0,
-      "n": 50,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.07135003417431873
-     },
-     "mean_motion": 0.975022,
-     "mean_env": 0.558848
-    }
-   ],
-   "shifted_world": [
-    {
-     "scenario": "a_weak_good_photo",
-     "group": "ambiguous",
-     "truth": "genuine",
-     "n": 100,
-     "wrong": 42,
-     "error": {
-      "k": 42,
-      "n": 100,
-      "value": 0.42,
-      "lo": 0.327982249185113,
-      "hi": 0.5179369200110473
-     },
-     "mean_motion": 0.703979,
-     "mean_env": 0.7607999999999998
-    },
-    {
-     "scenario": "a_weak_poor_photo",
-     "group": "ambiguous",
-     "truth": "fraud",
-     "n": 100,
-     "wrong": 30,
-     "error": {
-      "k": 30,
-      "n": 100,
-      "value": 0.3,
-      "lo": 0.21894753866228117,
-      "hi": 0.39585038432811953
-     },
-     "mean_motion": 0.7377400000000001,
-     "mean_env": 0.75696
+     "mean_motion": 0.7807289999999999,
+     "mean_env": 0.7615999999999999
     },
     {
      "scenario": "f_linear_mock_drive",
@@ -6911,24 +6562,24 @@
       "lo": 0.0,
       "hi": 0.04093706842168078
      },
-     "mean_motion": 0.6692088888888887,
-     "mean_env": 0.8982222222222223
+     "mean_motion": 0.6500777777777776,
+     "mean_env": 0.9221111111111111
     },
     {
      "scenario": "f_linear_mock_walk",
      "group": "fraud",
      "truth": "fraud",
      "n": 90,
-     "wrong": 1,
+     "wrong": 0,
      "error": {
-      "k": 1,
+      "k": 0,
       "n": 90,
-      "value": 0.011111111111111112,
-      "lo": 0.00196403353551235,
-      "hi": 0.06028554447679775
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.04093706842168078
      },
-     "mean_motion": 0.5635611111111111,
-     "mean_env": 0.9402222222222221
+     "mean_motion": 0.4691277777777779,
+     "mean_env": 0.933888888888889
     },
     {
      "scenario": "f_mock_replayed_motion",
@@ -6944,23 +6595,23 @@
       "hi": 0.03374513358912735
      },
      "mean_motion": 0.6479999999999998,
-     "mean_env": 0.9278181818181819
+     "mean_env": 0.9488181818181819
     },
     {
      "scenario": "f_realistic_spoof_still_phone",
      "group": "fraud",
      "truth": "fraud",
      "n": 110,
-     "wrong": 70,
+     "wrong": 30,
      "error": {
-      "k": 70,
+      "k": 30,
       "n": 110,
-      "value": 0.6363636363636364,
-      "lo": 0.5432749318492441,
-      "hi": 0.7202491226264484
+      "value": 0.2727272727272727,
+      "lo": 0.19822564984733446,
+      "hi": 0.36256759269317795
      },
-     "mean_motion": 0.7016936363636367,
-     "mean_env": 0.9273636363636364
+     "mean_motion": 0.5849927272727272,
+     "mean_env": 0.9241818181818183
     },
     {
      "scenario": "f_static_mock_home",
@@ -6976,102 +6627,102 @@
       "hi": 0.03374513358912735
      },
      "mean_motion": 0.7199999999999999,
-     "mean_env": 0.9456363636363637
+     "mean_env": 0.9354545454545456
     },
     {
      "scenario": "f_teleport_still",
      "group": "fraud",
      "truth": "fraud",
      "n": 150,
-     "wrong": 1,
+     "wrong": 7,
      "error": {
-      "k": 1,
+      "k": 7,
       "n": 150,
-      "value": 0.006666666666666667,
-      "lo": 0.0011777710231334546,
-      "hi": 0.036793752933975674
+      "value": 0.04666666666666667,
+      "lo": 0.02278625890187786,
+      "hi": 0.09318757392357377
      },
-     "mean_motion": 0.5573140000000002,
-     "mean_env": 0.9393333333333331
+     "mean_motion": 0.2901673333333334,
+     "mean_env": 0.9271333333333333
     },
     {
      "scenario": "f_wrong_area_network",
      "group": "fraud_hard",
      "truth": "fraud",
      "n": 90,
-     "wrong": 59,
+     "wrong": 1,
      "error": {
-      "k": 59,
+      "k": 1,
       "n": 90,
-      "value": 0.6555555555555556,
-      "lo": 0.55283279348344,
-      "hi": 0.7455423407853703
+      "value": 0.011111111111111112,
+      "lo": 0.00196403353551235,
+      "hi": 0.06028554447679775
      },
-     "mean_motion": 0.9370111111111111,
-     "mean_env": 0.5896
+     "mean_motion": 0.9664088888888889,
+     "mean_env": 0.18847999999999995
     },
     {
      "scenario": "g_at_site",
      "group": "genuine",
      "truth": "genuine",
      "n": 120,
-     "wrong": 0,
+     "wrong": 2,
      "error": {
-      "k": 0,
+      "k": 2,
       "n": 120,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.031020271055929513
+      "value": 0.016666666666666666,
+      "lo": 0.004582468541151394,
+      "hi": 0.058737126812913806
      },
-     "mean_motion": 0.8966666666666668,
-     "mean_env": 0.9029166666666667
+     "mean_motion": 0.9000000000000002,
+     "mean_env": 0.9159166666666667
     },
     {
      "scenario": "g_bad_photo",
      "group": "genuine",
      "truth": "genuine",
      "n": 80,
-     "wrong": 6,
+     "wrong": 1,
      "error": {
-      "k": 6,
+      "k": 1,
       "n": 80,
-      "value": 0.075,
-      "lo": 0.03482477485108787,
-      "hi": 0.15412200097380097
+      "value": 0.0125,
+      "lo": 0.002209918618306224,
+      "hi": 0.06746432423965451
      },
-     "mean_motion": 0.92162875,
-     "mean_env": 0.9082500000000001
+     "mean_motion": 0.97845125,
+     "mean_env": 0.9438749999999999
     },
     {
      "scenario": "g_drive_then_walk",
      "group": "genuine",
      "truth": "genuine",
      "n": 120,
-     "wrong": 0,
+     "wrong": 2,
      "error": {
-      "k": 0,
+      "k": 2,
       "n": 120,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.031020271055929513
+      "value": 0.016666666666666666,
+      "lo": 0.004582468541151394,
+      "hi": 0.058737126812913806
      },
-     "mean_motion": 0.9213616666666665,
-     "mean_env": 0.9184166666666668
+     "mean_motion": 0.9571025,
+     "mean_env": 0.9120000000000001
     },
     {
      "scenario": "g_odd_network_new_worker",
      "group": "genuine",
      "truth": "genuine",
      "n": 60,
-     "wrong": 8,
+     "wrong": 1,
      "error": {
-      "k": 8,
+      "k": 1,
       "n": 60,
-      "value": 0.13333333333333333,
-      "lo": 0.06914026978309641,
-      "hi": 0.24165394590072103
+      "value": 0.016666666666666666,
+      "lo": 0.002948083860873682,
+      "hi": 0.08855338226779477
      },
-     "mean_motion": 0.9226483333333333,
+     "mean_motion": 0.9813333333333334,
      "mean_env": 0.7599999999999998
     },
     {
@@ -7079,32 +6730,32 @@
      "group": "genuine",
      "truth": "genuine",
      "n": 160,
-     "wrong": 6,
+     "wrong": 2,
      "error": {
-      "k": 6,
+      "k": 2,
       "n": 160,
-      "value": 0.0375,
-      "lo": 0.01729768727039704,
-      "hi": 0.0793908216308832
+      "value": 0.0125,
+      "lo": 0.0034345991561011736,
+      "hi": 0.04442626157768072
      },
-     "mean_motion": 0.9220756250000001,
-     "mean_env": 0.9075
+     "mean_motion": 0.980291875,
+     "mean_env": 0.9294375
     },
     {
      "scenario": "g_walk_pocket",
      "group": "genuine",
      "truth": "genuine",
      "n": 120,
-     "wrong": 3,
+     "wrong": 2,
      "error": {
-      "k": 3,
+      "k": 2,
       "n": 120,
-      "value": 0.025,
-      "lo": 0.00853802009878548,
-      "hi": 0.07093123740434756
+      "value": 0.016666666666666666,
+      "lo": 0.004582468541151394,
+      "hi": 0.058737126812913806
      },
-     "mean_motion": 0.9237041666666667,
-     "mean_env": 0.8914166666666666
+     "mean_motion": 0.97724,
+     "mean_env": 0.9029166666666667
     },
     {
      "scenario": "h_desktop",
@@ -7119,40 +6770,40 @@
       "lo": 0.0,
       "hi": 0.07135003417431873
      },
-     "mean_motion": 0.6839999999999999,
-     "mean_env": 0.8967999999999999
+     "mean_motion": 0.6359999999999999,
+     "mean_env": 0.9157999999999998
     },
     {
      "scenario": "h_first_visit",
      "group": "hard_genuine",
      "truth": "genuine",
      "n": 70,
-     "wrong": 0,
+     "wrong": 1,
      "error": {
-      "k": 0,
+      "k": 1,
       "n": 70,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.05202487486728348
+      "value": 0.014285714285714285,
+      "lo": 0.0025261814032348645,
+      "hi": 0.07658369703926908
      },
-     "mean_motion": 0.9234685714285713,
-     "mean_env": 0.7521428571428571
+     "mean_motion": 0.9773714285714286,
+     "mean_env": 0.7764285714285715
     },
     {
      "scenario": "h_indoor_drift",
      "group": "hard_genuine",
      "truth": "genuine",
      "n": 70,
-     "wrong": 0,
+     "wrong": 2,
      "error": {
-      "k": 0,
+      "k": 2,
       "n": 70,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.05202487486728348
+      "value": 0.02857142857142857,
+      "lo": 0.007870446893806289,
+      "hi": 0.09832443512391814
      },
-     "mean_motion": 0.5057142857142857,
-     "mean_env": 0.9227142857142857
+     "mean_motion": 0.6657142857142857,
+     "mean_env": 0.9048571428571428
     },
     {
      "scenario": "h_legacy_client",
@@ -7168,7 +6819,7 @@
       "hi": 0.07135003417431873
      },
      "mean_motion": 0.8039999999999999,
-     "mean_env": 0.9064
+     "mean_env": 0.9
     },
     {
      "scenario": "h_short_trail",
@@ -7183,24 +6834,24 @@
       "lo": 0.0,
       "hi": 0.07135003417431873
      },
-     "mean_motion": 0.80735,
-     "mean_env": 0.9390000000000001
+     "mean_motion": 0.8155499999999999,
+     "mean_env": 0.9463999999999999
     },
     {
      "scenario": "h_smooth_highway",
      "group": "hard_genuine",
      "truth": "genuine",
      "n": 70,
-     "wrong": 1,
+     "wrong": 2,
      "error": {
-      "k": 1,
+      "k": 2,
       "n": 70,
-      "value": 0.014285714285714285,
-      "lo": 0.0025261814032348645,
-      "hi": 0.07658369703926908
+      "value": 0.02857142857142857,
+      "lo": 0.007870446893806289,
+      "hi": 0.09832443512391814
      },
-     "mean_motion": 0.8732028571428572,
-     "mean_env": 0.8925714285714285
+     "mean_motion": 0.8690714285714285,
+     "mean_env": 0.914
     },
     {
      "scenario": "h_throttled_sensor",
@@ -7216,7 +6867,441 @@
       "hi": 0.06017393047793289
      },
      "mean_motion": 0.9,
-     "mean_env": 0.8929999999999999
+     "mean_env": 0.9233333333333333
+    },
+    {
+     "scenario": "h_tunnel_dropout",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 70,
+     "wrong": 9,
+     "error": {
+      "k": 9,
+      "n": 70,
+      "value": 0.12857142857142856,
+      "lo": 0.06914021991242263,
+      "hi": 0.22664968713184502
+     },
+     "mean_motion": 0.8441485714285714,
+     "mean_env": 0.9122857142857144
+    },
+    {
+     "scenario": "n_isp_foreign_genuine_walk",
+     "group": "foreign_network",
+     "truth": "fraud",
+     "n": 80,
+     "wrong": 1,
+     "error": {
+      "k": 1,
+      "n": 80,
+      "value": 0.0125,
+      "lo": 0.002209918618306224,
+      "hi": 0.06746432423965451
+     },
+     "mean_motion": 0.8839287500000002,
+     "mean_env": 0.25904999999999995
+    },
+    {
+     "scenario": "n_vpn_foreign_genuine_walk",
+     "group": "foreign_network",
+     "truth": "fraud",
+     "n": 100,
+     "wrong": 1,
+     "error": {
+      "k": 1,
+      "n": 100,
+      "value": 0.01,
+      "lo": 0.0017673865655472645,
+      "hi": 0.0544875247609346
+     },
+     "mean_motion": 0.8766410000000002,
+     "mean_env": 0.18346999999999994
+    },
+    {
+     "scenario": "n_vpn_same_country_honest",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 90,
+     "wrong": 3,
+     "error": {
+      "k": 3,
+      "n": 90,
+      "value": 0.03333333333333333,
+      "lo": 0.011400183632439498,
+      "hi": 0.09347441356112923
+     },
+     "mean_motion": 0.8729922222222224,
+     "mean_env": 0.6977066666666667
+    },
+    {
+     "scenario": "n_vpn_same_country_spoof",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 60,
+     "wrong": 8,
+     "error": {
+      "k": 8,
+      "n": 60,
+      "value": 0.13333333333333333,
+      "lo": 0.06914026978309641,
+      "hi": 0.24165394590072103
+     },
+     "mean_motion": 0.53749,
+     "mean_env": 0.6792266666666668
+    }
+   ],
+   "shifted_world": [
+    {
+     "scenario": "a_weak_good_photo",
+     "group": "ambiguous",
+     "truth": "genuine",
+     "n": 100,
+     "wrong": 38,
+     "error": {
+      "k": 38,
+      "n": 100,
+      "value": 0.38,
+      "lo": 0.2909744920013438,
+      "hi": 0.47790426179289663
+     },
+     "mean_motion": 0.774739,
+     "mean_env": 0.7401599999999999
+    },
+    {
+     "scenario": "a_weak_poor_photo",
+     "group": "ambiguous",
+     "truth": "fraud",
+     "n": 100,
+     "wrong": 24,
+     "error": {
+      "k": 24,
+      "n": 100,
+      "value": 0.24,
+      "lo": 0.16691211265459965,
+      "hi": 0.3323251872329213
+     },
+     "mean_motion": 0.757971,
+     "mean_env": 0.7272
+    },
+    {
+     "scenario": "f_linear_mock_drive",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 90,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 90,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.04093706842168078
+     },
+     "mean_motion": 0.6940255555555555,
+     "mean_env": 0.9239999999999999
+    },
+    {
+     "scenario": "f_linear_mock_walk",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 90,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 90,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.04093706842168078
+     },
+     "mean_motion": 0.6200688888888888,
+     "mean_env": 0.9361111111111111
+    },
+    {
+     "scenario": "f_mock_replayed_motion",
+     "group": "fraud_hard",
+     "truth": "fraud",
+     "n": 110,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 110,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.03374513358912735
+     },
+     "mean_motion": 0.6479999999999998,
+     "mean_env": 0.9392727272727274
+    },
+    {
+     "scenario": "f_realistic_spoof_still_phone",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 110,
+     "wrong": 93,
+     "error": {
+      "k": 93,
+      "n": 110,
+      "value": 0.8454545454545455,
+      "lo": 0.7663799761205109,
+      "hi": 0.9012142952179102
+     },
+     "mean_motion": 0.8288927272727277,
+     "mean_env": 0.9199090909090909
+    },
+    {
+     "scenario": "f_static_mock_home",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 110,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 110,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.03374513358912735
+     },
+     "mean_motion": 0.7199999999999999,
+     "mean_env": 0.9189090909090909
+    },
+    {
+     "scenario": "f_teleport_still",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 150,
+     "wrong": 47,
+     "error": {
+      "k": 47,
+      "n": 150,
+      "value": 0.31333333333333335,
+      "lo": 0.24454798684647927,
+      "hi": 0.3914412384345891
+     },
+     "mean_motion": 0.5879806666666667,
+     "mean_env": 0.9158666666666666
+    },
+    {
+     "scenario": "f_wrong_area_network",
+     "group": "fraud_hard",
+     "truth": "fraud",
+     "n": 90,
+     "wrong": 3,
+     "error": {
+      "k": 3,
+      "n": 90,
+      "value": 0.03333333333333333,
+      "lo": 0.011400183632439498,
+      "hi": 0.09347441356112923
+     },
+     "mean_motion": 0.9326244444444446,
+     "mean_env": 0.19363555555555553
+    },
+    {
+     "scenario": "g_at_site",
+     "group": "genuine",
+     "truth": "genuine",
+     "n": 120,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 120,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.031020271055929513
+     },
+     "mean_motion": 0.8899866666666668,
+     "mean_env": 0.9167500000000001
+    },
+    {
+     "scenario": "g_bad_photo",
+     "group": "genuine",
+     "truth": "genuine",
+     "n": 80,
+     "wrong": 9,
+     "error": {
+      "k": 9,
+      "n": 80,
+      "value": 0.1125,
+      "lo": 0.06032618694827016,
+      "hi": 0.20018410865677552
+     },
+     "mean_motion": 0.9264862500000002,
+     "mean_env": 0.8793749999999999
+    },
+    {
+     "scenario": "g_drive_then_walk",
+     "group": "genuine",
+     "truth": "genuine",
+     "n": 120,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 120,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.031020271055929513
+     },
+     "mean_motion": 0.9223175,
+     "mean_env": 0.90175
+    },
+    {
+     "scenario": "g_odd_network_new_worker",
+     "group": "genuine",
+     "truth": "genuine",
+     "n": 60,
+     "wrong": 3,
+     "error": {
+      "k": 3,
+      "n": 60,
+      "value": 0.05,
+      "lo": 0.01714919117914121,
+      "hi": 0.13700734625099836
+     },
+     "mean_motion": 0.9188683333333331,
+     "mean_env": 0.7329333333333331
+    },
+    {
+     "scenario": "g_walk_hand",
+     "group": "genuine",
+     "truth": "genuine",
+     "n": 160,
+     "wrong": 5,
+     "error": {
+      "k": 5,
+      "n": 160,
+      "value": 0.03125,
+      "lo": 0.013420318754525096,
+      "hi": 0.07106127810488057
+     },
+     "mean_motion": 0.92387625,
+     "mean_env": 0.8694375000000001
+    },
+    {
+     "scenario": "g_walk_pocket",
+     "group": "genuine",
+     "truth": "genuine",
+     "n": 120,
+     "wrong": 5,
+     "error": {
+      "k": 5,
+      "n": 120,
+      "value": 0.041666666666666664,
+      "lo": 0.017926452505837805,
+      "hi": 0.0938421292954309
+     },
+     "mean_motion": 0.9157108333333334,
+     "mean_env": 0.8971666666666668
+    },
+    {
+     "scenario": "h_desktop",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 50,
+     "wrong": 2,
+     "error": {
+      "k": 2,
+      "n": 50,
+      "value": 0.04,
+      "lo": 0.011038652660826577,
+      "hi": 0.13460337877954667
+     },
+     "mean_motion": 0.66,
+     "mean_env": 0.9159999999999999
+    },
+    {
+     "scenario": "h_first_visit",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 70,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 70,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.05202487486728348
+     },
+     "mean_motion": 0.9110642857142857,
+     "mean_env": 0.7321428571428571
+    },
+    {
+     "scenario": "h_indoor_drift",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 70,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 70,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.05202487486728348
+     },
+     "mean_motion": 0.5,
+     "mean_env": 0.9478571428571427
+    },
+    {
+     "scenario": "h_legacy_client",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 50,
+     "wrong": 2,
+     "error": {
+      "k": 2,
+      "n": 50,
+      "value": 0.04,
+      "lo": 0.011038652660826577,
+      "hi": 0.13460337877954667
+     },
+     "mean_motion": 0.8119999999999998,
+     "mean_env": 0.861
+    },
+    {
+     "scenario": "h_short_trail",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 50,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 50,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.07135003417431873
+     },
+     "mean_motion": 0.8253,
+     "mean_env": 0.9413999999999999
+    },
+    {
+     "scenario": "h_smooth_highway",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 70,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 70,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.05202487486728348
+     },
+     "mean_motion": 0.8870342857142858,
+     "mean_env": 0.9252857142857144
+    },
+    {
+     "scenario": "h_throttled_sensor",
+     "group": "hard_genuine",
+     "truth": "genuine",
+     "n": 60,
+     "wrong": 0,
+     "error": {
+      "k": 0,
+      "n": 60,
+      "value": 0.0,
+      "lo": 0.0,
+      "hi": 0.06017393047793289
+     },
+     "mean_motion": 0.9,
+     "mean_env": 0.897
     },
     {
      "scenario": "h_tunnel_dropout",
@@ -7231,82 +7316,141 @@
       "lo": 0.0025261814032348645,
       "hi": 0.07658369703926908
      },
-     "mean_motion": 0.8795028571428573,
-     "mean_env": 0.929142857142857
+     "mean_motion": 0.8866614285714286,
+     "mean_env": 0.8982857142857144
     },
     {
-     "scenario": "h_vpn",
+     "scenario": "n_isp_foreign_genuine_walk",
+     "group": "foreign_network",
+     "truth": "fraud",
+     "n": 80,
+     "wrong": 6,
+     "error": {
+      "k": 6,
+      "n": 80,
+      "value": 0.075,
+      "lo": 0.03482477485108787,
+      "hi": 0.15412200097380097
+     },
+     "mean_motion": 0.85951,
+     "mean_env": 0.28345000000000004
+    },
+    {
+     "scenario": "n_vpn_foreign_genuine_walk",
+     "group": "foreign_network",
+     "truth": "fraud",
+     "n": 100,
+     "wrong": 6,
+     "error": {
+      "k": 6,
+      "n": 100,
+      "value": 0.06,
+      "lo": 0.02778574526665662,
+      "hi": 0.12476968531222507
+     },
+     "mean_motion": 0.8667370000000002,
+     "mean_env": 0.195006
+    },
+    {
+     "scenario": "n_vpn_same_country_honest",
      "group": "hard_genuine",
      "truth": "genuine",
-     "n": 50,
-     "wrong": 0,
+     "n": 90,
+     "wrong": 4,
      "error": {
-      "k": 0,
-      "n": 50,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.07135003417431873
+      "k": 4,
+      "n": 90,
+      "value": 0.044444444444444446,
+      "lo": 0.01741696001324882,
+      "hi": 0.1087701467709492
      },
-     "mean_motion": 0.935034,
-     "mean_env": 0.529984
+     "mean_motion": 0.86938,
+     "mean_env": 0.6775733333333334
+    },
+    {
+     "scenario": "n_vpn_same_country_spoof",
+     "group": "fraud",
+     "truth": "fraud",
+     "n": 60,
+     "wrong": 42,
+     "error": {
+      "k": 42,
+      "n": 60,
+      "value": 0.7,
+      "lo": 0.5749105303360957,
+      "hi": 0.801019897472731
+     },
+     "mean_motion": 0.767495,
+     "mean_env": 0.6154399999999999
     }
    ]
   },
   "groups": {
    "in_distribution_test_split": {
     "ambiguous": {
-     "n": 43,
+     "n": 42,
      "truth": "fraud",
      "recall": {
-      "k": 14,
-      "n": 43,
-      "value": 0.32558139534883723,
-      "lo": 0.2049311518177982,
-      "hi": 0.47484067493449045
+      "k": 23,
+      "n": 42,
+      "value": 0.5476190476190477,
+      "lo": 0.39948862747122693,
+      "hi": 0.6877683618136149
+     }
+    },
+    "foreign_network": {
+     "n": 47,
+     "truth": "fraud",
+     "recall": {
+      "k": 46,
+      "n": 47,
+      "value": 0.9787234042553191,
+      "lo": 0.8888676347566887,
+      "hi": 0.9962343289895351
      }
     },
     "fraud": {
-     "n": 108,
+     "n": 114,
      "truth": "fraud",
      "recall": {
-      "k": 106,
-      "n": 108,
-      "value": 0.9814814814814815,
-      "lo": 0.9349796714470743,
-      "hi": 0.9949068823933572
+      "k": 104,
+      "n": 114,
+      "value": 0.9122807017543859,
+      "lo": 0.8460255383653317,
+      "hi": 0.9516554164078552
      }
     },
     "fraud_hard": {
-     "n": 46,
+     "n": 39,
      "truth": "fraud",
      "recall": {
-      "k": 29,
-      "n": 46,
-      "value": 0.6304347826086957,
-      "lo": 0.48599833149184785,
-      "hi": 0.7547644048569049
+      "k": 39,
+      "n": 39,
+      "value": 1.0,
+      "lo": 0.9103301463997611,
+      "hi": 1.0
      }
     },
     "genuine": {
-     "n": 128,
+     "n": 131,
      "truth": "genuine",
      "false_flag": {
       "k": 1,
-      "n": 128,
-      "value": 0.0078125,
-      "lo": 0.0013803963628788857,
-      "hi": 0.04292731834932121
+      "n": 131,
+      "value": 0.007633587786259542,
+      "lo": 0.0013487543306202332,
+      "hi": 0.04197318785932708
      }
     },
     "hard_genuine": {
-     "n": 105,
+     "n": 113,
      "truth": "genuine",
      "false_flag": {
-      "k": 3,
-      "n": 105,
-      "value": 0.02857142857142857,
-      "lo": 0.009763662138955603,
-      "hi": 0.08065764736035347
+      "k": 1,
+      "n": 113,
+      "value": 0.008849557522123894,
+      "lo": 0.0015638358136017966,
+      "hi": 0.04843205606052523
      }
     }
    },
@@ -7315,55 +7459,66 @@
      "n": 200,
      "truth": "fraud",
      "recall": {
-      "k": 98,
+      "k": 103,
       "n": 200,
-      "value": 0.49,
-      "lo": 0.4215615528275274,
-      "hi": 0.5588153672908391
+      "value": 0.515,
+      "lo": 0.44610724474630287,
+      "hi": 0.5833273750761476
+     }
+    },
+    "foreign_network": {
+     "n": 180,
+     "truth": "fraud",
+     "recall": {
+      "k": 178,
+      "n": 180,
+      "value": 0.9888888888888889,
+      "lo": 0.9603981999780283,
+      "hi": 0.9969476890916927
      }
     },
     "fraud": {
-     "n": 550,
+     "n": 610,
      "truth": "fraud",
      "recall": {
-      "k": 529,
-      "n": 550,
-      "value": 0.9618181818181818,
-      "lo": 0.9423364047400014,
-      "hi": 0.9748933591491684
+      "k": 565,
+      "n": 610,
+      "value": 0.9262295081967213,
+      "lo": 0.9027117514239476,
+      "hi": 0.944412327491525
      }
     },
     "fraud_hard": {
      "n": 200,
      "truth": "fraud",
      "recall": {
-      "k": 138,
+      "k": 199,
       "n": 200,
-      "value": 0.69,
-      "lo": 0.622826945087378,
-      "hi": 0.75001157266366
+      "value": 0.995,
+      "lo": 0.9722256001302286,
+      "hi": 0.999116854010634
      }
     },
     "genuine": {
      "n": 660,
      "truth": "genuine",
      "false_flag": {
-      "k": 2,
+      "k": 10,
       "n": 660,
-      "value": 0.0030303030303030303,
-      "lo": 0.0008313947115799183,
-      "hi": 0.01098106175393836
+      "value": 0.015151515151515152,
+      "lo": 0.008250362385546543,
+      "hi": 0.02766422928812983
      }
     },
     "hard_genuine": {
-     "n": 540,
+     "n": 580,
      "truth": "genuine",
      "false_flag": {
-      "k": 12,
-      "n": 540,
-      "value": 0.022222222222222223,
-      "lo": 0.012756765715044477,
-      "hi": 0.038437552630591454
+      "k": 17,
+      "n": 580,
+      "value": 0.029310344827586206,
+      "lo": 0.018378973899305043,
+      "hi": 0.04643586629022582
      }
     }
    },
@@ -7372,55 +7527,66 @@
      "n": 200,
      "truth": "fraud",
      "recall": {
-      "k": 112,
+      "k": 114,
       "n": 200,
-      "value": 0.56,
-      "lo": 0.4907154834956251,
-      "hi": 0.6270229957941764
+      "value": 0.57,
+      "lo": 0.500703604055383,
+      "hi": 0.636657955116052
+     }
+    },
+    "foreign_network": {
+     "n": 180,
+     "truth": "fraud",
+     "recall": {
+      "k": 168,
+      "n": 180,
+      "value": 0.9333333333333333,
+      "lo": 0.8871002756924606,
+      "hi": 0.9614563078011558
      }
     },
     "fraud": {
-     "n": 550,
+     "n": 610,
      "truth": "fraud",
      "recall": {
-      "k": 478,
-      "n": 550,
-      "value": 0.8690909090909091,
-      "lo": 0.8383224969934715,
-      "hi": 0.8947390859573217
+      "k": 428,
+      "n": 610,
+      "value": 0.7016393442622951,
+      "lo": 0.6641598457025171,
+      "hi": 0.7365950070151874
      }
     },
     "fraud_hard": {
      "n": 200,
      "truth": "fraud",
      "recall": {
-      "k": 141,
+      "k": 197,
       "n": 200,
-      "value": 0.705,
-      "lo": 0.6384115802925058,
-      "hi": 0.7638615572809827
+      "value": 0.985,
+      "lo": 0.9568335194437211,
+      "hi": 0.9948858548155076
      }
     },
     "genuine": {
      "n": 660,
      "truth": "genuine",
      "false_flag": {
-      "k": 23,
+      "k": 22,
       "n": 660,
-      "value": 0.03484848484848485,
-      "lo": 0.02333170880995491,
-      "hi": 0.05174885257697836
+      "value": 0.03333333333333333,
+      "lo": 0.022114107249016926,
+      "hi": 0.04995368723689657
      }
     },
     "hard_genuine": {
-     "n": 540,
+     "n": 580,
      "truth": "genuine",
      "false_flag": {
-      "k": 2,
-      "n": 540,
-      "value": 0.003703703703703704,
-      "lo": 0.0010162561558953549,
-      "hi": 0.01340264817212957
+      "k": 9,
+      "n": 580,
+      "value": 0.015517241379310345,
+      "lo": 0.008184649303157793,
+      "hi": 0.02922549755859375
      }
     }
    }
@@ -7430,19 +7596,19 @@
     {
      "motion_known": false,
      "env_known": true,
-     "n": 10,
+     "n": 30,
      "false_flag": {
       "k": 0,
-      "n": 10,
+      "n": 26,
       "value": 0.0,
       "lo": 0.0,
-      "hi": 0.2775401687666166
+      "hi": 0.12873304380462175
      },
      "recall": {
-      "k": 0,
-      "n": 0,
-      "value": null,
-      "lo": 0.0,
+      "k": 4,
+      "n": 4,
+      "value": 1.0,
+      "lo": 0.5100999795960008,
       "hi": 1.0
      }
     },
@@ -7468,20 +7634,20 @@
     {
      "motion_known": true,
      "env_known": true,
-     "n": 412,
+     "n": 448,
      "false_flag": {
-      "k": 7,
-      "n": 242,
-      "value": 0.028925619834710745,
-      "lo": 0.014080624901213219,
-      "hi": 0.05849293465908903
+      "k": 8,
+      "n": 234,
+      "value": 0.03418803418803419,
+      "lo": 0.017423302392758615,
+      "hi": 0.06600028708864414
      },
      "recall": {
-      "k": 146,
-      "n": 170,
-      "value": 0.8588235294117647,
-      "lo": 0.7985281686290288,
-      "hi": 0.9032601260024057
+      "k": 202,
+      "n": 214,
+      "value": 0.9439252336448598,
+      "lo": 0.90455774856405,
+      "hi": 0.967635624969747
      }
     }
    ],
@@ -7489,32 +7655,32 @@
     {
      "motion_known": false,
      "env_known": true,
-     "n": 88,
+     "n": 139,
      "false_flag": {
-      "k": 0,
-      "n": 88,
-      "value": 0.0,
-      "lo": 3.469446951953614e-18,
-      "hi": 0.04182853957248131
+      "k": 3,
+      "n": 111,
+      "value": 0.02702702702702703,
+      "lo": 0.00923347121399111,
+      "hi": 0.07646369775613819
      },
      "recall": {
-      "k": 0,
-      "n": 0,
-      "value": null,
-      "lo": 0.0,
+      "k": 28,
+      "n": 28,
+      "value": 1.0,
+      "lo": 0.8793527963418923,
       "hi": 1.0
      }
     },
     {
      "motion_known": true,
      "env_known": false,
-     "n": 35,
+     "n": 25,
      "false_flag": {
       "k": 0,
-      "n": 35,
+      "n": 25,
       "value": 0.0,
       "lo": 0.0,
-      "hi": 0.09890426758938868
+      "hi": 0.13319649395317873
      },
      "recall": {
       "k": 0,
@@ -7527,53 +7693,72 @@
     {
      "motion_known": true,
      "env_known": true,
-     "n": 2027,
+     "n": 2266,
      "false_flag": {
-      "k": 28,
-      "n": 1177,
-      "value": 0.0237892948173322,
-      "lo": 0.016509489722411466,
-      "hi": 0.03416758669495053
+      "k": 44,
+      "n": 1204,
+      "value": 0.036544850498338874,
+      "lo": 0.027334427224351813,
+      "hi": 0.048703357862699345
      },
      "recall": {
-      "k": 751,
-      "n": 850,
-      "value": 0.8835294117647059,
-      "lo": 0.860217542913379,
-      "hi": 0.9033901332644975
+      "k": 997,
+      "n": 1062,
+      "value": 0.9387947269303202,
+      "lo": 0.9227355902465885,
+      "hi": 0.9516907785496754
      }
     }
    ],
    "shifted_world": [
     {
      "motion_known": false,
-     "env_known": true,
-     "n": 124,
+     "env_known": false,
+     "n": 1,
      "false_flag": {
-      "k": 0,
-      "n": 123,
-      "value": 0.0,
-      "lo": 0.0,
-      "hi": 0.03028659367273828
-     },
-     "recall": {
       "k": 0,
       "n": 1,
       "value": 0.0,
       "lo": 0.0,
       "hi": 0.7934567085261071
+     },
+     "recall": {
+      "k": 0,
+      "n": 0,
+      "value": null,
+      "lo": 0.0,
+      "hi": 1.0
+     }
+    },
+    {
+     "motion_known": false,
+     "env_known": true,
+     "n": 165,
+     "false_flag": {
+      "k": 3,
+      "n": 137,
+      "value": 0.021897810218978103,
+      "lo": 0.0074746229459378005,
+      "hi": 0.06240245882535704
+     },
+     "recall": {
+      "k": 21,
+      "n": 28,
+      "value": 0.75,
+      "lo": 0.566439747592954,
+      "hi": 0.8732366505779922
      }
     },
     {
      "motion_known": true,
      "env_known": false,
-     "n": 27,
+     "n": 26,
      "false_flag": {
       "k": 0,
-      "n": 27,
+      "n": 26,
       "value": 0.0,
-      "lo": 6.938893903907228e-18,
-      "hi": 0.12455903714463581
+      "lo": 0.0,
+      "hi": 0.12873304380462175
      },
      "recall": {
       "k": 0,
@@ -7586,20 +7771,20 @@
     {
      "motion_known": true,
      "env_known": true,
-     "n": 1999,
+     "n": 2238,
      "false_flag": {
-      "k": 67,
-      "n": 1150,
-      "value": 0.058260869565217394,
-      "lo": 0.04613616690254402,
-      "hi": 0.0733270245788517
+      "k": 66,
+      "n": 1176,
+      "value": 0.05612244897959184,
+      "lo": 0.044355248363728284,
+      "hi": 0.07078020710758243
      },
      "recall": {
-      "k": 689,
-      "n": 849,
-      "value": 0.8115429917550059,
-      "lo": 0.78385491759748,
-      "hi": 0.8364243933554567
+      "k": 848,
+      "n": 1062,
+      "value": 0.7984934086629002,
+      "lo": 0.7733116721672348,
+      "hi": 0.8215234327864469
      }
     }
    ]
@@ -7608,109 +7793,109 @@
    {
     "variant": "all inputs",
     "auc": {
-     "value": 0.91820407239819,
-     "lo": 0.9027922058823529,
-     "hi": 0.9316492760180995
+     "value": 0.9260564151718472,
+     "lo": 0.9152263453375326,
+     "hi": 0.9366340544981514
     },
     "recall": {
-     "k": 695,
-     "n": 850,
-     "value": 0.8176470588235294,
-     "lo": 0.7902780869184318,
-     "hi": 0.8421577185049627
+     "k": 875,
+     "n": 1090,
+     "value": 0.8027522935779816,
+     "lo": 0.7780833336958854,
+     "hi": 0.8252947056838564
     },
     "false_flag": {
-     "k": 76,
-     "n": 1300,
-     "value": 0.05846153846153846,
-     "lo": 0.04696123185371186,
-     "hi": 0.07256371657560656
+     "k": 70,
+     "n": 1340,
+     "value": 0.05223880597014925,
+     "lo": 0.04155340245201584,
+     "hi": 0.06548421269548368
     }
    },
    {
     "variant": "without motion (motion_score, motion_known)",
     "auc": {
-     "value": 0.612410407239819,
-     "lo": 0.584239185520362,
-     "hi": 0.6363120248868779
+     "value": 0.6738141859509791,
+     "lo": 0.6536480641517184,
+     "hi": 0.6939778258934685
     },
     "recall": {
-     "k": 235,
-     "n": 850,
-     "value": 0.27647058823529413,
-     "lo": 0.24745952616375586,
-     "hi": 0.30749305520496645
+     "k": 417,
+     "n": 1090,
+     "value": 0.38256880733944953,
+     "lo": 0.3541759267097076,
+     "hi": 0.4117865307429985
     },
     "false_flag": {
-     "k": 177,
-     "n": 1300,
-     "value": 0.13615384615384615,
-     "lo": 0.1185794391604254,
-     "hi": 0.15587230405746244
+     "k": 122,
+     "n": 1340,
+     "value": 0.09104477611940298,
+     "lo": 0.07678861287663638,
+     "hi": 0.10763907562474653
     }
    },
    {
     "variant": "without environment (ambient_score, env_known)",
     "auc": {
-     "value": 0.8820927601809955,
-     "lo": 0.8649186199095023,
-     "hi": 0.8970293099547512
+     "value": 0.7863011775982472,
+     "lo": 0.7669460838011776,
+     "hi": 0.8052401153635492
     },
     "recall": {
-     "k": 654,
-     "n": 850,
-     "value": 0.7694117647058824,
-     "lo": 0.739920584459269,
-     "hi": 0.7964786727331657
+     "k": 609,
+     "n": 1090,
+     "value": 0.5587155963302752,
+     "lo": 0.5290825066445318,
+     "hi": 0.5879362646291152
     },
     "false_flag": {
-     "k": 74,
-     "n": 1300,
-     "value": 0.05692307692307692,
-     "lo": 0.04558442567112073,
-     "hi": 0.07087266543565177
+     "k": 58,
+     "n": 1340,
+     "value": 0.04328358208955224,
+     "lo": 0.03363096966548946,
+     "hi": 0.055547397784960074
     }
    },
    {
     "variant": "without photo quality",
     "auc": {
-     "value": 0.9075678733031675,
-     "lo": 0.8908564819004525,
-     "hi": 0.9212423755656108
+     "value": 0.924954128440367,
+     "lo": 0.9143499760372449,
+     "hi": 0.9351132325756538
     },
     "recall": {
-     "k": 673,
-     "n": 850,
-     "value": 0.7917647058823529,
-     "lo": 0.763184425263804,
-     "hi": 0.8177195737917584
+     "k": 825,
+     "n": 1090,
+     "value": 0.7568807339449541,
+     "lo": 0.7305409948214382,
+     "hi": 0.7814161295007672
     },
     "false_flag": {
-     "k": 87,
-     "n": 1300,
-     "value": 0.06692307692307692,
-     "lo": 0.05457511607736854,
-     "hi": 0.08182304762595248
+     "k": 66,
+     "n": 1340,
+     "value": 0.049253731343283584,
+     "lo": 0.0389007215203028,
+     "hi": 0.0621838110615134
     }
    }
   ],
   "permutation": {
-   "base_auc": 0.9171628959276018,
+   "base_auc": 0.9189346843762837,
    "by_feature": {
     "photo_quality_score": {
-     "auc_drop": 0.011058823529411788
+     "auc_drop": 0.013107627002601596
     },
     "motion_score": {
-     "auc_drop": 0.3362723981900453
+     "auc_drop": 0.2718310968095303
     },
     "ambient_score": {
-     "auc_drop": 0.04058959276018104
+     "auc_drop": 0.15840853074079142
     },
     "motion_known": {
-     "auc_drop": 0.039536199095022595
+     "auc_drop": 0.08301691085855123
     },
     "env_known": {
-     "auc_drop": 0.0015298642533936313
+     "auc_drop": 0.0012073805285498507
     }
    }
   },
@@ -7722,19 +7907,19 @@
     "ambient_fingerprint"
    ],
    "share_mean": [
-    0.11362867376161594,
-    0.7683184917767448,
-    0.11805283446163935
+    0.10889837451176908,
+    0.6220347603778916,
+    0.2690668651103392
    ],
    "share_min": [
-    0.10495988143031239,
-    0.7423483587344656,
-    0.10793338863464054
+    0.09266215063441958,
+    0.6126469578398428,
+    0.2578827689412606
    ],
    "share_max": [
-    0.12478553935948725,
-    0.7871067299350472,
-    0.1328661019060472
+    0.1294702732188965,
+    0.6316998367402114,
+    0.2855803628119597
    ],
    "same_rank_in_all_seeds": true
   },
@@ -7748,7 +7933,7 @@
      "motion_known": 1,
      "env_known": 1
     },
-    "p_fraud": 0.016363354194370586,
+    "p_fraud": 0.007923335433224247,
     "expected": "accepted",
     "got": "accepted",
     "ok": true
@@ -7762,7 +7947,7 @@
      "motion_known": 1,
      "env_known": 1
     },
-    "p_fraud": 0.020812201800824447,
+    "p_fraud": 0.05991459143993919,
     "expected": "accepted",
     "got": "accepted",
     "ok": true
@@ -7776,7 +7961,7 @@
      "motion_known": 1,
      "env_known": 1
     },
-    "p_fraud": 0.9924557015409923,
+    "p_fraud": 0.9996363863790412,
     "expected": "flagged",
     "got": "flagged",
     "ok": true
@@ -7790,7 +7975,7 @@
      "motion_known": 1,
      "env_known": 1
     },
-    "p_fraud": 0.9924557015409923,
+    "p_fraud": 0.9996361439744194,
     "expected": "flagged",
     "got": "flagged",
     "ok": true
@@ -7804,23 +7989,65 @@
      "motion_known": 1,
      "env_known": 1
     },
-    "p_fraud": 0.9509273157651124,
+    "p_fraud": 0.9073074368432639,
     "expected": "flagged",
     "got": "flagged",
     "ok": true
    },
    {
-    "name": "network from another country, motion fine",
+    "name": "foreign VPN exit (env 0.17), motion fine",
     "features": {
      "photo_quality_score": 0.9,
      "motion_score": 0.97,
-     "ambient_score": 0.3,
+     "ambient_score": 0.17,
      "motion_known": 1,
      "env_known": 1
     },
-    "p_fraud": 0.9495572151212448,
+    "p_fraud": 0.9863892501683006,
     "expected": "flagged",
     "got": "flagged",
+    "ok": true
+   },
+   {
+    "name": "foreign ISP (env 0.24), motion fine",
+    "features": {
+     "photo_quality_score": 0.9,
+     "motion_score": 0.97,
+     "ambient_score": 0.24,
+     "motion_known": 1,
+     "env_known": 1
+    },
+    "p_fraud": 0.8205176439411233,
+    "expected": "flagged",
+    "got": "flagged",
+    "ok": true
+   },
+   {
+    "name": "same-country VPN (env 0.56), motion fine",
+    "features": {
+     "photo_quality_score": 0.9,
+     "motion_score": 0.97,
+     "ambient_score": 0.56,
+     "motion_known": 1,
+     "env_known": 1
+    },
+    "p_fraud": 0.022719807160166416,
+    "expected": "accepted",
+    "got": "accepted",
+    "ok": true
+   },
+   {
+    "name": "carrier gateway far (env 0.65), motion fine",
+    "features": {
+     "photo_quality_score": 0.9,
+     "motion_score": 0.97,
+     "ambient_score": 0.65,
+     "motion_known": 1,
+     "env_known": 1
+    },
+    "p_fraud": 0.015114571561312561,
+    "expected": "accepted",
+    "got": "accepted",
     "ok": true
    },
    {
@@ -7832,7 +8059,7 @@
      "motion_known": 0,
      "env_known": 0
     },
-    "p_fraud": 0.0018140934573542815,
+    "p_fraud": 0.005637079699144716,
     "expected": "accepted",
     "got": "accepted",
     "ok": true
@@ -7846,7 +8073,7 @@
      "motion_known": 0,
      "env_known": 0
     },
-    "p_fraud": 0.0239693043711459,
+    "p_fraud": 0.07510945176049372,
     "expected": "accepted",
     "got": "accepted",
     "ok": true
@@ -7860,7 +8087,7 @@
      "motion_known": 1,
      "env_known": 1
     },
-    "p_fraud": 0.9574771012735573,
+    "p_fraud": 0.8757520912515047,
     "expected": "flagged",
     "got": "flagged",
     "ok": true
@@ -7874,12 +8101,232 @@
      "motion_known": 1,
      "env_known": 1
     },
-    "p_fraud": 0.08011459387526966,
+    "p_fraud": 0.18086781785353598,
     "expected": "accepted",
     "got": "accepted",
     "ok": true
    }
   ],
+  "environment": {
+   "label": "SYNTHETIC",
+   "scan": [
+    {
+     "environment": 0.0,
+     "p_fraud": 0.9863892501683006,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.05,
+     "p_fraud": 0.9863892501683006,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.1,
+     "p_fraud": 0.9863892501683006,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.15,
+     "p_fraud": 0.9863892501683006,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.2,
+     "p_fraud": 0.9863892501683006,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.25,
+     "p_fraud": 0.8205176439411233,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.3,
+     "p_fraud": 0.6019665075232701,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.35,
+     "p_fraud": 0.022719807160166416,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.4,
+     "p_fraud": 0.022719807160166416,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.45,
+     "p_fraud": 0.022719807160166416,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.5,
+     "p_fraud": 0.022719807160166416,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.55,
+     "p_fraud": 0.022719807160166416,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.6,
+     "p_fraud": 0.022719807160166416,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.65,
+     "p_fraud": 0.015114571561312561,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.7,
+     "p_fraud": 0.015114571561312561,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.75,
+     "p_fraud": 0.013079890416687362,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.8,
+     "p_fraud": 0.013079890416687362,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.85,
+     "p_fraud": 0.013079890416687362,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.9,
+     "p_fraud": 0.013079890416687362,
+     "guard_applied": false
+    },
+    {
+     "environment": 0.95,
+     "p_fraud": 0.007923335433224247,
+     "guard_applied": false
+    },
+    {
+     "environment": 1.0,
+     "p_fraud": 0.007923335433224247,
+     "guard_applied": false
+    }
+   ],
+   "monotone": true,
+   "guard_bands": 0,
+   "scenarios": [
+    {
+     "scenario": "f_wrong_area_network",
+     "what": "spoof from a foreign network",
+     "truth": "fraud",
+     "n": 90,
+     "wrong": 1,
+     "error": {
+      "k": 1,
+      "n": 90,
+      "value": 0.011111111111111112,
+      "lo": 0.00196403353551235,
+      "hi": 0.06028554447679775
+     },
+     "mean_env": 0.18847999999999995
+    },
+    {
+     "scenario": "g_odd_network_new_worker",
+     "what": "honest worker on an unusual link",
+     "truth": "genuine",
+     "n": 60,
+     "wrong": 1,
+     "error": {
+      "k": 1,
+      "n": 60,
+      "value": 0.016666666666666666,
+      "lo": 0.002948083860873682,
+      "hi": 0.08855338226779477
+     },
+     "mean_env": 0.7599999999999998
+    },
+    {
+     "scenario": "n_isp_foreign_genuine_walk",
+     "what": "foreign ISP, genuine-looking walk",
+     "truth": "fraud",
+     "n": 80,
+     "wrong": 1,
+     "error": {
+      "k": 1,
+      "n": 80,
+      "value": 0.0125,
+      "lo": 0.002209918618306224,
+      "hi": 0.06746432423965451
+     },
+     "mean_env": 0.25904999999999995
+    },
+    {
+     "scenario": "n_vpn_foreign_genuine_walk",
+     "what": "foreign VPN exit, genuine-looking walk",
+     "truth": "fraud",
+     "n": 100,
+     "wrong": 1,
+     "error": {
+      "k": 1,
+      "n": 100,
+      "value": 0.01,
+      "lo": 0.0017673865655472645,
+      "hi": 0.0544875247609346
+     },
+     "mean_env": 0.18346999999999994
+    },
+    {
+     "scenario": "n_vpn_same_country_honest",
+     "what": "honest worker, VPN exit in the SAME country",
+     "truth": "genuine",
+     "n": 90,
+     "wrong": 3,
+     "error": {
+      "k": 3,
+      "n": 90,
+      "value": 0.03333333333333333,
+      "lo": 0.011400183632439498,
+      "hi": 0.09347441356112923
+     },
+     "mean_env": 0.6977066666666667
+    },
+    {
+     "scenario": "n_vpn_same_country_spoof",
+     "what": "spoofer behind a same-country VPN",
+     "truth": "fraud",
+     "n": 60,
+     "wrong": 8,
+     "error": {
+      "k": 8,
+      "n": 60,
+      "value": 0.13333333333333333,
+      "lo": 0.06914026978309641,
+      "hi": 0.24165394590072103
+     },
+     "mean_env": 0.6792266666666668
+    }
+   ],
+   "honest_false_flag": {
+    "genuine": {
+     "k": 10,
+     "n": 660,
+     "value": 0.015151515151515152,
+     "lo": 0.008250362385546543,
+     "hi": 0.02766422928812983
+    },
+    "hard_genuine": {
+     "k": 17,
+     "n": 580,
+     "value": 0.029310344827586206,
+     "lo": 0.018378973899305043,
+     "hi": 0.04643586629022582
+    }
+   }
+  },
   "jump_sensitivity": [
    {
     "jumpSpeedMs": 10,
@@ -7899,11 +8346,11 @@
      "hi": 0.06017393047793289
     },
     "h_tunnel_dropout": {
-     "k": 32,
+     "k": 26,
      "n": 40,
-     "value": 0.8,
-     "lo": 0.6524239261814333,
-     "hi": 0.8950013502683314
+     "value": 0.65,
+     "lo": 0.4950559699353738,
+     "hi": 0.7786566682895086
     },
     "h_smooth_highway": {
      "k": 40,

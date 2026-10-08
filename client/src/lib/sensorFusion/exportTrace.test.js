@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { SCENARIOS, buildTraceDoc, recordModeOn, traceFileName } from './exportTrace.js'
+import { SCENARIOS, buildTraceDoc, demoToolsOn, isNativeApp, recordModeOn, traceFileName } from './exportTrace.js'
 
 test('the exported trace is the format the accuracy report reads, with no worker or photo', () => {
   const trail = { v: 1, fixes: [], windows: [] }
@@ -24,4 +24,21 @@ test('record mode is only on with ?record=1', () => {
   assert.equal(recordModeOn('?x=1&record=1'), true)
   assert.equal(recordModeOn('?record=0'), false)
   assert.equal(recordModeOn(''), false)
+})
+
+test('the demo tools show with ?demo=1 or ?record=1, inside the native wrapper, or in a demo build; not otherwise', () => {
+  const off = { native: false, buildFlag: false }
+  assert.equal(demoToolsOn('?demo=1', off), true)
+  assert.equal(demoToolsOn('?record=1', off), true)
+  assert.equal(demoToolsOn('?demo=0', off), false)
+  assert.equal(demoToolsOn('', off), false)
+  assert.equal(demoToolsOn('', { native: true, buildFlag: false }), true)
+  assert.equal(demoToolsOn('', { native: false, buildFlag: true }), true)
+})
+
+test('isNativeApp only when Capacitor says it is a native platform', () => {
+  assert.equal(isNativeApp({}), false)
+  assert.equal(isNativeApp({ Capacitor: { isNativePlatform: () => true } }), true)
+  assert.equal(isNativeApp({ Capacitor: { isNativePlatform: () => false } }), false)
+  assert.equal(isNativeApp({ Capacitor: { isNativePlatform() { throw new Error('x') } } }), false)
 })

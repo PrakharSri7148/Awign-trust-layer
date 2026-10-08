@@ -47,7 +47,7 @@ try {
 
   console.log(`[e2e] starting the isolated backend on ${API} (temp DB, temp uploads) ...`)
   fs.mkdirSync(path.join(tmp, 'uploads'))
-  start(path.join(backend, '.venv/bin/uvicorn'), ['main:app', '--host', '127.0.0.1', '--port', String(API_PORT)], { cwd: backend, env: { ...process.env, TRUST_LAYER_DB: path.join(tmp, 'e2e.db'), PHOTO_DIR: path.join(tmp, 'uploads') } }, 'backend.log')
+  start(path.join(backend, '.venv/bin/uvicorn'), ['main:app', '--host', '127.0.0.1', '--port', String(API_PORT)], { cwd: backend, env: { ...process.env, TRUST_LAYER_DB: path.join(tmp, 'e2e.db'), PHOTO_DIR: path.join(tmp, 'uploads'), TRUSTED_PROXY_HEADER: process.env.TRUSTED_PROXY_HEADER ?? 'x-forwarded-for' } }, 'backend.log')
   await waitFor(`${API}/submissions`)
 
   // A Vite config that re-exports the app's own and moves the cache + host/port, so it never shares state with your dev server.

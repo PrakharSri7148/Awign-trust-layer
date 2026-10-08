@@ -373,7 +373,8 @@ def test_private_addresses_and_broken_databases_never_raise():
     p = ipctx.DbIpProvider(FakeReader({"country": {"iso_code": "IN"}}), None)
     assert p.lookup("192.168.0.4").private and p.lookup("127.0.0.1").private
     assert p.lookup("testclient") is None and p.lookup("not an ip") is None
-    assert ipctx.DbIpProvider(FakeReader("boom"), None).lookup("8.8.8.8") is None
+    broken = ipctx.DbIpProvider(FakeReader("boom"), None).lookup("8.8.8.8")  # a bad record degrades to 'nothing known', never an error
+    assert broken is not None and broken.country is None and broken.asn is None and not broken.private
     assert ipctx.NullProvider().lookup("8.8.8.8") is None
 
 
@@ -384,7 +385,7 @@ def test_client_ip_only_believes_a_header_you_configured(monkeypatch):
     monkeypatch.delenv("TRUSTED_PROXY_HEADER", raising=False)
     assert ipctx.client_ip(Req()) == "9.9.9.9"
     monkeypatch.setenv("TRUSTED_PROXY_HEADER", "X-Forwarded-For")
-    assert ipctx.client_ip(Req()) == "1.2.3.4"
+    assert ipctx.client_ip(Req()) == "5.6.7.8"  # the entry the trusted proxy wrote (rightmost); the left one is whatever the client claimed
 
 
 # ---------------------------------------------------------------- trail parsing / validation
@@ -422,3 +423,32 @@ def test_legacy_single_point_makes_a_one_fix_trail():
     assert r["motion_known"] and r["flags"] == []  # at the site, GPS-only check
     far = consistency.evaluate(t, {"lat": 13.5, "lng": 77.6, "radius_m": 100})
     assert "gps_outside_site" in far["flags"]
+
+
+# A real phone (Oppo F19 Pro, flat on a table, 2026-10-08) reported a constant 0.22 m/s2 from its gravity-free acceleration sensor and
+# rotation 0.0: a sensor offset, not movement. It must not turn "still" into "moving" (and the JS port must agree: windows.test.js).
+def _biased(bias, shake=0.0, n=250, hz=50, seed=3):
+    s = [seed]
+
+    def rnd():
+        s[0] = (s[0] * 1664525 + 1013904223) % 4294967296
+        return s[0] / 4294967296 - 0.5
+
+    out = []
+    for i in range(n):
+        sh = shake * math.sin(2 * math.pi * 1.9 * i / hz)
+        out.append({"t": i * (1000 / hz), "x": bias * 0.6 + sh + rnd() * 0.02, "y": bias * 0.7 + rnd() * 0.02, "z": bias * 0.39 + rnd() * 0.02,
+                    "alpha": rnd() * 0.2, "beta": rnd() * 0.2, "gamma": rnd() * 0.2})
+    return out
+
+
+def test_a_constant_sensor_offset_is_not_movement():
+    f = W.window_features(_biased(0.22))
+    assert f["acc_rms"] < 0.03
+    assert W.activity(f) == "still"
+
+
+def test_a_real_shake_on_top_of_an_offset_still_counts():
+    flat, none = W.window_features(_biased(0.22, shake=2)), W.window_features(_biased(0.0, shake=2))
+    assert flat["acc_rms"] > 1.0 and abs(flat["acc_rms"] - none["acc_rms"]) < 0.02
+    assert W.activity(flat) == "walking"

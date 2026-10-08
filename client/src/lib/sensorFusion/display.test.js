@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { envComponentText, fmtDistance, recordingSummary, scoreWord, timelineCells, trailGeometry } from './display.js'
+import { envComponentText, fmtDistance, recordingSummary, scoreWord, timelineCells, trailGeometry, verdictSummary } from './display.js'
 import { FUSION_FLAG_META, isFusionFlag } from './flags.js'
 
 const SITE = { lat: 12.9716, lng: 77.5946, radius_m: 60 }
@@ -90,4 +90,124 @@ print(" ".join(sorted(ids)))`], { cwd: path.join(root, 'backend') }).toString().
   const missing = out.filter((f) => !isFusionFlag(f))
   assert.deepEqual(missing, [])
   assert.ok(out.length >= 18, `found ${out.length} flags`)
+})
+
+test('verdict summary: consistent, spoof and unknown read differently and never invent a cause', () => {
+  const ok = verdictSummary({ motion: { score: 0.97, known: true, sensor_used: true, reason: null }, environment: { score: 1, known: true, reason: null } }).filter((l) => l.id !== 'arrival')
+  assert.deepEqual(ok.map((l) => l.tone), ['green', 'green'])
+  assert.match(ok[0].text, /matches the GPS trail/)
+  const spoof = verdictSummary({ motion: { score: 0.16, known: true, sensor_used: true, reason: 'GPS jumped 14.0 km in 6 s while the phone stayed still' }, environment: { score: 0.5, known: false } }).filter((l) => l.id !== 'arrival')
+  assert.equal(spoof[0].tone, 'red')
+  assert.equal(spoof[0].text, 'GPS jumped 14.0 km in 6 s while the phone stayed still')
+  assert.equal(spoof[1].tone, 'muted')
+  const gpsOnly = verdictSummary({ motion: { score: 0.9, known: true, sensor_used: false }, environment: { known: false } }).filter((l) => l.id !== 'arrival')
+  assert.equal(gpsOnly[0].tone, 'muted')
+  assert.match(gpsOnly[0].text, /Not enough sensor data/)
+  assert.deepEqual(verdictSummary(null), [])
+  assert.deepEqual(verdictSummary({}), [])
+})
+
+// ---------------------------------------------------------------- live feed + "what was fetched" (H3b)
+import { NOT_AVAILABLE, fetchedSummary, liveFeed } from './display.js'
+
+test('liveFeed prints what the recorder holds and nothing it does not', () => {
+  const empty = liveFeed({ running: false, fixes: 0, windows: 0 })
+  assert.equal(empty.gps.lat, null)
+  assert.equal(empty.motion.acc, null)
+  assert.equal(empty.network, null)
+  assert.equal(empty.session.recordingS, null)
+
+  const s = {
+    running: true, geo: 'granted', motion: 'granted', gyro: true, fixes: 4, windows: 2, distanceM: 63, lastFixAgoS: 2,
+    lastFix: { lat: 12.97161234, lng: 77.59461234, acc: 8.4, speed: null, heading: 271.6, alt: 912.2 },
+    lastMotion: { acc: 1.234, gyro: 22.26 }, hz: 60,
+    lastWindow: { activity: 'walking', cad_hz: 1.84, cad_pw: 0.61, acc_rms: 1.9 },
+    activities: ['still', 'walking'], visitId: 'abcdef1234567890', offsetMs: -1520.4, startedAt: 1000, wakeLock: true, visible: true, hiddenS: 3, hiddenCount: 1, watchRestarts: 0,
+  }
+  const f = liveFeed(s, { net: { effectiveType: '4g', downlink: 9.5, rtt: 50 }, now: 31_000 })
+  assert.deepEqual([f.gps.lat, f.gps.lng, f.gps.accuracy, f.gps.speed, f.gps.heading, f.gps.altitude], ['12.97161', '77.59461', '8 m', 'not reported', '272°', '912 m'])
+  assert.equal(f.gps.distance, '63 m')
+  assert.deepEqual([f.motion.acc, f.motion.gyro, f.motion.rateHz], ['1.23 m/s²', '22.3 °/s', '60 Hz'])
+  assert.equal(f.activity.now, 'walking')
+  assert.equal(f.activity.rhythm, '1.84 Hz · strength 0.61')
+  assert.deepEqual(f.network, { type: '4g', downlink: '9.5 Mbps', rtt: '50 ms' })
+  assert.deepEqual([f.session.visit, f.session.offset, f.session.recordingS, f.session.wakeLock], ['abcdef12', '-1520 ms', 30, 'held'])
+})
+
+test('liveFeed: motion numbers only when motion is really granted; a phone without a gyroscope says so', () => {
+  const denied = liveFeed({ running: true, motion: 'denied', lastMotion: { acc: 1, gyro: 2 } })
+  assert.equal(denied.motion.acc, null)
+  const noGyro = liveFeed({ running: true, motion: 'granted', gyro: false, lastMotion: { acc: 0.5, gyro: null } })
+  assert.equal(noGyro.motion.gyro, 'no gyroscope')
+})
+
+test('every not-available item carries a reason', () => {
+  assert.ok(NOT_AVAILABLE.length >= 5)
+  for (const n of NOT_AVAILABLE) assert.ok(n.label && n.reason.length > 20, n.id)
+})
+
+test('fetchedSummary counts what the server received; missing site / IP database are said, not hidden', () => {
+  assert.equal(fetchedSummary(null), null)
+  const fusion = {
+    motion: { evidence: { fixes: 12, reliable_fixes: 11, duration_s: 61.2, distance_m: 74, windows: 12, windows_with_data: 12, jumps: [], site: null, rows: [{ activity: 'walking' }, { activity: 'walking' }, { activity: 'still' }, { activity: 'unknown' }] } },
+    environment: { components: [] }, ip: null, site: null, sensors: { hidden_s: 0, watch_restarts: 0 },
+  }
+  const r = Object.fromEntries(fetchedSummary(fusion).map((x) => [x.id, x]))
+  assert.match(r.fixes.text, /12 fixes \(11 accurate enough\) over 61 s, 74 m/)
+  assert.match(r.windows.text, /12 of 12/)
+  assert.equal(r.activity.text, 'still 33% · walking 67% · moving 0%')
+  assert.equal(r.site.ok, false)
+  assert.match(r.site.text, /not registered/)
+  assert.equal(r.ip.ok, false)
+  assert.match(r.ip.text, /not available/)
+  assert.equal(r.jumps.text, 'none')
+
+  const spoof = { ...fusion, site: { lat: 1, lng: 2, radius_m: 80 }, ip: { country: 'IN', region: 'Maharashtra', city: 'Navi Mumbai', org: 'Reliance Jio', private: false },
+    motion: { evidence: { ...fusion.motion.evidence, jumps: [{ from: [0, 0], to: [1, 1] }], site: { end_m: 12 } } }, sensors: { hidden_s: 14, hidden_count: 2, watch_restarts: 1 } }
+  const q = Object.fromEntries(fetchedSummary(spoof).map((x) => [x.id, x]))
+  assert.equal(q.jumps.tone, 'red')
+  assert.match(q.site.text, /registered, radius 80 m; trail ended 12 m from it/)
+  assert.equal(q.ip.text, 'IN · Maharashtra · Navi Mumbai · Reliance Jio')
+  assert.match(q.hidden.text, /14 s in 2 breaks/)
+  assert.match(q.restarts.text, /^1 /)
+  const lan = fetchedSummary({ ...fusion, ip: { private: true } }).find((x) => x.id === 'ip')
+  assert.match(lan.text, /private/)
+})
+
+test('recentFix: the recorder\'s fix stands in for a failed one-shot GPS only while fresh', async () => {
+  const { recentFix } = await import('./display.js')
+  const s = { lastFix: { lat: 12.97, lng: 77.59, acc: 8 }, lastFixAgoS: 4 }
+  assert.deepEqual(recentFix(s), { lat: 12.97, lng: 77.59 })
+  assert.equal(recentFix({ ...s, lastFixAgoS: 31 }), null)
+  assert.equal(recentFix({ lastFix: null }), null)
+  assert.equal(recentFix(null), null)
+})
+
+// ---------------------------------------------------------------- "Arrival at site" (the worker confirmed they reached the site)
+import { arrivalLine } from './display.js'
+
+const withSite = (site, extra = {}) => ({ site: extra.noSite ? null : { lat: 1, lng: 2, radius_m: 60 }, motion: { evidence: { site } }, ...extra.rest })
+
+test('arrival line: inside, outside, near, no fix and no registered site read differently; only "outside" is red', () => {
+  const inside = arrivalLine(withSite({ end_m: 12, radius_m: 60, end_inside: true, end_outside: false, end_acc_m: 8 }))
+  assert.equal(inside.tone, 'green')
+  assert.match(inside.text, /GPS places you at the site: 12 m from its centre \(site radius 60 m\)/)
+  const outside = arrivalLine(withSite({ end_m: 540, radius_m: 60, end_inside: false, end_outside: true, end_acc_m: 8 }))
+  assert.equal(outside.tone, 'red')
+  assert.match(outside.text, /540 m from the site.*arrival not confirmed, sent for review/)
+  const near = arrivalLine(withSite({ end_m: 75, radius_m: 60, end_inside: false, end_outside: false, end_acc_m: 9.4 }))
+  assert.equal(near.tone, 'amber')
+  assert.match(near.text, /not clearly inside: 75 m away.*±9 m/)
+  const noFix = arrivalLine(withSite(null))
+  assert.equal(noFix.tone, 'muted')
+  assert.match(noFix.text, /No reliable GPS fix/)
+  const noSite = arrivalLine(withSite(null, { noSite: true }))
+  assert.equal(noSite.tone, 'muted')
+  assert.match(noSite.text, /company has not registered a location/)
+  assert.equal(arrivalLine(null).tone, 'muted')
+})
+
+test('the verdict summary lists the arrival first, then movement and network', () => {
+  const v = verdictSummary({ site: { lat: 1, lng: 2, radius_m: 60 }, motion: { score: 0.97, known: true, sensor_used: true, evidence: { site: { end_m: 5, radius_m: 60, end_inside: true } } }, environment: { known: false } })
+  assert.deepEqual(v.map((l) => l.id), ['arrival', 'motion', 'network'])
 })

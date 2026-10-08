@@ -10,7 +10,8 @@
     "minTrailS": 60,
     "maxBytes": 262144,
     "clockSkewS": 120,
-    "visitTtlH": 12
+    "visitTtlH": 12,
+    "watchdogS": 25
   },
   "policy": {
     "_note": "Per task: off | optional | required. 'required' + not enough evidence sends the case to review (never blocks).",
@@ -39,8 +40,16 @@
   "activity": {
     "minHzForCadence": 20,
     "cadenceFs": 25,
-    "still": { "accRms": 0.15, "gyroRms": 8 },
-    "walking": { "cadPw": 0.35, "cadHzMin": 1.2, "cadHzMax": 2.8, "accRms": 0.6 }
+    "still": {
+      "accRms": 0.15,
+      "gyroRms": 8
+    },
+    "walking": {
+      "cadPw": 0.35,
+      "cadHzMin": 1.2,
+      "cadHzMax": 2.8,
+      "accRms": 0.6
+    }
   },
   "consistency": {
     "walkSpeedMinMs": 0.6,
@@ -58,7 +67,10 @@
     "unknownValue": 0.5,
     "speedMismatchMs": 3.0,
     "speedMismatchMinBlocks": 5,
-    "rawMismatch": { "ratio": 3.0, "absDiff": 0.5 },
+    "rawMismatch": {
+      "ratio": 3.0,
+      "absDiff": 0.5
+    },
     "weights": {
       "jumpFlat": 0.7,
       "jumpUnverified": 0.35,
@@ -74,15 +86,40 @@
   },
   "environment": {
     "profileMin": 3,
+    "learnMinMotion": 0.8,
     "unknownValue": 0.5,
     "ipFarKm": 300,
     "tzToleranceH": 4,
-    "hostingKeywords": ["amazon", "aws", "google cloud", "microsoft azure", "digitalocean", "ovh", "hetzner", "linode", "vultr", "m247", "choopa", "leaseweb", "datacamp", "nordvpn", "expressvpn", "proton", "mullvad", "vpn", "proxy", "hosting", "datacenter", "data center"],
+    "hostingKeywords": [
+      "amazon",
+      "aws",
+      "google cloud",
+      "microsoft azure",
+      "digitalocean",
+      "ovh",
+      "hetzner",
+      "linode",
+      "vultr",
+      "m247",
+      "choopa",
+      "leaseweb",
+      "datacamp",
+      "nordvpn",
+      "expressvpn",
+      "proton",
+      "mullvad",
+      "vpn",
+      "proxy",
+      "hosting",
+      "datacenter",
+      "data center"
+    ],
     "weights": {
       "linkUnseen": 0.2,
       "asnUnseen": 0.2,
       "ipFar": 0.35,
       "ipCountry": 0.7,
+      "ipFarGps": 0.15,
       "hosting": 0.3,
       "tz": 0.1,
       "radioNoOverlap": 0.6

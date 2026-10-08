@@ -18,11 +18,16 @@ from . import config as C
 from . import geo
 
 
+def _num(v):
+    """A finite number or None (NaN, infinity, booleans, text and everything else are 'not exposed', never an error)."""
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else None
+
+
 def link_key(network_info):
     """Same buckets as signals.py (so the same network gives the same key despite browser jitter)."""
     info = network_info or {}
     get = info.get if isinstance(info, dict) else lambda k: getattr(info, k, None)
-    dl, rtt = get("downlink"), get("rtt")
+    dl, rtt = _num(get("downlink")), _num(get("rtt"))
     dlb = "none" if dl is None else ("0" if float(dl) <= 0 else str(int(math.floor(math.log2(float(dl))))))
     if rtt is None:
         rb = "none"
@@ -33,6 +38,7 @@ def link_key(network_info):
                 rb = f"<{limit}"
                 break
     et = get("effectiveType")
+    et = et[:12] if isinstance(et, str) else None
     if not et and dl is None and rtt is None:
         return None  # this browser exposes nothing (Safari/Firefox): no key, rather than a fake shared one
     return f"{et or 'none'}|{dlb}|{rb}"
@@ -60,9 +66,12 @@ def keys_for(network_info, ip, radio):
         keys["link"] = [lk]
     if ip and ip.get("asn"):
         keys["asn"] = [f"AS{ip['asn']}"]
-    if radio:
-        wifi = [w.get("bssid_h") for w in radio.get("wifi") or [] if isinstance(w, dict) and w.get("bssid_h")]
-        cell = [f"{c.get('mcc')}-{c.get('mnc')}-{c.get('tac')}-{c.get('cid')}" for c in radio.get("cell") or [] if isinstance(c, dict) and c.get("cid") is not None]
+    if isinstance(radio, dict):
+        wifi_in, cell_in = radio.get("wifi"), radio.get("cell")
+        wifi_in, cell_in = wifi_in if isinstance(wifi_in, list) else [], cell_in if isinstance(cell_in, list) else []
+        wifi = [w["bssid_h"][:64] for w in wifi_in[:200] if isinstance(w, dict) and isinstance(w.get("bssid_h"), str) and w["bssid_h"]]
+        cell = [f"{str(c.get('mcc'))[:8]}-{str(c.get('mnc'))[:8]}-{str(c.get('tac'))[:12]}-{str(c.get('cid'))[:16]}" for c in cell_in[:50]
+                if isinstance(c, dict) and c.get("cid") is not None]
         if wifi:
             keys["wifi"] = wifi[:64]
         if cell:
@@ -74,9 +83,10 @@ def _profile_known(profile, kind):
     return sum((profile or {}).get(kind, {}).values()) >= C.ENVIRONMENT["profileMin"]
 
 
-def evaluate(*, site=None, network_info=None, profile=None, ip=None, tz_offset_min=None, radio=None):
+def evaluate(*, site=None, network_info=None, profile=None, ip=None, tz_offset_min=None, radio=None, gps_point=None):
     """site: {lat, lng, radius_m, country?}; profile: {kind: {key: count}}; ip: IpContext.as_dict() or None;
-    radio: {"wifi": [...], "cell": [...]} or None. -> dict (see module docstring)."""
+    radio: {"wifi": [...], "cell": [...]} or None. gps_point: {lat, lng}, the phone's own last fix; only used when NO site is registered, to compare
+    the IP location with where the phone says it is (lower weight, labelled as such). -> dict (see module docstring)."""
     E, Wt = C.ENVIRONMENT, C.ENVIRONMENT["weights"]
     pen, flags, comps, notes = {}, [], [], []
     keys = keys_for(network_info, ip, radio)
@@ -131,6 +141,19 @@ def evaluate(*, site=None, network_info=None, profile=None, ip=None, tz_offset_m
                 notes.append((pen["ipFar"], f"The network resolves {km:.0f} km from the site"))
             else:
                 comps.append({"id": "ip_location", "status": "near", "detail": f"{km:.0f} km from the site"})
+        if not site and gps_point and ip.get("lat") is not None and ip.get("lng") is not None:
+            # No site is registered: all we can compare is the IP's position with the phone's own GPS (device-reported, so a low weight).
+            ip_known = True
+            km = geo.haversine_m(ip["lat"], ip["lng"], gps_point["lat"], gps_point["lng"]) / 1000.0
+            if km > E["ipFarKm"]:
+                pen["ipFarGps"] = Wt["ipFarGps"]
+                flags.append("ip_far_from_gps")
+                comps.append({"id": "ip_vs_gps", "status": "far", "detail": f"{km:.0f} km from the phone's own GPS position (no site registered)"})
+                notes.append((pen["ipFarGps"], f"No site is registered; the network resolves {km:.0f} km from the phone's own GPS position"))
+            else:
+                comps.append({"id": "ip_vs_gps", "status": "near", "detail": f"{km:.0f} km from the phone's own GPS position (no site registered)"})
+        if not ip_known:
+            comps.append({"id": "ip", "status": "unavailable", "detail": "this address is not in the IP database"})
     else:
         comps.append({"id": "ip", "status": "unavailable", "detail": "private address or no IP database"})
 

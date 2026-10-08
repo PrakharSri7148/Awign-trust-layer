@@ -4,6 +4,8 @@ import { useState } from 'react'
 import CountUp from '../ui/CountUp.jsx'
 import Gauge from '../ui/Gauge.jsx'
 import ShapBars from '../ui/ShapBars.jsx'
+import FetchedPanel from './FetchedPanel.jsx'
+import { verdictSummary } from '../../lib/sensorFusion/display.js'
 
 const BURST = Array.from({ length: 18 }, (_, i) => {
   const a = (i / 18) * Math.PI * 2
@@ -88,10 +90,19 @@ export default function Verdict({ result, onReset }) {
         <div className="reason">
           <div className="eyebrow eyebrow--cyan">Why?</div>
           <p className="reason__text">{result.top_reason}</p>
+          {verdictSummary(result.fusion).length > 0 && (
+            <ul className="fz-vsum" data-testid="fusion-verdict">
+              {verdictSummary(result.fusion).map((l) => (
+                <li key={l.id} className={`fz-vsum--${l.tone}`}><b>{l.label}</b><span>{l.text}</span></li>
+              ))}
+            </ul>
+          )}
           <div className="eyebrow" style={{ marginTop: 8 }}>SHAP factor breakdown</div>
           <ShapBars importances={result.feature_importances} />
         </div>
       </div>
+
+      <FetchedPanel fusion={result.fusion} />
 
       <button className="btn btn--primary btn--block" onClick={onReset}>
         <RotateCcw size={16} /> New submission

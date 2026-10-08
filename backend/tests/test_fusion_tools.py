@@ -14,6 +14,7 @@ from sqlmodel import Session, select
 
 from fusion import ipctx, simulate
 
+from . import imgs
 from .fusion_fixtures import genuine_walk, teleport_still
 from .test_fusion_api import live, open_visit, set_site, sub
 
@@ -47,6 +48,43 @@ def test_purge_trails_removes_coordinates_but_keeps_scores_and_flags(client, mon
     assert client.get(f"/submissions/{b['id']}").json()["status"] == "flagged"
 
 
+def test_purge_trails_also_removes_the_shortened_ip_and_city_but_keeps_country_and_provider(client, monkeypatch):
+    import db
+    from fusion import ipctx
+    from models import Submission
+    from tools import purge_trails
+
+    class P:
+        name = "fixed"
+
+        def lookup(self, ip):
+            return ipctx.IpContext(ip=ip, country="IN", region="Karnataka", city="Bengaluru", lat=12.9, lng=77.6, asn=24309, org="Atria")
+
+    monkeypatch.setenv("TRUSTED_PROXY_HEADER", "x-forwarded-for")
+    ipctx.set_provider(P())
+    try:
+        set_site(client)
+        r = client.post("/submissions", headers={"X-Forwarded-For": "49.36.7.9"},
+                        data={"payload": json.dumps({"worker_id": "w1", "task_id": "t1", "site_id": "s1", "photo_quality_pass": True})},
+                        files={"photo": ("p.jpg", imgs.good(seed=1), "image/jpeg")}).json()
+    finally:
+        ipctx.set_provider(None)
+    with Session(db.engine) as s:
+        row = s.get(Submission, r["id"])
+        assert json.loads(row.fusion_report)["ip"]["ip"] == "49.36.7.0"  # the shortened address, never the raw one
+        row.timestamp = datetime.now(timezone.utc) - timedelta(days=90)
+        s.add(row)
+        s.commit()
+        dry = purge_trails.purge(s, 30, apply=False)
+        assert dry["ip_fields"] == 2 and dry["submissions"] == 1
+        assert json.loads(s.get(Submission, r["id"]).fusion_report)["ip"]["ip"] == "49.36.7.0"  # a dry run changes nothing
+        purge_trails.purge(s, 30, apply=True)
+        assert purge_trails.purge(s, 30, apply=True)["ip_fields"] == 0
+        ip = json.loads(s.get(Submission, r["id"]).fusion_report)["ip"]
+    assert ip["ip"] is None and ip["city"] is None and ip["purged"] is True
+    assert (ip["country"], ip["region"], ip["asn"], ip["org"]) == ("IN", "Karnataka", 24309, "Atria")
+
+
 def test_purge_trails_leaves_recent_submissions_alone(client, monkeypatch):
     import db
     from tools import purge_trails
@@ -71,12 +109,15 @@ class FakeResp(io.BytesIO):
 def _opener(fail_for=()):
     calls = []
 
-    def opener(url, timeout=0):
+    def opener(req, timeout=0):
+        url = getattr(req, "full_url", req)
+        opener.agents.append(req.get_header("User-agent") if hasattr(req, "get_header") else None)
         calls.append(url)
         if any(f in url for f in fail_for):
             raise urllib.error.URLError("404")
         return FakeResp(gzip.compress(b"MMDB:" + url.encode()))
     opener.calls = calls
+    opener.agents = []
     return opener
 
 
@@ -87,6 +128,15 @@ def test_fetch_geoip_downloads_unpacks_and_keeps_only_the_newest(tmp_path):
     got = fetch_geoip.fetch(tmp_path, "2026-10", opener=_opener())
     assert sorted(p.name for p in tmp_path.glob("*.mmdb")) == ["dbip-asn-lite-2026-10.mmdb", "dbip-city-lite-2026-10.mmdb"]
     assert got["city"].read_bytes().startswith(b"MMDB:") and not list(tmp_path.glob(".*part"))
+
+
+def test_fetch_geoip_sends_a_browser_like_user_agent(tmp_path):
+    # DB-IP returns 403 to "Python-urllib/3.x" (seen for real on 2026-10-08; curl worked).
+    from tools import fetch_geoip
+
+    op = _opener()
+    fetch_geoip.fetch(tmp_path, "2026-10", opener=op)
+    assert op.agents and all(a and a.startswith("Mozilla/5.0") and "urllib" not in a for a in op.agents)
 
 
 def test_fetch_geoip_falls_back_to_last_month_and_reports_failure(tmp_path):
@@ -187,3 +237,47 @@ def test_an_old_database_gets_the_fusion_columns_and_tables(tmp_path, monkeypatc
     assert con.execute("SELECT fusion_version, motion_known, env_known, fusion_report FROM submission").fetchone() == (0, 0, 0, "{}")
     tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"site", "sitenetworkprofile", "visit"} <= tables
+
+
+# ---------------------------------------------------------------- demo reset and APK origins
+
+def test_demo_reset_is_a_dry_run_first_and_only_touches_its_own_site(client, monkeypatch):
+    import db
+    from models import Site, SiteNetworkProfile, Submission, Visit
+    from tools import demo_reset
+
+    net = {"effectiveType": "4g", "downlink": 10, "rtt": 40}
+    set_site(client, "demo")
+    set_site(client, "other")
+    for i in range(3):
+        sub(client, seed=60 + i, worker=f"w{i}", site="demo", network_info=net)
+    sub(client, seed=70, worker="x", site="other", network_info=net)
+    open_visit(client, monkeypatch, site="demo")
+    from fusion import pipeline as fp
+
+    with Session(db.engine) as s:  # a learned profile for both sites (only accepted visits teach it; seed it directly)
+        fp.teach_profile(s, "demo", {"link": ["4g"]})
+        fp.teach_profile(s, "other", {"link": ["4g"]})
+        s.commit()
+    with Session(db.engine) as s:
+        dry = demo_reset.reset(s, "demo")
+        assert dry["applied"] is False and dry["submissions"] == 3 and dry["visits"] >= 1 and dry["network_profile_rows"] >= 1
+        assert len(s.exec(select(Submission)).all()) == 4  # a dry run removes nothing
+        done = demo_reset.reset(s, "demo", apply=True)
+        assert done["submissions"] == 3
+        left = s.exec(select(Submission)).all()
+        assert [x.site_id for x in left] == ["other"]  # the other site is untouched
+        assert s.get(Site, "demo") is not None and s.get(Site, "other") is not None  # the registered location stays
+        assert not [p for p in s.exec(select(SiteNetworkProfile)).all() if p.site_id == "demo"]
+        assert [p for p in s.exec(select(SiteNetworkProfile)).all() if p.site_id == "other"]  # the other site keeps its profile
+        assert not [v for v in s.exec(select(Visit)).all() if v.site_id == "demo"]
+        demo_reset.reset(s, "demo", apply=True, forget_site=True)
+        assert s.get(Site, "demo") is None and s.get(Site, "other") is not None
+
+
+def test_the_apk_origin_and_a_named_tunnel_pass_cors(client, monkeypatch):
+    for origin in ("https://localhost", "capacitor://localhost", "http://localhost:5174"):
+        r = client.options("/submissions", headers={"Origin": origin, "Access-Control-Request-Method": "POST"})
+        assert r.headers.get("access-control-allow-origin") == origin, origin
+    r = client.options("/submissions", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "POST"})
+    assert "access-control-allow-origin" not in r.headers

@@ -1,6 +1,7 @@
 import { envComponentText, fmtDistance, scoreWord, timelineCells, trailGeometry } from '../../lib/sensorFusion/display.js'
 import { flagMeta } from '../../lib/format.js'
 import { isFusionFlag } from '../../lib/sensorFusion/flags.js'
+import { DBIP_CREDIT } from '../../lib/ipDatabase.js'
 
 const pct0 = (v) => `${Math.round((v ?? 0) * 100)}`
 
@@ -128,7 +129,11 @@ export default function FusionSection({ row, fusion }) {
       <dl className="kv" style={{ marginTop: 12 }}>
         <dt>Evidence</dt><dd>{fusion.source === 'trail' ? 'recorded trail' : fusion.source === 'legacy_gps' ? 'one GPS point (older app)' : 'none'}{fusion.policy && fusion.policy !== 'optional' ? ` · task policy: ${fusion.policy}` : ''}</dd>
         <dt>Phone sensors</dt><dd>location {s.geo ?? 'unknown'} · motion {s.motion ?? 'unknown'}{s.gyro ? ' · gyroscope' : ''}{s.hz_median ? ` · ${Math.round(s.hz_median)} Hz` : ''}</dd>
-        {fusion.ip && (<><dt>Network</dt><dd>{[fusion.ip.city, fusion.ip.region, fusion.ip.country].filter(Boolean).join(', ') || 'unknown location'}{fusion.ip.org ? ` · ${fusion.ip.org}` : ''}{fusion.ip.ip ? ` · ${fusion.ip.ip}` : ''}</dd></>)}
+        {fusion.ip && (<><dt>Network</dt><dd>{[fusion.ip.city, fusion.ip.region, fusion.ip.country].filter(Boolean).join(', ') || 'unknown location'}{fusion.ip.org ? ` · ${fusion.ip.org}` : ''}{fusion.ip.ip ? ` · ${fusion.ip.ip}` : ''}{fusion.ip.provider === 'dbip-lite' && (<> · <a className="dim" href={DBIP_CREDIT.url} target="_blank" rel="noopener noreferrer" data-testid="dbip-credit-case">{DBIP_CREDIT.text}</a></>)}</dd></>)}
+        {!fusion.ip && (<><dt>Network</dt><dd data-testid="net-unavailable">not available: the address was private, unreadable, or no IP database is installed</dd></>)}
+        {fusion.ip?.db_date && (<><dt>IP data</dt><dd data-testid="ip-data-age">DB-IP lite · data from {fusion.ip.db_date}{Number.isFinite(fusion.ip.db_age_days) ? ` (${fusion.ip.db_age_days} days old at the time)` : ''}</dd></>)}
+        {e.profile && (<><dt>Site network</dt><dd data-testid="profile-visits">{e.profile.visits >= e.profile.needed ? `learned from ${e.profile.visits} accepted visits` : `site has fewer than ${e.profile.needed} accepted visits (${e.profile.visits} so far): "new network" checks are off`}</dd></>)}
+        {!fusion.site && (<><dt>Site</dt><dd data-testid="no-site">no site registered for this task</dd></>)}
         {fusion.site && (<><dt>Site</dt><dd>radius {fmtDistance(fusion.site.radius_m)}{ev.site ? ` · ended ${fmtDistance(ev.site.end_m)} away` : ''}</dd></>)}
       </dl>
     </div>

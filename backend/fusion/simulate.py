@@ -44,11 +44,19 @@ class Params:
     cad_sd: float = 0.12
     hz: float = 30.0
     gateway_far: float = 0.2     # share of genuine mobile users whose IP resolves to a far carrier hub
+    # IP-geolocation error model. Sources (see Sensor-fusion/README.md "IP error model"): MaxMind publishes ~99.8% country-level
+    # accuracy and ~63% of US IPs within 50 km, i.e. ~37% of IPs resolve farther than that. DB-IP LITE is a reduced-accuracy subset of the
+    # commercial database ("accuracy index" 81 vs 93 for the commercial country database), so the country error below is an
+    # ASSUMPTION of 10x MaxMind's 0.2%. India-specific figures could not be retrieved (MaxMind's tool is interactive): not invented.
+    ip_country_err: float = 0.02  # share of IPs whose COUNTRY is wrong (a foreign IP reads as India, an Indian one as elsewhere)
+    ip_city_miss: float = 0.37    # share of IPs resolved farther than 50 km from the truth (MaxMind US figure; lenient for a lite DB)
+    ip_miss_median_km: float = 120.0  # ASSUMPTION: shape of that error (lognormal), not published
     speed_scale: float = 1.0
 
 
 DEFAULT = Params()
-SHIFTED = Params(gps_sigma=1.6, acc_scale=0.7, tremor_scale=1.5, cad_mean=1.65, cad_sd=0.2, hz=25.0, gateway_far=0.35, speed_scale=0.85)
+SHIFTED = Params(gps_sigma=1.6, acc_scale=0.7, tremor_scale=1.5, cad_mean=1.65, cad_sd=0.2, hz=25.0, gateway_far=0.35, speed_scale=0.85,
+                 ip_country_err=0.04, ip_city_miss=0.5, ip_miss_median_km=200.0)
 
 
 # ------------------------------------------------------------------ truth paths
@@ -202,8 +210,25 @@ def _net(rng, odd=False):
     return dict(NETS[int(rng.choice(len(NETS), p=[w for _, w in NETS]))][0])
 
 
-def _ip(rng, kind, P):
-    """kind: near | gateway | vpn | abroad | home(km)"""
+# Where traffic can exit or originate outside India: (country, lat, lng, [(asn, org)]). Residential ISPs and hosting/VPN providers.
+# The organisation names are real public provider names used only as plausible labels; no private data.
+FOREIGN_ISPS = [
+    ("US", 40.7, -74.0, [(7922, "Comcast Cable Communications"), (701, "Verizon Business")]),
+    ("GB", 51.5, -0.12, [(2856, "British Telecommunications PLC")]),
+    ("DE", 50.1, 8.68, [(3320, "Deutsche Telekom AG")]),
+    ("SG", 1.35, 103.8, [(7473, "Singapore Telecommunications")]),
+    ("AE", 25.2, 55.27, [(5384, "Emirates Telecommunications")]),
+    ("NL", 52.37, 4.9, [(1136, "KPN B.V.")]),
+]
+VPN_HOSTS = [  # hosting/VPN exits (org names contain hosting keywords from fusion.json)
+    (9009, "M247 Ltd"), (14061, "DigitalOcean, LLC"), (16509, "Amazon.com, Inc."), (16276, "OVH SAS"), (24940, "Hetzner Online GmbH"),
+    (212238, "Datacamp Limited"),
+]
+IN_CITIES = [(19.07, 72.87), (28.61, 77.21), (22.57, 88.36), (13.08, 80.27), (17.38, 78.48), (12.97, 77.59)]  # Mumbai, Delhi, Kolkata, Chennai, Hyderabad, Bengaluru
+
+
+def _ip_true(rng, kind, P):
+    """The network the request REALLY came from. kind: near | gateway | vpn | abroad | home | vpn_foreign | isp_foreign | vpn_in"""
     asn, org = ASN_POOL[int(rng.integers(0, len(ASN_POOL)))]
     if kind == "near":
         lat, lng = SITE["lat"] + rng.normal(0, 0.1), SITE["lng"] + rng.normal(0, 0.1)
@@ -215,12 +240,53 @@ def _ip(rng, kind, P):
         return {"ip": "5.0.0.1", "private": False, "country": "NL", "lat": 52.37, "lng": 4.9, "asn": 9009, "org": "M247 Ltd"}
     if kind == "abroad":
         return {"ip": "8.0.0.1", "private": False, "country": "US", "lat": 40.7, "lng": -74.0, "asn": 7922, "org": "Comcast Cable"}
+    if kind == "isp_foreign":
+        c, lat, lng, isps = FOREIGN_ISPS[int(rng.integers(0, len(FOREIGN_ISPS)))]
+        a, o = isps[int(rng.integers(0, len(isps)))]
+        return {"ip": "8.0.0.1", "private": False, "country": c, "lat": lat + rng.normal(0, 0.3), "lng": lng + rng.normal(0, 0.3), "asn": a, "org": o}
+    if kind == "vpn_foreign":
+        c, lat, lng, _ = FOREIGN_ISPS[int(rng.integers(0, len(FOREIGN_ISPS)))]
+        a, o = VPN_HOSTS[int(rng.integers(0, len(VPN_HOSTS)))]
+        return {"ip": "5.0.0.1", "private": False, "country": c, "lat": lat + rng.normal(0, 0.3), "lng": lng + rng.normal(0, 0.3), "asn": a, "org": o}
+    if kind == "vpn_in":  # an honest worker's VPN / cloud egress that exits in INDIA: half in the worker's own city, half in a metro hub
+        a, o = VPN_HOSTS[int(rng.integers(0, len(VPN_HOSTS)))]
+        if rng.random() < 0.5:
+            lat, lng = SITE["lat"] + rng.normal(0, 0.05), SITE["lng"] + rng.normal(0, 0.05)
+        else:
+            lat, lng = IN_CITIES[int(rng.integers(0, len(IN_CITIES)))]
+        return {"ip": "103.0.0.1", "private": False, "country": "IN", "lat": lat, "lng": lng, "asn": a, "org": o}
     if kind == "home":  # a faker at home: from the same city to another state
         km = math.exp(rng.uniform(math.log(3), math.log(900)))
         a = rng.uniform(0, 2 * math.pi)
         return {"ip": "49.0.0.1", "private": False, "country": "IN", "lat": SITE["lat"] + km * math.cos(a) / 111.0,
                 "lng": SITE["lng"] + km * math.sin(a) / 108.0, "asn": asn, "org": org}
     return None
+
+
+def _ip_resolved(rng, ip, kind, P):
+    """What the IP DATABASE says about that network: the truth plus the database's own error (Params.ip_*; sources in Params).
+    A displaced position models the 'city' error; a wrong country models the 'country' error. The gateway / home kinds already
+    ARE a displaced position, so they only get the country error."""
+    if ip is None:
+        return None
+    ip = dict(ip)
+    if kind not in ("gateway", "home") and rng.random() < P.ip_city_miss:
+        km = math.exp(rng.normal(math.log(P.ip_miss_median_km), 0.8))
+        a = rng.uniform(0, 2 * math.pi)
+        ip["lat"] += km * math.cos(a) / 111.0
+        ip["lng"] += km * math.sin(a) / (111.0 * max(0.2, math.cos(math.radians(ip["lat"]))))
+    if rng.random() < P.ip_country_err:
+        if ip["country"] == "IN":
+            c, lat, lng, _ = FOREIGN_ISPS[int(rng.integers(0, len(FOREIGN_ISPS)))]
+            ip.update(country=c, lat=lat, lng=lng)
+        else:
+            lat, lng = IN_CITIES[int(rng.integers(0, len(IN_CITIES)))]
+            ip.update(country="IN", lat=lat, lng=lng)
+    return ip
+
+
+def _ip(rng, kind, P):
+    return _ip_resolved(rng, _ip_true(rng, kind, P), kind, P)
 
 
 def _near_or_gateway(rng, P):
@@ -302,8 +368,54 @@ def h_desktop(rng, P):
     return _row((truth, fixes, []), rng, P)
 
 
-def h_vpn(rng, P):
-    return _row(_arrive(rng, P), rng, P, ip=_ip(rng, "vpn", P))
+def _maybe_new_site(rng, share=0.35):
+    """A third of the sites have fewer than profileMin accepted visits (no learned provider profile yet), so a country mismatch is
+    the ONLY sign there: the environment score then sits exactly at the country weight's complement, which must also be covered."""
+    return {} if rng.random() < share else None
+
+
+# Blind variants: 20% no motion data from a motion sensor (declined recording, desktop), 10% a single legacy GPS point, 10% nothing at all. The network evidence does
+# not depend on the sensors, so the classifier must see these combinations (found by the API test: a foreign VPN with no motion data scored 0.11).
+def _blind_row(rng, P, *, ip, profile=None):
+    """_row() for the 'blind' variants: the legacy-client case swaps the trail for a single GPS point."""
+    sensor_roll = rng.random()
+    if sensor_roll < 0.20:
+        r = _row(_arrive(rng, P), rng, P, ip=ip, profile=profile)
+        if sensor_roll < 0.10:  # an older client: one GPS point
+            last = r["trail"]["fixes"][-1]
+            r["trail"] = trail_mod.legacy_trail({"lat": last["lat"], "lng": last["lng"]})
+        else:  # no recording and no location at all (consent declined, permission denied)
+            r["trail"] = {"v": 1, "fixes": [], "windows": [], "sensors": {}, "env": {"tz_offset_min": 330}, "started_at": None, "ended_at": None, "time_origin": None}
+        return r
+    return _row(_arrive(rng, P, sensor=sensor_roll >= 0.40), rng, P, ip=ip, profile=profile)
+
+
+def n_vpn_foreign_genuine_walk(rng, P):
+    """A genuine-looking approach (the phone really walks to the site) from a VPN/hosting exit in ANOTHER country.
+    LABEL ASSUMPTION (1 = send to review): a network in another country than the claimed area cannot be told apart from a spoofer
+    who routes through one, and the policy chosen here is review, not accept. Replaces the old h_vpn (NL exit, label 0), which
+    taught the classifier that the lowest environment scores are safe (DEFECT 1)."""
+    return _blind_row(rng, P, ip=_ip(rng, "vpn_foreign", P), profile=_maybe_new_site(rng))
+
+
+def n_isp_foreign_genuine_walk(rng, P):
+    """Same, from an ordinary ISP in another country (the worker's phone really is elsewhere in the world). LABEL ASSUMPTION: 1 (review)."""
+    return _blind_row(rng, P, ip=_ip(rng, "isp_foreign", P), profile=_maybe_new_site(rng))
+
+
+def n_vpn_same_country_honest(rng, P):
+    """An honest worker on a VPN / cloud egress that exits in INDIA (own city or a metro hub). LABEL ASSUMPTION: 0. The VPN is a weak
+    sign by itself and must not flag an honest worker; the classifier sees only the environment score."""
+    return _blind_row(rng, P, ip=_ip(rng, "vpn_in", P))
+
+
+def n_vpn_same_country_spoof(rng, P):
+    """A spoofer (phone at home, a realistic fake walk) behind an in-country VPN. LABEL: 1 (the motion signal carries it)."""
+    start = _bearing_point(rng, rng.uniform(200, 600))
+    truth_fake = _truth([("walk", start, (0, 0), rng.uniform(1.2, 1.6)), ("stand", (0, 0), 40)])
+    fixes = _gps_fixes(truth_fake, rng, P, sigma=rng.uniform(3, 6))
+    truth_phone = _truth([("stand", (0, 0), len(truth_fake))])
+    return _row((truth_phone, fixes, _windows(truth_phone, rng, P)), rng, P, ip=_ip(rng, "vpn_in", P))
 
 
 def h_first_visit(rng, P):
@@ -380,11 +492,12 @@ def f_mock_replayed_motion(rng, P):
 
 
 def f_wrong_area_network(rng, P):
-    """A realistic walk (spoofed path, replayed motion) from a network that is not in this region at all."""
+    """A realistic walk (spoofed path, replayed motion) from a network that is not in this country at all (a far in-country gateway is
+    what honest mobile users have, so it is deliberately NOT in this scenario)."""
     start = _bearing_point(rng, rng.uniform(200, 600))
     truth_fake = _truth([("walk", start, (0, 0), rng.uniform(1.2, 1.6)), ("stand", (0, 0), 40)])
     fixes = _gps_fixes(truth_fake, rng, P, sigma=rng.uniform(3, 6))
-    ip = _ip(rng, "abroad" if rng.random() < 0.5 else "gateway", P)
+    ip = _ip(rng, ("abroad", "isp_foreign", "vpn_foreign")[int(rng.integers(0, 3))], P)  # truly another country: an in-country carrier gateway is NOT fraud evidence
     return _row((truth_fake, fixes, _windows(truth_fake, rng, P)), rng, P, ip=ip, net=_net(rng, odd=True))
 
 
@@ -408,6 +521,8 @@ def a_weak_good_photo(rng, P):
     return _weak_trail(rng, P)
 
 
+NETWORK_ONLY_FRAUD = {"f_wrong_area_network"}  # fraud whose ONLY evidence is the network (see generate())
+
 # name, builder, label, group, rows
 SCENARIOS = [
     ("g_walk_hand", g_walk_hand, 0, "genuine", 160),
@@ -420,7 +535,7 @@ SCENARIOS = [
     ("h_tunnel_dropout", h_tunnel_dropout, 0, "hard_genuine", 70),
     ("h_smooth_highway", h_smooth_highway, 0, "hard_genuine", 70),
     ("h_desktop", h_desktop, 0, "hard_genuine", 50),
-    ("h_vpn", h_vpn, 0, "hard_genuine", 50),
+    ("n_vpn_same_country_honest", n_vpn_same_country_honest, 0, "hard_genuine", 90),
     ("h_first_visit", h_first_visit, 0, "hard_genuine", 70),
     ("h_throttled_sensor", h_throttled_sensor, 0, "hard_genuine", 60),
     ("h_legacy_client", h_legacy_client, 0, "hard_genuine", 50),
@@ -432,6 +547,9 @@ SCENARIOS = [
     ("f_realistic_spoof_still_phone", f_realistic_spoof_still_phone, 1, "fraud", 110),
     ("f_mock_replayed_motion", f_mock_replayed_motion, 1, "fraud_hard", 110),
     ("f_wrong_area_network", f_wrong_area_network, 1, "fraud_hard", 90),
+    ("n_vpn_foreign_genuine_walk", n_vpn_foreign_genuine_walk, 1, "foreign_network", 100),
+    ("n_isp_foreign_genuine_walk", n_isp_foreign_genuine_walk, 1, "foreign_network", 80),
+    ("n_vpn_same_country_spoof", n_vpn_same_country_spoof, 1, "fraud", 60),
     # ASSUMPTION encoded in the labels (as in the old generator): with the same weak, ambiguous evidence, a poor photo tips the
     # case towards review and a good photo does not. Not learned from real reviewed cases.
     ("a_weak_poor_photo", a_weak_poor_photo, 1, "ambiguous", 100),
@@ -440,6 +558,8 @@ SCENARIOS = [
 
 
 def _photo(kind, rng, bad_share):
+    if kind == "none":  # no photo could be measured (missing / unreadable upload): the server scores it 0.0
+        return 0.0
     if kind == "poor" or rng.random() < bad_share:
         return float(np.clip(rng.beta(2, 4), 0, 1))
     return float(np.clip(rng.beta(8, 2), 0, 1))
@@ -458,16 +578,26 @@ def generate(seed=7, *, n_scale=1.0, params=DEFAULT, scenarios=None):
     """-> DataFrame: the 5 classifier inputs, is_fraud, scenario, group, flags."""
     rng = np.random.default_rng(seed)
     rows = []
-    for name, builder, label, group, n in (scenarios or SCENARIOS):
+    for name, builder, label0, group, n in (scenarios or SCENARIOS):
         for _ in range(max(1, int(round(n * n_scale)))):
+            label = label0
             r = builder(rng, params)
             # Deployment reality: a quarter of the sites have no registered location yet and, until a geo-IP database is
             # installed, there is no IP context at all. The model must work in those worlds too.
             r["site"] = SITE if rng.random() < 0.75 else None
             if rng.random() < 0.4:
                 r["ip"] = None
+            if name in NETWORK_ONLY_FRAUD or group == "foreign_network":
+                # These scenarios are about the NETWORK and are only defined where it can be compared (a registered site and an IP
+                # database). Without them the row would carry no evidence yet be labelled fraud, which teaches the model to flag
+                # unremarkable environments. The unknown world is covered by every other scenario (labelled genuine).
+                r["site"] = SITE
+                if r["ip"] is None:
+                    r["ip"] = _ip(rng, "vpn_foreign" if name == "n_vpn_foreign_genuine_walk" else "isp_foreign", params)
             c, e = features(r)
-            bad = 0.2 if label == 1 and group in ("fraud", "fraud_hard") else (0.12 if group == "genuine" else 0.0)
+            if label == 0 and rng.random() < 0.04:
+                r["photo"] = "none"  # ASSUMPTION (as for poor photos): a missing photo alone is not fraud; it never makes an honest worker's other evidence suspicious
+            bad = 0.2 if label == 1 and group in ("fraud", "fraud_hard") else (0.12 if group in ("genuine", "foreign_network") else 0.0)
             rows.append({
                 "photo_quality_score": _photo(r["photo"], rng, bad),
                 "motion_score": c["motion_consistency"], "ambient_score": e["environment_consistency"],

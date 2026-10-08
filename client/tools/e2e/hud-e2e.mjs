@@ -16,15 +16,23 @@ let failed = 0
 const check = (name, ok, detail = '') => { console.log(`   ${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  (' + detail + ')' : ''}`); if (!ok) failed++ }
 const pctile = (a, p) => { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))] }
 
-async function session(stream, { width = 1440, height = 900, query = '', fn }) {
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new',
-    args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', `--use-file-for-fake-video-capture=${dir}/${stream}.mjpeg`] })
-  const page = await browser.newPage()
-  await page.setViewport({ width, height })
+// E2E_HEADFUL=1 shows the browser (npm run demo:laptop); a session started with keepOpen then waits for you to close the window.
+const HEADFUL = process.env.E2E_HEADFUL === '1'
+async function session(stream, { width = 1440, height = 900, query = '', fn, keepOpen = false }) {
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: HEADFUL ? false : 'new', defaultViewport: HEADFUL ? null : undefined,
+    args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', `--use-file-for-fake-video-capture=${dir}/${stream}.mjpeg`, ...(HEADFUL ? [`--window-size=${width},${height + 90}`] : [])] })
+  const page = (await browser.pages())[0] ?? await browser.newPage()
+  if (!HEADFUL) await page.setViewport({ width, height })
   const errors = []
-  page.on('pageerror', (e) => errors.push(e.message))
+  page.on('pageerror', (e) => errors.push(e.message + ' @ ' + String(e.stack ?? '').split('\n').slice(1, 3).join(' | ').slice(0, 220)))
   page.on('console', (m) => { if (m.type() === 'error' && !/XNNPACK|favicon|Failed to load resource/.test(m.text())) errors.push(m.text().slice(0, 160)) })
-  try { await fn(page) } finally { check('no browser console errors', errors.length === 0, errors.join(' | ')); await browser.close() }
+  try { await fn(page) } finally {
+    check('no browser console errors', errors.length === 0, errors.join(' | '))
+    if (HEADFUL && keepOpen) {
+      console.log('\n   The browser stays open on the case file. Close the window (or press Ctrl+C) to stop the demo servers.')
+      await new Promise((r) => browser.on('disconnected', r))
+    } else await browser.close()
+  }
 }
 const shake = (page, rot, acc) => page.evaluate((rot, acc) => { clearInterval(window.__shake); window.__shake = setInterval(() => window.dispatchEvent(new DeviceMotionEvent('devicemotion', { rotationRate: { alpha: rot, beta: rot, gamma: rot }, acceleration: { x: acc, y: acc, z: acc }, interval: 16 })), 16) }, rot, acc)
 const open = async (page, { task, query = '', clear = true, motion = null } = {}) => {
@@ -106,11 +114,23 @@ const fusionPage = async (page, { consent = true, geo = true, start = at(0, 0) }
   await page.goto(BASE, { waitUntil: 'networkidle0' })
 }
 async function submitThroughTheUi(page) {
-  await page.click('.live__start'); await page.waitForSelector('.hud', { timeout: 30000 }); await sleep(2500)
-  await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
+  // After "New submission" the camera reopens by itself; on a fresh page it needs the start tap.
+  await page.waitForSelector('.live__start, .hud', { timeout: 30000 })
+  if (!(await page.$('.hud'))) { await page.evaluate(() => scrollTo(0, 0)); await sleep(300); await page.click('.live__start') }
+  try { await page.waitForSelector('.hud', { timeout: 30000 }) } catch (e) { await shot(page, 'hud-timeout'); console.log('   page text:', (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)); throw e }
+  await sleep(2500)
+  await page.evaluate(() => scrollTo(0, 0)); await sleep(300)
+  try { await page.waitForSelector('.live__shutter', { timeout: 20000 }) } catch (e) { await shot(page, 'no-shutter'); console.log('   page text:', (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 500)); throw e }
+  await page.click('.live__shutter')
+  try { await page.waitForSelector('.qc', { timeout: 30000 }) } catch (e) { await shot(page, 'submit-timeout'); console.log('   shutter state:', JSON.stringify(await page.$eval('.live__shutter', (b) => ({ disabled: b.disabled, ok: b.dataset.liveOk })).catch(() => null)), (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 400)); throw e }
   await (await page.$('.capture-grid__side .btn--primary')).click()
   await page.waitForSelector('.verdict', { timeout: 60000 })
 }
+// The live Sensor feed as { id: text } (data-testid="feed-<id>").
+const feed = (page) => page.$$eval('[data-testid^=feed-]', (els) => Object.fromEntries(els.map((e) => [e.dataset.testid.slice(5), (e.innerText ?? e.textContent ?? '').trim()])))
+const fetched = (page) => page.$$eval('[data-testid^=fetched-]', (els) => Object.fromEntries(els.filter((e) => e.dataset.testid !== 'fetched-panel').map((e) => [e.dataset.testid.slice(8), { text: e.innerText.replace(/\s+/g, ' '), cls: e.className }])))
+const vsum = (page) => page.$$eval('[data-testid=fusion-verdict] li', (els) => els.map((e) => ({ text: e.innerText.replace(/\s+/g, ' '), cls: e.className })))
+const shot = (page, name, opts = {}) => page.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/${name}.png`, ...opts })
 const latest = async (API) => { const l = await (await fetch(`${API}/submissions`)).json(); return (await fetch(`${API}/submissions/${l[0].id}`)).json() }
 
 
@@ -414,11 +434,33 @@ const scenarios = {
       check('consent was given earlier: the recording started by itself (no tap)', true)
       check('the server opened a visit for it', await page.waitForFunction(() => document.querySelector('[data-testid=visit-panel]')?.innerText.includes('Recording'), { timeout: 5000 }).then(() => true, () => false))
       await motionKind(page, 'walk')
-      await walkTo(page, [-60, 0], [0, 0], 40)
+      await walkTo(page, [-60, 0], [-30, 0], 20)
+      const a = await feed(page)
+      await walkTo(page, [-30, 0], [0, 0], 20)
+      const b = await feed(page)
+      check('live feed: the GPS numbers are the scripted ones and change while walking (lat 5 decimals, longitude moves east, more fixes)', Math.abs(parseFloat(a.lat) - 12.9716) < 0.0001 && Math.abs(parseFloat(b.lat) - 12.9716) < 0.0001 && /^\d+\.\d{5}$/.test(b.lat) && parseFloat(b.lng) > parseFloat(a.lng) && Number(b.fixes) > Number(a.fixes) && /±\d+ m/.test(b.accuracy), JSON.stringify({ a: [a.lat, a.lng, a.fixes], b: [b.lat, b.lng, b.fixes, b.accuracy] }))
+      check('live feed: |acceleration| and |rotation| are live numbers, the sensor rate is shown', num(b.acc) > 0.3 && num(b.gyro) > 3 && num(b.rate) >= 20, `${b.acc} · ${b.gyro} · ${b.rate}`)
+      check('live feed: the activity is "walking" with a step rhythm near 1.9 Hz', b.activity === 'walking' && Math.abs(num(b.rhythm) - 1.9) < 0.4, `${b.activity} ${b.rhythm}`)
+      check('live feed: the visit id, the clock offset and 5 s windows are shown', /^[\w-]{8}$/.test(b.visit) && /ms$/.test(b.offset) && Number(b.windows) >= 4, `${b.visit} ${b.offset} ${b.windows}`)
+      check('live feed: the trail drawing is there, with the registered site', (await page.$('[data-testid=feed-trail] .fz-site')) !== null && (await page.$('[data-testid=feed-trail] .fz-path')) !== null)
+      const na = await page.$eval('[data-testid=feed-na]', (e) => e.innerText)
+      check('live feed: what cannot be fetched is listed with the reason (WiFi, cell, mock flag, background)', /WiFi/.test(na) && /Cell towers/.test(na) && /mock location/i.test(na) && /screen is off/i.test(na) && /native app/.test(na))
+      await page.evaluate(() => document.querySelector('[data-testid=sensor-feed]').scrollIntoView({ block: 'start' })); await sleep(400)
+      await shot(page, 'fusion-feed-walking')
+      await page.evaluate(() => scrollTo(0, 0))
       await motionKind(page, 'still')
       await stay(page, [0, 0], 25)
+      const c = await feed(page)
+      check('live feed: standing at the site the activity becomes "still"', c.activity === 'still', c.activity)
       check('the live summary shows fixes and distance', /\d+ location fixes? · \d+ m/.test(await page.$eval('[data-testid=visit-panel]', (e) => e.innerText)), await page.$eval('[data-testid=visit-panel]', (e) => e.innerText.replace(/\s+/g, ' ')))
-      await submitThroughTheUi(page)
+      const n0 = (await (await fetch(`${API}/submissions`)).json()).length // earlier scenarios in a full run have already stored submissions
+      await page.click('.live__start').catch(() => {}); await page.waitForSelector('.hud', { timeout: 30000 }); await sleep(2500)
+      await page.evaluate(() => scrollTo(0, 0)); await sleep(300); await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
+      check('worker flow: after the photo is verified the button is "I\'ve reached the site" and a hint explains what happens next', /I've reached the site/.test(await page.$eval('[data-testid=arrived-btn]', (e) => e.innerText)) && /Photo checked/.test(await page.$eval('[data-testid=arrival-hint]', (e) => e.innerText)))
+      check('worker flow: the sensor fusion has NOT been sent yet (no NEW submission exists before the tap)', (await (await fetch(`${API}/submissions`)).json()).length === n0)
+      await (await page.$('[data-testid=arrived-btn]')).click()
+      check('worker flow: the next step is "Arrival" (the stepper marks it active)', /arrival/i.test(await page.$eval('.stepper [aria-current=step]', (e) => e.innerText).catch(() => '')) || /verifying your arrival/i.test(await page.evaluate(() => document.body.innerText)))
+      await page.waitForSelector('.verdict', { timeout: 60000 })
       const payload = JSON.parse(await page.evaluate(() => window.__payload))
       check('the submission carried a visit id and a trail with fixes and windows', !!payload.visit_id && payload.trail?.fixes?.length >= 8 && payload.trail?.windows?.length >= 8, `${payload.trail?.fixes?.length} fixes, ${payload.trail?.windows?.length} windows`)
       check('the trail says what the sensors were (location granted, motion granted, gyroscope)', payload.trail.sensors.geo === 'granted' && payload.trail.sensors.motion === 'granted' && payload.trail.sensors.gyro === true, JSON.stringify(payload.trail.sensors))
@@ -428,6 +470,16 @@ const scenarios = {
       check('server: motion consistency is high (>= 0.85) and the submission is accepted', full.motion_score >= 0.85 && full.status === 'accepted', `${full.motion_score} ${full.status}`)
       check('server: no spoof flags, and the visit was verified', !full.quality_flags.some((f) => /^(gps_jump|flat_motion|trail_|visit_unverified|arrival_without|gps_outside)/.test(f)), full.quality_flags.join(','))
       check('server: the trail points and the site are stored for the case file', full.fusion.trail.points.length >= 6 && full.fusion.site?.radius_m === 60, `${full.fusion.trail.points.length} points`)
+      const vs = await vsum(page)
+      const mv = vs.find((l) => /Movement vs GPS/i.test(l.text)); const ar = vs.find((l) => /Arrival at site/i.test(l.text))
+      check('verdict: "Movement vs GPS" says the movement matches, in green', mv && /green/.test(mv.cls), JSON.stringify(mv))
+      check('verdict: "Arrival at site" says GPS places the worker at the site, in green', ar && /green/.test(ar.cls) && /places you at the site/.test(ar.text), JSON.stringify(ar))
+      const fe = await fetched(page)
+      check('verdict: "What was fetched" counts fixes and motion windows, the activity share, the registered site, no jumps', /\d+ fixes/.test(fe.fixes?.text) && /five-second windows/.test(fe.windows?.text) && /walking \d+%/.test(fe.activity?.text) && /registered, radius 60 m/.test(fe.site?.text) && /none/.test(fe.jumps?.text), JSON.stringify(Object.values(fe).map((x) => x.text)))
+      check('verdict: the IP line says what it got on a loopback test (private address or no database), not a made-up place', /private|not available/.test(fe.ip?.text), fe.ip?.text)
+      check('verdict: no "GPS unavailable" note when the visit recording had fresh fixes', !/GPS unavailable/.test(await page.evaluate(() => document.body.innerText)) && payload.gps?.lat != null, JSON.stringify(payload.gps))
+      await page.evaluate(() => document.querySelector('[data-testid=fetched-panel]').scrollIntoView({ block: 'center' })); await sleep(500)
+      await shot(page, 'fusion-verdict-genuine')
       await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
       await page.waitForSelector('tbody tr', { timeout: 20000 })
       await (await page.$$('tbody tr'))[0].click()
@@ -455,6 +507,13 @@ const scenarios = {
       check('server: motion consistency is low (< 0.4) even though the photo is fine', full.motion_score < 0.4 && full.photo_verdict !== 'block', `${full.motion_score} ${full.photo_verdict}`)
       check('server: flagged by the classifier and in the review queue, with a reason that states what was measured', full.status === 'flagged' && full.needs_review === true && /jumped/.test(full.top_reason) && !/location change/.test(full.top_reason), `${full.status} ${full.top_reason}`)
       check('the verdict screen shows FLAGGED and the reason', /FLAGGED/.test(await page.$eval('.verdict', (e) => e.innerText)) && /jumped/.test(await page.$eval('.reason__text', (e) => e.innerText)))
+      const vs = await vsum(page)
+      const mv = vs.find((l) => /Movement vs GPS/i.test(l.text))
+      check('verdict: "Movement vs GPS" states the jump, in red', mv && /jumped/.test(mv.text) && /red/.test(mv.cls), JSON.stringify(mv))
+      const fe = await fetched(page)
+      check('verdict: "What was fetched" shows the GPS jump in red', /1 jump/.test(fe.jumps?.text) && /feed--red/.test(fe.jumps?.cls), JSON.stringify(fe.jumps))
+      await page.evaluate(() => document.querySelector('[data-testid=fusion-verdict]').scrollIntoView({ block: 'start' })); await sleep(500)
+      await shot(page, 'fusion-verdict-teleport')
       await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
       await page.waitForSelector('tbody tr', { timeout: 20000 })
       await (await page.$$('tbody tr'))[0].click()
@@ -463,6 +522,24 @@ const scenarios = {
       check('the case file shows "inconsistent", the jump in words and a dashed jump line', /inconsistent/.test(t) && /GPS jump, phone still/.test(t) && (await page.$('.fz-jump')) !== null, t.slice(0, 220))
       await page.evaluate(() => document.querySelector('[data-testid=fusion-section]').scrollIntoView({ block: 'start' })); await sleep(300)
       await page.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/fusion-teleport.png` })
+    } })
+  },
+  async fusion_notarrived() {
+    // The worker taps "I've reached the site" while the GPS puts them 500 m away: arrival not confirmed, in red, sent for review (never blocked).
+    const API = process.env.E2E_API ?? 'http://127.0.0.1:8001'
+    await putSite(API)
+    await session('good', { fn: async (page) => {
+      await fusionPage(page, { start: at(-500, 0) })
+      await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 15000 })
+      await motionKind(page, 'still')
+      await stay(page, [-500, 0], 32)
+      await submitThroughTheUi(page)
+      const vs = await vsum(page)
+      const ar = vs.find((l) => /Arrival at site/i.test(l.text))
+      check('verdict: "Arrival at site" is red and says the GPS places the worker about 500 m away', ar && /red/.test(ar.cls) && /(49|5\d)\d m from the site/.test(ar.text) && /not confirmed/.test(ar.text), JSON.stringify(ar))
+      const full = await latest(API)
+      check('server: flagged gps_outside_site (evidence for the reviewer), the submission was stored, nothing was blocked', full.quality_flags.includes('gps_outside_site') && full.id > 0, full.quality_flags.join(','))
+      await shot(page, 'fusion-notarrived')
     } })
   },
   async fusion_optout() {
@@ -496,6 +573,72 @@ const scenarios = {
       check('the trail records that location was denied (not a fake position)', payload.trail?.sensors?.geo === 'denied' && payload.trail.fixes.length === 0, JSON.stringify(payload.trail?.sensors))
       const full = await latest(API)
       check('server: unknown, accepted, no accusation', full.motion_known === false && full.status === 'accepted' && !full.quality_flags.some((f) => /^(gps_|flat_|arrival_)/.test(f)), full.quality_flags.join(','))
+    } })
+  },
+  async fusion_demo() {
+    // The judges' demo on the laptop (npm run demo:laptop: a visible Chrome; npm run e2e fusion_demo: headless with checks).
+    // Same real page / recorder / server as the scenarios above; only the GPS and motion are scripted. 1) register the spot from
+    // the page, 2) genuine walk -> Verified, 3) GPS teleport with a still phone -> Flagged, 4) the dashboard case file stays open.
+    const API = process.env.E2E_API ?? 'http://127.0.0.1:8001'
+    const pause = (ms) => sleep(HEADFUL ? ms : 0)
+    await session('good', { width: 1280, height: 860, keepOpen: true, fn: async (page) => {
+      await page.browserContext().overridePermissions(new URL(BASE).origin, ['geolocation'])
+      await page.evaluateOnNewDocument(() => {
+        try { if (!sessionStorage.getItem('demo.started')) { localStorage.clear(); sessionStorage.setItem('demo.started', '1') } localStorage.setItem('fusion.consent.v1', '1') } catch {}
+        if (typeof DeviceMotionEvent !== 'undefined') DeviceMotionEvent.requestPermission = async () => 'granted'
+      })
+      await page.setGeolocation(at(0, 0))
+      await page.goto(BASE + '?demo=1', { waitUntil: 'networkidle0' })
+      await page.waitForSelector('[data-testid=demo-tools] button', { timeout: 15000 })
+      await page.setGeolocation(at(0, 0)) // headless Chrome applies the scripted position only to calls made after the page loaded
+      console.log('   1. register this spot as the site')
+      const prior = await fetch(`${API}/sites/site_demo_1`).then((r) => (r.ok ? r.json() : null)) // in a full run an earlier scenario registered it
+      await page.click('[data-testid=demo-tools] button')
+      const reg = await page.waitForFunction(() => /is now site_demo_1/.test(document.querySelector('[data-testid=demo-tools]')?.innerText ?? ''), { timeout: 20000 }).then(() => true, () => false)
+      check('demo: "Register this spot as the site" stores the page\'s location as site_demo_1 and keeps an existing site\'s radius and country', reg && await (async () => { const j = await (await fetch(`${API}/sites/site_demo_1`)).json(); return j.radius_m === (prior?.radius_m ?? 80) && (j.country ?? null) === (prior ? (prior.country ?? null) : null) })(), await page.$eval('[data-testid=demo-tools]', (e) => e.innerText.replace(/\s+/g, ' ')))
+      await pause(2500)
+
+      console.log('   2. genuine arrival: go 60 m away, start recording, walk to the spot, stand there, photo, submit')
+      // On stage: register at the spot, walk away, then start the recording (a fresh visit) and walk back.
+      if (await page.$('[data-testid=visit-panel] .fz-live')) await page.click('[data-testid=visit-panel] .btn--sm')
+      await page.setGeolocation(at(-60, 0))
+      await page.waitForFunction(() => /Start recording my visit/.test(document.querySelector('[data-testid=visit-panel]')?.innerText ?? ''), { timeout: 10000 })
+      await sleep(1500)
+      await page.$$eval('[data-testid=visit-panel] button', (bs) => bs.find((b) => /Start recording/.test(b.innerText))?.click())
+      await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 15000 })
+      await page.evaluate(() => document.querySelector('[data-testid=sensor-feed]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+      await motionKind(page, 'walk')
+      await walkTo(page, [-60, 0], [0, 0], 40)
+      await motionKind(page, 'still')
+      await stay(page, [0, 0], 22)
+      await page.evaluate(() => scrollTo({ top: 0, behavior: 'smooth' }))
+      await submitThroughTheUi(page)
+      const g = await latest(API)
+      check('demo: the genuine walk is accepted with consistent movement', g.status === 'accepted' && g.motion_score >= 0.85, `${g.status} ${g.motion_score} ${g.quality_flags.join(',')} | ${g.top_reason}`)
+      await page.evaluate(() => document.querySelector('[data-testid=fusion-verdict]')?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
+      await pause(6000)
+
+      console.log('   3. fake location: the GPS sits 14 km away, then jumps onto the site; the phone stays on the table')
+      await page.setGeolocation(at(-14000, 0))
+      await motionKind(page, 'still')
+      await (await page.$('.btn--block')).click() // New submission (the recording restarts by itself: consent was given)
+      await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 15000 })
+      await stay(page, [-14000, 0], 30)
+      await stay(page, [0, 0], 30)
+      await submitThroughTheUi(page)
+      const f = await latest(API)
+      check('demo: the teleport is flagged with the jump in words', f.status === 'flagged' && f.quality_flags.includes('gps_jump_flat_motion') && /jumped/.test(f.top_reason), `${f.status} ${f.top_reason}`)
+      await page.evaluate(() => document.querySelector('[data-testid=fusion-verdict]')?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
+      await pause(6000)
+
+      console.log('   4. the dashboard case file of the flagged visit')
+      await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
+      await page.waitForSelector('tbody tr', { timeout: 20000 })
+      await (await page.$$('tbody tr'))[0].click()
+      await page.waitForSelector('[data-testid=fusion-section] .fz-trail', { timeout: 15000 }); await sleep(1200)
+      await page.evaluate(() => document.querySelector('[data-testid=fusion-section]').scrollIntoView({ block: 'start', behavior: 'smooth' })); await sleep(600)
+      check('demo: the case file shows the dashed jump', (await page.$('.fz-jump')) !== null)
+      await shot(page, 'fusion-demo-casefile')
     } })
   },
   async casefile() {
@@ -675,7 +818,8 @@ const scenarios = {
       await open(page, { query: '?debug=checks' }); await sleep(1500)
       await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
       const t = await page.$eval('.qc__title', (e) => e.innerText)
-      const canSubmit = await page.$$eval('.capture-grid__side .btn', (b) => b.some((x) => /^Submit/.test(x.innerText.trim())))
+      // since the sensor-fusion iteration the next step after a verified photo is "I've reached the site" (the submit); older builds said "Submit"
+      const canSubmit = (await page.$('[data-testid=arrived-btn]')) !== null || await page.$$eval('.capture-grid__side .btn', (b) => b.some((x) => /^Submit/.test(x.innerText.trim())))
       check(`${st} (real photo, not enlarged): the capture is NOT refused and can be submitted`, !/retake/i.test(t) && canSubmit, t)
       check(`${st}: no "Why this photo can't be submitted" box`, (await page.$('.qc__why')) === null)
     } })
@@ -683,7 +827,8 @@ const scenarios = {
       await open(page, { query: '?debug=checks' }); await sleep(1500)
       await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
       const why = await page.$eval('.qc__why', (e) => e.innerText).catch(() => '')
-      const canSubmit = await page.$$eval('.capture-grid__side .btn', (b) => b.some((x) => /^Submit/.test(x.innerText.trim())))
+      // since the sensor-fusion iteration the next step after a verified photo is "I've reached the site" (the submit); older builds said "Submit"
+      const canSubmit = (await page.$('[data-testid=arrived-btn]')) !== null || await page.$$eval('.capture-grid__side .btn', (b) => b.some((x) => /^Submit/.test(x.innerText.trim())))
       check('blurry capture is still refused (no Submit button)', !canSubmit)
       check('the refusal names the check and the number vs the limit ("Focus NN% — needs at least NN%")', /Focus/.test(why) && /Focus \d+% — needs at least \d+%/.test(why), why.replace(/\s+/g, ' '))
       check('the debug panel (?debug=checks) shows the numbers', (await page.$('[data-testid=checks-debug]')) !== null)
@@ -713,7 +858,391 @@ const scenarios = {
     } })
     check(`the burst still picks the sharp frame (>= 5 of ${runs})`, hits >= 5, `${hits}/${runs}`)
   },
+  async netsection() {
+    // E2/E6: REAL IP lookups. Needs the DB-IP files in backend/data/geoip and the isolated backend started with TRUSTED_PROXY_HEADER=x-forwarded-for
+    // (run: TRUSTED_PROXY_HEADER=x-forwarded-for npm run e2e netsection). The page and the engine are real; the ADDRESSES are real public
+    // addresses sent in the proxy header because a laptop cannot be on a foreign network. The classifier is trained on SIMULATED data.
+    const API = process.env.E2E_API ?? 'http://127.0.0.1:8001'
+    const HOME = { lat: 12.9259481, lng: 77.6722586, radius_m: 100, country: 'IN', label: 'Home (test)' }
+    const put = await fetch(`${API}/sites/site_demo_1`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(HOME) })
+    check('the demo house is registered in the ISOLATED database', put.ok)
+    const post = async (worker, n, ip) => {
+      const fd = new FormData()
+      fd.set('payload', JSON.stringify({ worker_id: worker, task_id: 'net_check', site_id: 'site_demo_1', photo_quality_pass: true, network_info: { effectiveType: '4g', downlink: 10, rtt: 50 } }))
+      fd.set('photo', new Blob([fs.readFileSync(new URL(`../../../edge-validator/samples/good/000${n}.png`, import.meta.url))], { type: 'image/png' }), `p${n}.png`)
+      const r = await fetch(`${API}/submissions`, { method: 'POST', headers: { 'X-Forwarded-For': ip }, body: fd })
+      return r.ok ? r.json() : { error: r.status }
+    }
+    const health = await (await fetch(`${API}/health`)).json()
+    check('the backend sees the REAL DB-IP files', health.ip_database?.installed === true && health.ip_database.has_city && health.ip_database.has_asn, JSON.stringify({ date: health.ip_database?.date, age: health.ip_database?.age_days }))
+    const CASES = [
+      ['home', 'at home: a Bengaluru broadband address near the site', '106.51.0.1', 1, (r) => r.fusion.environment.score >= 0.9 && r.status === 'accepted'],
+      ['us', 'a US address (Google, Mountain View)', '8.8.8.8', 2, (r) => r.status === 'flagged' && /US/.test(r.top_reason) && r.fusion.flags.includes('ip_country_mismatch')],
+      ['vpnnl', 'a foreign VPN / hosting exit (DigitalOcean, Singapore)', '159.65.0.1', 3, (r) => r.status === 'flagged' && r.fusion.flags.includes('anonymizing_network') && r.fusion.flags.includes('ip_country_mismatch')],
+      ['vpnin', 'an honest same-country VPN / cloud exit (Amazon, Mumbai)', '13.126.0.1', 1, (r) => r.status === 'accepted' && r.fusion.flags.includes('anonymizing_network') && !r.fusion.flags.includes('ip_country_mismatch')],
+      ['gateway', 'a carrier gateway far away in the same country (Navi Mumbai, no ASN record)', '49.44.0.1', 2, (r) => r.status === 'accepted' && r.fusion.flags.includes('ip_region_mismatch')],
+    ]
+    const results = {}
+    for (const [id, label, ip, n, ok] of CASES) {
+      const r = await post(`net_${id}`, n, ip)
+      results[id] = r
+      check(`${label}: ${r.status} (P ${r.fraud_probability?.toFixed?.(2)}, environment ${r.fusion?.environment?.score}, ${(r.fusion?.flags ?? []).join(' ') || 'no flags'})`, !r.error && ok(r), r.top_reason)
+    }
+    check('no raw IP is in any response (only the shortened address)', JSON.stringify(results).match(/\b(106\.51\.0\.1|8\.8\.8\.8|159\.65\.0\.1|13\.126\.0\.1|49\.44\.0\.1)\b/) === null)
+    check('status is the classifier\'s: every status matches P > 0.5', Object.values(results).every((r) => r.status === (r.fraud_probability > 0.5 ? 'flagged' : 'accepted')))
+    for (const [w, h] of [[1280, 900], [390, 844]]) {
+      await session('good', { width: w, height: h, fn: async (page) => {
+        if (w < 500) await page.setViewport({ width: w, height: h, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+        await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
+        await page.waitForSelector('[data-testid=dbip-credit]', { timeout: 20000 })
+        check(`(${w}px) the DB-IP credit is text with a link in the footer`, await page.$eval('[data-testid=dbip-credit] a', (a) => a.href === 'https://db-ip.com/' && /DB-IP/.test(a.innerText)))
+        check(`(${w}px) no "IP database not installed" chip while the database is installed`, (await page.$('[data-testid=ipdb-chip]')) === null)
+        await page.addStyleTag({ content: '.topbar{position:static !important}' })
+        for (const id of ['us', 'vpnin']) {
+          await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
+          await page.evaluate((sid) => { const rows = [...document.querySelectorAll('tr, li, button, div')].filter((e) => e.innerText?.includes('net_' + sid)); (rows.find((e) => e.tagName === 'TR' || e.tagName === 'BUTTON') ?? rows[rows.length - 1])?.click() }, id)
+          await page.waitForSelector('[data-testid=fusion-section]', { timeout: 15000 }).catch(() => {})
+          const t = await page.$eval('[data-testid=fusion-section]', (e) => e.innerText.replace(/\s+/g, ' ')).catch(() => '')
+          check(`(${w}px) case file "${id}": the Network section names the provider, the IP data date and the site's learned visits`, /Network/i.test(t) && /DB-IP lite · data from 20\d\d-\d\d-\d\d/.test(t) && /Site network/i.test(t), t.slice(t.indexOf('Network'), t.indexOf('Network') + 220))
+          check(`(${w}px) case file "${id}": the DB-IP credit link is next to the IP line`, (await page.$('[data-testid=dbip-credit-case]')) !== null)
+          const el = await page.$('[data-testid=fusion-section]')
+          if (el) { await el.evaluate((e) => e.scrollIntoView({ block: 'start' })); await sleep(250); await el.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/net-${id}-${w}.png` }) }
+          const ov = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
+          check(`(${w}px) case file "${id}" has no sideways scroll`, ov <= 0, `overflow ${ov}px`)
+          await page.keyboard.press('Escape')
+        }
+      } })
+    }
+  },
+  async ipchip() {
+    // E6: with NO IP database installed the top bar says so and no DB-IP credit is shown (no DB-IP data is on screen).
+    // Run: GEOIP_DIR=<an empty folder> npm run e2e ipchip
+    const API = process.env.E2E_API ?? 'http://127.0.0.1:8001'
+    const h = await (await fetch(`${API}/health`)).json()
+    if (h.ip_database?.installed) { console.log('   (skipped: this backend has the IP database installed; run it as GEOIP_DIR=<an empty folder> npm run e2e ipchip)'); return }
+    check('this backend really has no IP database', h.ip_database?.installed === false, JSON.stringify(h.ip_database))
+    for (const [w, ht] of [[1280, 800], [390, 844]]) {
+      await session('good', { width: w, height: ht, fn: async (page) => {
+        if (w < 500) await page.setViewport({ width: w, height: ht, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+        await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
+        await page.waitForSelector('[data-testid=ipdb-chip]', { timeout: 20000 })
+        const t = await page.$eval('[data-testid=ipdb-chip]', (e) => e.innerText)
+        check(`(${w}px) the top bar chip says "IP database not installed"`, /IP database not installed/.test(t), t)
+        check(`(${w}px) no DB-IP credit is shown when no DB-IP data is shown`, (await page.$('[data-testid=dbip-credit]')) === null)
+        const ov = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
+        check(`(${w}px) the top bar still fits`, ov <= 0, `overflow ${ov}px`)
+        await page.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/ipchip-${w}.png`, clip: { x: 0, y: 0, width: w, height: w < 500 ? 220 : 90 } })
+      } })
+    }
+  },
+  // ======================================================================================================================================
+  // P7: REHEARSAL against the SINGLE-ORIGIN, PUBLIC-MODE build (npm run e2e:public). Real page, real recorder, real server in PUBLIC_MODE=1 serving
+  // client/dist on one address, real DB-IP lookups. Scripted: the GPS, the motion events and the forwarded address (a real public address put in
+  // X-Forwarded-For, as a tunnel would): it is NOT a real VPN or a real foreign network, that is what the phone test is for. The classifier is SYNTHETIC.
+  // ======================================================================================================================================
+  async pub_basics() {
+    const API = process.env.E2E_API, TOKEN = process.env.E2E_TOKEN
+    const origin = new URL(BASE).origin
+    const get = (p, h = {}) => fetch(`${origin}${p}`, { headers: h })
+    const auth = { Authorization: `Bearer ${TOKEN}` }
+    const h = await (await get('/api/health')).json()
+    check('the server runs in PUBLIC MODE with the real IP database', h.public_mode === true && h.ip_database?.installed === true, JSON.stringify({ pm: h.public_mode, db: h.ip_database?.date }))
+    check('/docs, /redoc and /openapi.json are closed', (await Promise.all(['/docs', '/redoc', '/openapi.json'].map((p) => get(p)))).every((r) => r.status === 404))
+    check('the dashboard data, photos and sites need the token (401 without it, 200 with it)', (await Promise.all(['/api/submissions', '/api/sites', '/api/reviews/queue'].map((p) => get(p)))).every((r) => r.status === 401) && (await get('/api/submissions', auth)).status === 200)
+    check('a wrong token is refused', (await get('/api/submissions', { Authorization: 'Bearer wrong-wrong-wrong' })).status === 401)
+    const idx = await get('/')
+    check('the app is served from the same origin with the security headers', idx.status === 200 && /nosniff/.test(idx.headers.get('x-content-type-options') ?? '') && /geolocation=\(self\)/.test(idx.headers.get('permissions-policy') ?? '') && idx.headers.get('cache-control') === 'no-cache', idx.headers.get('permissions-policy'))
+    const mf = await get('/manifest.webmanifest')
+    check('the manifest and icons are served', mf.status === 200 && (await get('/icons/icon-512.png')).headers.get('content-type') === 'image/png' && (await get('/icons/icon-maskable-512.png')).status === 200, mf.headers.get('content-type'))
+    const al = await get('/.well-known/assetlinks.json')
+    check('assetlinks.json is served as JSON (still the placeholder until N3)', al.status === 200 && /json/.test(al.headers.get('content-type') ?? ''))
+    check('a missing file is a 404, not a page of HTML', (await get('/assets/nope.js')).status === 404 && (await get('/api/nope')).status === 404)
+    await session('good', { width: 1280, height: 860, fn: async (page) => {
+      const urls = []
+      page.on('request', (r) => urls.push(r.url()))
+      await page.goto(BASE, { waitUntil: 'networkidle0' })
+      check('the Capture page loads from the single origin', /Trust Layer/.test(await page.title()) && (await page.$('.live__start, .hud, [data-testid=visit-panel]')) !== null)
+      await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }) // a hard load of a client route
+      check('a hard refresh on /dashboard works and, without the token, asks for it', (await page.$('input[name=token]')) !== null)
+      await page.type('input[name=token]', TOKEN); await page.keyboard.press('Enter')
+      await page.waitForFunction(() => !document.querySelector('input[name=token]'), { timeout: 15000 })
+      check('with the token the dashboard loads its data', (await page.$('[data-testid=site-location-panel]')) !== null)
+      await page.reload({ waitUntil: 'networkidle0' })
+      check('refreshing the dashboard keeps working with the token (same tab)', (await page.$('input[name=token]')) === null)
+      await page.evaluate(() => sessionStorage.clear()); await page.reload({ waitUntil: 'networkidle0' })
+      check('and asks again once the token is gone', (await page.$('input[name=token]')) !== null)
+      const foreign = urls.filter((u) => !u.startsWith(origin) && !u.startsWith('data:') && !u.startsWith('blob:'))
+      check('NO third-party request was made by the page or the dashboard', foreign.length === 0, foreign.slice(0, 3).join(' '))
+    } })
+  },
+  async pub_cases() {
+    const API = process.env.E2E_API, TOKEN = process.env.E2E_TOKEN
+    const A = { Authorization: `Bearer ${TOKEN}` }
+    const jget = async (p) => (await fetch(`${API}${p}`, { headers: A })).json()
+    const lastSub = async () => { const l = await jget('/submissions'); return jget(`/submissions/${l[0].id}`) }
+    const REAL = { home: '106.51.0.1', us: '8.8.8.8', vpn_sg: '159.65.0.1', vpn_in: '13.126.0.1', gateway: '49.44.0.1' }
+    // one visit through the REAL page: kind 'walk' (a genuine 65 s approach), 'short' (photo after a few seconds), 'teleport' (the headline spoof)
+    const flow = async (ip, kind) => {
+      let sub
+      await session('good', { width: 1280, height: 860, fn: async (page) => {
+        if (ip) await page.setExtraHTTPHeaders({ 'X-Forwarded-For': ip })
+        await fusionPage(page, { start: kind === 'teleport' ? at(-14000, 0) : at(-60, 0) })
+        await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 20000 })
+        if (kind === 'walk') {
+          await motionKind(page, 'walk'); await walkTo(page, [-60, 0], [-30, 0], 20); await walkTo(page, [-30, 0], [0, 0], 20)
+          await motionKind(page, 'still'); await stay(page, [0, 0], 25)
+        } else if (kind === 'teleport') {
+          await motionKind(page, 'still'); await stay(page, [-14000, 0], 32); await stay(page, [0, 0], 32)
+        } else { await motionKind(page, 'still'); await sleep(3000) }
+        await submitThroughTheUi(page)
+        sub = await lastSub()
+      } })
+      return sub
+    }
+    const flags = (s) => s.fusion?.flags ?? s.quality_flags ?? []
+    const line = (s) => `${s.status} P ${s.fraud_probability?.toFixed(2)} env ${s.fusion?.environment?.score} [${flags(s).filter((f) => !/^fusion_insufficient/.test(f)).join(' ')}] "${s.top_reason}"`
+    const results = {}
+
+    console.log('   1. NO site registered yet (the case file must say so; unknown is never flagged)')
+    const s0 = await flow(REAL.home, 'short')
+    results.unregistered = s0
+    check('unregistered site: accepted, never flagged for what could not be compared', s0.status === 'accepted', line(s0))
+    check('unregistered site: the case file says "no site registered for this task"', (s0.fusion?.notes ?? []).some((n) => /No site is registered for this task/.test(n)) && s0.fusion?.site === null)
+    const put = await fetch(`${API}/sites/site_demo_1`, { method: 'PUT', headers: { ...A, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...SITE, radius_m: 60, country: 'IN', label: 'rehearsal site (isolated DB)' }) })
+    check('the rehearsal site is registered through the API with the token (country IN)', put.ok)
+
+    console.log('   2. unknown: a private address (no forwarded header) with a genuine walk')
+    const s1 = await flow(null, 'walk'); results.unknown = s1
+    check('unknown network + genuine walk: accepted, environment unknown, no network flag', s1.status === 'accepted' && s1.env_known === false && !flags(s1).some((f) => /ip_|anonymizing/.test(f)), line(s1))
+
+    console.log('   3. genuine at the site on a REAL Bengaluru broadband address (near)')
+    const s2 = await flow(REAL.home, 'walk'); results.near = s2
+    check('near-site genuine: accepted with environment >= 0.9 (env known) and no flags', s2.status === 'accepted' && s2.env_known === true && s2.fusion.environment.score >= 0.9 && flags(s2).filter((f) => !/^fusion_/.test(f)).length === 0, line(s2))
+
+    console.log('   4. foreign country (a real US address) with a genuine walk')
+    const s3 = await flow(REAL.us, 'walk'); results.us = s3
+    check('foreign country: FLAGGED, the sentence names both countries, and only the classifier decided', s3.status === 'flagged' && /US/.test(s3.top_reason) && /IN/.test(s3.top_reason) && flags(s3).includes('ip_country_mismatch') && s3.status === (s3.fraud_probability > 0.5 ? 'flagged' : 'accepted'), line(s3))
+
+    console.log('   5. foreign VPN / hosting exit (a real DigitalOcean Singapore address) with a genuine walk')
+    const s4 = await flow(REAL.vpn_sg, 'walk'); results.vpn = s4
+    check('foreign VPN exit: FLAGGED with the country sentence and the hosting flag', s4.status === 'flagged' && flags(s4).includes('anonymizing_network') && flags(s4).includes('ip_country_mismatch') && /SG/.test(s4.top_reason), line(s4))
+
+    console.log('   6. honest VPN that exits in the SAME country (a real Amazon Mumbai address)')
+    const s5 = await flow(REAL.vpn_in, 'walk'); results.vpn_in = s5
+    check('honest same-country VPN: NOT flagged by the VPN alone', s5.status === 'accepted' && flags(s5).includes('anonymizing_network') && !flags(s5).includes('ip_country_mismatch'), line(s5))
+
+    console.log('   7. carrier gateway far away in the same country (a real Navi Mumbai address, no ASN record)')
+    const s6 = await flow(REAL.gateway, 'walk'); results.gateway = s6
+    check('carrier gateway far: NOT flagged (weak sign only)', s6.status === 'accepted' && flags(s6).includes('ip_region_mismatch'), line(s6))
+
+    console.log('   8. the headline spoof: the GPS jumps onto the site while the phone never moves (private address)')
+    const s7 = await flow(null, 'teleport'); results.teleport = s7
+    check('GPS teleport with flat motion: flagged by the MOTION signal', s7.status === 'flagged' && flags(s7).includes('gps_jump_flat_motion') && s7.motion_score < 0.4, line(s7))
+
+    check('no raw IP appears in any stored report or response', !JSON.stringify(results).match(/\b(106\.51\.0\.1|8\.8\.8\.8|159\.65\.0\.1|13\.126\.0\.1|49\.44\.0\.1)\b/))
+    console.log('\n   REHEARSAL RESULTS (REAL page + REAL DB-IP lookups; SYNTHETIC classifier; addresses forwarded, not a real VPN):')
+    for (const [k, s] of Object.entries(results)) console.log(`     ${k.padEnd(12)} ${line(s)}`)
+    fs.writeFileSync(`${process.env.E2E_SHOTS ?? '/tmp'}/pub-results.json`, JSON.stringify(Object.fromEntries(Object.entries(results).map(([k, s]) => [k, { status: s.status, p: s.fraud_probability, env: s.fusion?.environment?.score, env_known: s.env_known, motion: s.motion_score, flags: flags(s), reason: s.top_reason }])), null, 1))
+  },
+  async pub_screens() {
+    // Screenshots of the capture flow and the case file at desktop and phone widths, from the SAME single-origin public build.
+    const API = process.env.E2E_API, TOKEN = process.env.E2E_TOKEN
+    const l = await (await fetch(`${API}/submissions`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()
+    check('there are rehearsal submissions to look at', l.length >= 2, String(l.length))
+    for (const [w, h] of [[1280, 860], [390, 844]]) {
+      await session('good', { width: w, height: h, fn: async (page) => {
+        if (w < 500) await page.setViewport({ width: w, height: h, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+        await page.evaluateOnNewDocument((t) => { try { sessionStorage.setItem('tl.dashboard.token', t); localStorage.setItem('fusion.consent.v1', '1') } catch {} }, TOKEN)
+        await page.goto(BASE, { waitUntil: 'networkidle0' }); await sleep(800)
+        await shot(page, `pub-capture-${w}`)
+        const ov = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
+        check(`(${w}px) the capture page has no sideways scroll`, ov <= 0, `overflow ${ov}px`)
+        await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }); await page.waitForSelector('tbody tr', { timeout: 20000 })
+        await page.addStyleTag({ content: '.topbar{position:static !important}' })
+        for (const [i, name] of [[0, 'teleport'], [4, 'us']]) {
+          await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }); await page.waitForSelector('tbody tr', { timeout: 20000 })
+          await page.evaluate((n) => document.querySelectorAll('tbody tr')[n]?.click(), i)
+          await page.waitForSelector('[data-testid=fusion-section]', { timeout: 15000 }).catch(() => {})
+          const el = await page.$('[data-testid=fusion-section]')
+          if (el) { await el.evaluate((e) => e.scrollIntoView({ block: 'start' })); await sleep(300); await el.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/pub-case-${name}-${w}.png` }) }
+          check(`(${w}px) the ${name} case file opens with its Sensor fusion section`, el !== null)
+        }
+      } })
+    }
+  },
+  async sitepanel() {
+    // E4: the dashboard's "Site location" panel against the REAL isolated backend. HOME is the demo house (the values the user gave);
+    // VENUE is a TEST value for the isolated database only (nothing here touches the user's real database or port 8000).
+    const API = process.env.E2E_API ?? 'http://127.0.0.1:8001'
+    const HOME = { lat: 12.9259481, lng: 77.6722586, radius_m: 100, country: 'IN', label: 'Home (test)' }
+    const VENUE = { latitude: 13.0827, longitude: 80.2707 }
+    const photo = async (n) => new Blob([fs.readFileSync(new URL(`../../../edge-validator/samples/good/000${n}.png`, import.meta.url))], { type: 'image/png' })
+    const post = async (worker, n) => {
+      const fd = new FormData()
+      fd.set('payload', JSON.stringify({ worker_id: worker, task_id: 'site_check', site_id: 'site_demo_1', photo_quality_pass: true, network_info: { effectiveType: '4g', downlink: 10, rtt: 50 } }))
+      fd.set('photo', await photo(n), `p${n}.png`)
+      const r = await fetch(`${API}/submissions`, { method: 'POST', body: fd })
+      return r.ok ? r.json() : { error: r.status + ' ' + (await r.text()).slice(0, 120) }
+    }
+    // A visit whose movement is VERIFIED: a server visit session plus a recorded walk (GPS fixes + walking-rhythm windows) that ends at the house.
+    const trusted = async (worker, n) => {
+      const v = await (await fetch(`${API}/visits`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ worker_id: worker, task_id: 'site_check', site_id: 'site_demo_1' }) })).json()
+      const t0 = Date.now() - 115000
+      const DEG = 111320
+      const fixes = []; const wins = []
+      for (let i = 0; i <= 21; i++) {
+        const f = i / 21
+        const e = -150 * (1 - f) + (Math.random() - 0.5) * 4
+        fixes.push({ t: t0 + i * 5000, lat: HOME.lat + (Math.random() - 0.5) * 3e-5, lng: HOME.lng + e / (DEG * Math.cos(HOME.lat * Math.PI / 180)), acc: 8, speed: null, heading: null, alt: null })
+        if (i < 21) wins.push({ t0: t0 + i * 5000, t1: t0 + (i + 1) * 5000, n: 250, hz: 50, acc_rms: 1.8, acc_peak: 4.5, gyro_rms: 40, cad_hz: 1.9, cad_pw: 0.7 })
+      }
+      const trail = { v: 1, fixes, windows: wins, sensors: { geo: 'granted', motion: 'granted' }, env: { tz_offset_min: 330 }, started_at: t0, ended_at: t0 + 105000, time_origin: null }
+      const fd = new FormData()
+      fd.set('payload', JSON.stringify({ worker_id: worker, task_id: 'site_check', site_id: 'site_demo_1', visit_id: v.visit_id, trail, photo_quality_pass: true, network_info: { effectiveType: '4g', downlink: 10, rtt: 50 } }))
+      fd.set('photo', await photo(n), `t${n}.png`)
+      const r = await fetch(`${API}/submissions`, { method: 'POST', body: fd })
+      return r.ok ? r.json() : { error: r.status + ' ' + (await r.text()).slice(0, 160) }
+    }
+    const typeInto = async (page, id, v) => { const sel = `[data-testid=${id}]`; await page.focus(sel); await page.$eval(sel, (e) => e.select()); await page.keyboard.press('Backspace'); if (v !== '') await page.type(sel, String(v)) }
+    const txt = (page, id) => page.$eval(`[data-testid=${id}]`, (e) => e.innerText.replace(/\s+/g, ' ').trim()).catch(() => null)
+    const val = (page, id) => page.$eval(`[data-testid=${id}]`, (e) => e.value)
+    const panelShot = async (page, name) => { await page.addStyleTag({ content: '.topbar{position:static !important}' }); const el = await page.$('[data-testid=site-location-panel]'); await el.evaluate((e) => e.scrollIntoView({ block: 'start' })); await sleep(300); await el.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/${name}.png` }) }
+    const logRows = (page) => page.$$eval('[data-testid=log-row]', (r) => r.map((x) => x.innerText.replace(/\s+/g, ' ')))
+
+    let before = await fetch(`${API}/sites/site_demo_1`)
+    const created = before.status === 404
+    if (!created) {
+      // In a full run earlier scenarios have registered the site and taught its network. Start from a known different state (isolated DB only).
+      await fetch(`${API}/sites/site_demo_1`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: 12.9, lng: 77.6, radius_m: 80, country: 'IN', label: 'earlier scenario' }) })
+      await fetch(`${API}/sites/site_demo_1/reset-fingerprint`, { method: 'POST' })
+    }
+    console.log(`   starting state: ${created ? 'no site registered (create path)' : 'a site already exists (edit path)'}`)
+
+    await session('good', { width: 1280, height: 900, fn: async (page) => {
+      await page.browserContext().overridePermissions(new URL(BASE).origin, ['geolocation'])
+      await page.setGeolocation({ ...VENUE, accuracy: 80 })
+      await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
+      await page.waitForSelector('[data-testid=site-location-panel]', { timeout: 20000 })
+      await page.waitForFunction(() => !/Loading/.test(document.querySelector('[data-testid=site-location-panel]').innerText), { timeout: 15000 })
+      check('the Site location panel is on the dashboard and names the site', /site_demo_1/i.test(await txt(page, 'site-location-panel')))
+
+      console.log('   1. register the house')
+      if (created) {
+        check('with no site, the panel says so and offers to create it', /No site is registered/.test((await txt(page, 'site-none')) ?? ''))
+        check('a new site has no "forget the learned network" tick (nothing learned yet)', (await page.$('[data-testid=f-reset]')) === null)
+        check('Review is disabled until the form is valid', await page.$eval('[data-testid=review]', (b) => b.disabled))
+      }
+      await typeInto(page, 'f-lat', HOME.lat); await typeInto(page, 'f-lng', HOME.lng); await typeInto(page, 'f-radius', HOME.radius_m); await typeInto(page, 'f-country', HOME.country); await typeInto(page, 'f-label', HOME.label)
+      await typeInto(page, 'f-radius', '4')
+      check('a radius of 4 m is refused in words before anything is sent', /Radius must be between 5 and 5000/.test((await txt(page, 'validation')) ?? '') && await page.$eval('[data-testid=review]', (b) => b.disabled))
+      await typeInto(page, 'f-radius', HOME.radius_m)
+      check('valid values enable Review', await page.$eval('[data-testid=review]', (b) => !b.disabled),
+        JSON.stringify({ v: await txt(page, 'validation'), lat: await val(page, 'f-lat'), lng: await val(page, 'f-lng'), r: await val(page, 'f-radius'), c: await val(page, 'f-country') }))
+      await page.click('[data-testid=review]'); await page.waitForSelector('[data-testid=confirm]')
+      const c1 = await txt(page, 'confirm')
+      check('the confirm step shows old and new values', /12\.925948/.test(c1) && /77\.672259/.test(c1) && /Home \(test\)/.test(c1), c1.slice(0, 120))
+      await panelShot(page, 'site-panel-confirm-desktop')
+      await page.click('[data-testid=confirm-save]')
+      await page.waitForFunction(() => document.querySelectorAll('[data-testid=log-row]').length >= 1 && document.querySelector('[data-testid=site-current]'), { timeout: 15000 })
+      const s1 = await (await fetch(`${API}/sites/site_demo_1`)).json()
+      check('saving stores exactly the typed values (the API says so)', s1.lat === HOME.lat && s1.lng === HOME.lng && s1.radius_m === 100 && s1.country === 'IN' && s1.label === 'Home (test)', JSON.stringify(s1))
+      check('the change log has a line for it', (await logRows(page)).length >= 1 && /Registered|moved|radius|label/.test((await logRows(page))[0]), (await logRows(page))[0])
+      await panelShot(page, 'site-panel-saved-desktop')
+
+      console.log('   2. sensor-less visits teach nothing (E5); three verified visits teach the network, and the panel shows exactly what was stored')
+      for (const [w, n] of [['ns1', 1], ['ns2', 2]]) { const r = await post(w, n); check(`sensor-less visit ${w} is accepted`, r.status === 'accepted', r.error ?? `${r.status}`) }
+      await page.reload({ waitUntil: 'networkidle0' }); await page.waitForSelector('[data-testid=learned]')
+      check('after sensor-less visits the panel says nothing is learned yet', /Nothing learned yet/.test(await txt(page, 'learned-headline')), await txt(page, 'learned-headline'))
+      for (const [w, n] of [['sp1', 1], ['sp2', 2], ['sp3', 3]]) { const r = await trusted(w, n); check(`verified visit ${w} accepted, movement verified (motion ${r.motion_score})`, r.status === 'accepted' && r.motion_score >= 0.8 && r.fusion?.motion?.sensor_used === true, r.error ?? `${r.status} p=${r.fraud_probability?.toFixed?.(2)}`) }
+      await page.reload({ waitUntil: 'networkidle0' }); await page.waitForSelector('[data-testid=learned-table]', { timeout: 15000 })
+      check('the panel says the network is learned from 3 accepted visits', (await txt(page, 'learned-headline')) === 'Learned from 3 accepted visits.', await txt(page, 'learned-headline'))
+      const lt = await txt(page, 'learned-table')
+      check('the table lists the stored speed class with its visit count and no IP address', /Network speed class 4g\|\d\|<\d+ 4g, about [\d-]+ Mbps, round trip under \d+ ms 3 /.test(lt) && !/\d+\.\d+\.\d+\.\d+/.test(lt), lt.slice(0, 160))
+      const prof = await (await fetch(`${API}/sites/site_demo_1/profile`)).json()
+      check('what the panel shows is what the API stores', prof.visits === 3 && prof.known === true && Object.values(prof.kinds).flat().every((r) => r.count === 3), JSON.stringify(prof.kinds))
+      await panelShot(page, 'site-panel-learned-desktop')
+      await page.click('[data-testid=forget-now]'); await page.waitForSelector('[data-testid=forget-confirm]')
+      check('"Forget the learned network" asks first and says how many rows go', /forgets all \d+ rows/.test(await txt(page, 'forget-confirm')), await txt(page, 'forget-confirm'))
+      await page.click('[data-testid=forget-yes]')
+      await page.waitForFunction(() => /Nothing learned yet/.test(document.querySelector('[data-testid=learned-headline]')?.innerText ?? ''), { timeout: 15000 })
+      check('forgetting empties the stored fingerprint (the API agrees)', (await (await fetch(`${API}/sites/site_demo_1/profile`)).json()).rows === 0)
+      for (const [w, n] of [['sp4', 1], ['sp5', 2], ['sp6', 3]]) await trusted(w, n) // teach it again so the move below has something to forget
+      const old = await post('sp7', 1)
+      check('a submission records the site it was scored with', old.fusion?.site?.lat === HOME.lat && old.fusion.site.radius_m === 100, JSON.stringify(old.fusion?.site))
+
+      console.log('   3. move to the venue: use my current location (poor fix, then good fix)')
+      await page.reload({ waitUntil: 'networkidle0' }); await page.waitForSelector('[data-testid=site-current]')
+      await page.setGeolocation({ ...VENUE, accuracy: 80 })
+      await page.click('[data-testid=use-location]')
+      await page.waitForFunction(() => document.querySelector('[data-testid=fix-note]'), { timeout: 20000 })
+      const note = await txt(page, 'fix-note')
+      check('a fix worse than 50 m warns with the number', /±80 m/.test(note) && /worse than 50 m/.test(note), note)
+      check('the fix fills latitude and longitude', (await val(page, 'f-lat')) === '13.082700' && (await val(page, 'f-lng')) === '80.270700')
+      const mv = await txt(page, 'move-line')
+      check('the distance sanity line says how far the site moves', /^This moves the site 2\d\d km\.$/.test(mv), mv)
+      check('"Forget the learned network" is ticked by default for a move over 1 km', await page.$eval('[data-testid=f-reset]', (c) => c.checked))
+      await page.setGeolocation({ ...VENUE, accuracy: 12 })
+      await page.click('[data-testid=use-location]'); await sleep(900)
+      check('a good fix (±12 m) is confirmed without a warning', /±12 m/.test(await txt(page, 'fix-note')) && !/worse/.test(await txt(page, 'fix-note')))
+      await typeInto(page, 'f-label', 'Hackathon venue (test)'); await typeInto(page, 'f-radius', 120)
+      await page.click('[data-testid=f-reset]'); await page.click('[data-testid=f-reset]')
+      check('the tick can be toggled by the person and then stays as chosen', await page.$eval('[data-testid=f-reset]', (c) => c.checked))
+      await page.click('[data-testid=review]'); await page.waitForSelector('[data-testid=confirm]')
+      const c2 = await txt(page, 'confirm')
+      check('the confirm step shows old to new, the distance and what happens to the learned network', /12\.925948/.test(c2) && /13\.082700/.test(c2) && /Hackathon venue/.test(c2) && /moves the site 2\d\d km/.test(c2) && /will be forgotten/.test(c2), c2.slice(0, 200))
+      await panelShot(page, 'site-panel-move-confirm-desktop')
+
+      console.log('   4. a backend refusal is shown in its own words and nothing is saved')
+      await page.evaluate(() => { const f = window.fetch; window.__f = f; window.fetch = async (u, o) => (o?.method === 'PUT' ? new Response(JSON.stringify({ detail: 'radius_m must be between 5 and 5000' }), { status: 422, headers: { 'Content-Type': 'application/json' } }) : f(u, o)) })
+      await page.click('[data-testid=confirm-save]'); await page.waitForSelector('[data-testid=save-error]', { timeout: 10000 })
+      check('the backend message is shown', (await txt(page, 'save-error')) === 'radius_m must be between 5 and 5000', await txt(page, 'save-error'))
+      check('and the stored site is unchanged', (await (await fetch(`${API}/sites/site_demo_1`)).json()).lat === HOME.lat)
+      await page.evaluate(() => { window.fetch = window.__f })
+
+      console.log('   5. confirm the move')
+      await page.click('[data-testid=review]'); await page.waitForSelector('[data-testid=confirm]')
+      await page.click('[data-testid=confirm-save]')
+      await page.waitForFunction((n) => document.querySelectorAll('[data-testid=log-row]').length >= n, { timeout: 15000 }, 2)
+      const s2 = await (await fetch(`${API}/sites/site_demo_1`)).json()
+      check('the site is now at the venue', s2.lat === 13.0827 && s2.lng === 80.2707 && s2.radius_m === 120 && s2.label === 'Hackathon venue (test)', JSON.stringify(s2))
+      const ch = await (await fetch(`${API}/sites/site_demo_1/changes`)).json()
+      check('the change log records old to new, the distance and that the learned network was forgotten (rows > 0)', ch[0].old?.lat === HOME.lat && ch[0].new.lat === 13.0827 && ch[0].moved_m > 280000 && ch[0].network_reset === true && ch[0].profile_rows_cleared > 0, JSON.stringify({ moved: ch[0].moved_m, reset: ch[0].network_reset, rows: ch[0].profile_rows_cleared }))
+      const rowsNow = await logRows(page)
+      check('the panel lists it, newest first', /moved 2\d\d km/.test(rowsNow[0]) && /forgotten/.test(rowsNow[0]), rowsNow[0])
+      await panelShot(page, 'site-panel-moved-desktop')
+
+      console.log('   6. old submissions keep the place they were scored at')
+      const oldNow = await (await fetch(`${API}/submissions/${old.id}`)).json()
+      check('the earlier submission still says it was scored at the house', oldNow.fusion.site.lat === HOME.lat && oldNow.fusion.site.radius_m === 100)
+      const fresh = await post('sp9', 3)
+      check('a new submission is scored at the venue', fresh.fusion?.site?.lat === 13.0827 && fresh.fusion.site.radius_m === 120, JSON.stringify(fresh.fusion?.site))
+    } })
+
+    console.log('   7. the same panel on a phone-sized screen')
+    await session('good', { width: 390, height: 844, fn: async (page) => {
+      await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+      await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
+      await page.waitForSelector('[data-testid=site-current]', { timeout: 20000 })
+      const m = await page.evaluate(() => {
+        const root = document.querySelector('[data-testid=site-location-panel]')
+        const boxes = [...root.querySelectorAll('input:not([type=checkbox]), button')].map((e) => ({ tag: e.tagName, h: Math.round(e.getBoundingClientRect().height), w: Math.round(e.getBoundingClientRect().width), fs: parseFloat(getComputedStyle(e).fontSize), t: (e.getAttribute('aria-label') ?? e.innerText).slice(0, 24) }))
+        return { overflow: document.documentElement.scrollWidth - innerWidth, panelW: Math.round(root.getBoundingClientRect().width), boxes }
+      })
+      check('no sideways scrolling at 390 px', m.overflow <= 0, `overflow ${m.overflow}px`)
+      check('inputs are 44 px tall and 16 px text (no zoom on focus)', m.boxes.filter((b) => b.tag === 'INPUT').every((b) => b.h >= 44 && b.fs >= 16), JSON.stringify(m.boxes.filter((b) => b.tag === 'INPUT').map((b) => [b.h, b.fs])))
+      check('buttons are at least 34 px tall', m.boxes.filter((b) => b.tag === 'BUTTON').every((b) => b.h >= 34), JSON.stringify(m.boxes.filter((b) => b.tag === 'BUTTON').map((b) => [b.t, b.h])))
+      await panelShot(page, 'site-panel-edit-phone')
+      check('with every field equal to the saved site there is nothing to review', await page.$eval('[data-testid=review]', (b) => b.disabled))
+      await typeInto(page, 'f-radius', '130')
+      check('changing only the radius is a real change and enables Review', await page.$eval('[data-testid=review]', (b) => !b.disabled))
+      await page.click('[data-testid=review]'); await page.waitForSelector('[data-testid=confirm]')
+      const o2 = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
+      check('the confirm step also fits the phone', o2 <= 0, `overflow ${o2}px`)
+      await panelShot(page, 'site-panel-confirm-phone')
+    } })
+  },
 }
-for (const [name, fn] of Object.entries(scenarios)) { if (only && only !== name && !(only === 'fusion' && name.startsWith('fusion_'))) continue; console.log(`\n=== ${name}`); await fn() }
+// `npm run e2e a,b` runs several scenarios in one database, in file order
+for (const [name, fn] of Object.entries(scenarios)) { if (!only && name.startsWith('pub_')) continue; /* the public-mode rehearsal needs its own runner: npm run e2e:public */ if (only && !only.split(',').includes(name) && !(only === 'fusion' && name.startsWith('fusion_') && name !== 'fusion_demo') && !(only === 'pub' && name.startsWith('pub_'))) continue; console.log(`\n=== ${name}`); await fn() }
 console.log(failed ? `\n${failed} CHECK(S) FAILED` : '\nALL CHECKS PASSED')
 process.exit(failed ? 1 : 0)

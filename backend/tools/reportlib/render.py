@@ -3,7 +3,8 @@ from . import stats
 
 GENUINE = ("walk_to_site", "drive_then_walk", "stationary_at_site", "indoor_poor_gps")
 SPOOF = ("spoof_teleport", "spoof_mock_android", "spoof_static_home")
-GROUP_LABELS = {"genuine": "genuine", "hard_genuine": "hard genuine (false-positive traps)", "fraud": "fraud", "fraud_hard": "hard fraud (replayed motion / wrong network only)", "ambiguous": "ambiguous (label rests on the photo assumption)"}
+GROUP_LABELS = {"genuine": "genuine", "hard_genuine": "hard genuine (false-positive traps)", "fraud": "fraud", "fraud_hard": "hard fraud (replayed motion / wrong network only)", "ambiguous": "ambiguous (label rests on the photo assumption)",
+                "foreign_network": "foreign network (labelled 'send to review' by assumption)"}
 
 
 def pct(x, d=1):
@@ -273,6 +274,22 @@ def latency_md(data):
     return "\n".join(out)
 
 
+def _environment_md(fu):
+    env = fu.get("environment")
+    if not env:
+        return []
+    out = ["### Network ('environment') rows (SYNTHETIC)", "",
+           "P(fraud) as the environment score falls, with photo 0.9 and motion 0.97 (the real classifier, including its monotone guard). "
+           f"Fine-grid scan (101 points) monotone: **{'yes' if env['monotone'] else 'NO'}**; the guard changed the result in {env['guard_bands']} of {len(env['scan'])} rows below.", "",
+           table(["environment score", "P(fraud)", "guard applied"], [[f"{r['environment']:.2f}", f"{r['p_fraud']:.3f}", "yes" if r["guard_applied"] else ""] for r in env["scan"]]), "",
+           "Per scenario, in a fresh random draw (same simulated world):", "",
+           table(["scenario", "what", "truth (by assumption)", "rows", "wrong", "error rate", "mean environment"],
+                 [[r["scenario"], r["what"], r["truth"], r["n"], r["wrong"], rate(r["error"], 0), f"{r['mean_env']:.2f}"] for r in env["scenarios"]]), "",
+           "Honest-worker false-flag rate in this draw: " + ", ".join(f"{GROUP_LABELS.get(k, k)} {rate(v, 0)}" for k, v in env["honest_false_flag"].items()) +
+           ". **Read the foreign-network rows as policy, not accuracy:** their labels are assumptions (see the leakage notes), and the simulator's IP error model is built from published figures only where they exist.", ""]
+    return out
+
+
 def fusion_md(data):
     fu = data.get("fusion") or {}
     if not fu or fu.get("skipped") and not fu.get("evaluations"):
@@ -326,7 +343,9 @@ def fusion_md(data):
     s = fu["shap_stability"]
     out += [f"### SHAP importance stability (SYNTHETIC; {s['seeds']} retrainings)", "",
             table(["bar", "mean share of |SHAP|", "min - max"], [[b, f"{s['share_mean'][i]:.3f}", f"{s['share_min'][i]:.3f} - {s['share_max'][i]:.3f}"] for i, b in enumerate(s["bars"])]), "",
-            f"Ranking identical in all {s['seeds']} runs: **{'yes' if s['same_rank_in_all_seeds'] else 'NO'}**. The `known` flags are folded into their score's bar. Stable importances only mean the simulator is learned consistently.", "",
+            f"Ranking identical in all {s['seeds']} runs: **{'yes' if s['same_rank_in_all_seeds'] else 'NO'}**. The `known` flags are folded into their score's bar. Stable importances only mean the simulator is learned consistently.", ""]
+    out += _environment_md(fu)
+    out += [
             "### Probe grid (SYNTHETIC)", "",
             table(["case", "photo / motion / environment / motion known / env known", "P(fraud)", "expected", "got", ""], [[p["name"], " / ".join(f"{v:g}" for v in p["features"].values()), f"{p['p_fraud']:.3f}", p["expected"], p["got"], "ok" if p["ok"] else "MISMATCH"] for p in fu["probes"]]), "",
             "### Leakage and validity notes", ""] + [f"- {x}" for x in fu["leakage"]] + [""]
