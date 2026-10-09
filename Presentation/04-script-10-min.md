@@ -105,4 +105,4 @@ The point is this: **light, motion and network, three physical channels, one exp
 
 ## If you have 5 minutes instead
 
-Keep: Problem (0:45), Idea (0:45), Sensor Fusion with the spoof demo (1:15), Environment with the VPN comparison (0:45), Limits + close (0:30). Drop the Edge Validator detail to one sentence and skip the testing section. Use `environment-consistency/demo-runbook.md` for the stage script.
+Keep: Problem (0:45), Idea (0:45), Sensor Fusion with the spoof demo (1:15), Environment with the VPN comparison (0:45), Limits + close (0:30). Drop the Edge Validator detail to one sentence and skip the testing section. The ready-made version is [07-script-5-min.md](07-script-5-min.md); `environment-consistency/demo-runbook.md` has the stage setup.

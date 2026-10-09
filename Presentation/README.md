@@ -4,7 +4,9 @@ Everything you need to present and defend the project. Every number was taken fr
 
 | File | What it is | When to use it |
 |---|---|---|
+| [00-problem-and-solution.md](00-problem-and-solution.md) | The problem statement, the proposed solution (computer vision + Physical AI), feasibility, value and limits on one page | Hand-out, opening slides, the "what and why" |
 | [04-script-10-min.md](04-script-10-min.md) | The 10-minute end-to-end talk: problem, idea, Edge Validator, Sensor Fusion, Environment Consistency, decision + review loop, tests and challenges, impact, limits. Includes slide/demo cues and a 12-number cue card | Rehearse this first |
+| [07-script-5-min.md](07-script-5-min.md) | The 5-minute version with two live demo beats (GPS spoof, VPN), a timing guard and the likely first question | Short slot / demo-day stage script |
 | [01-sensor-fusion-qa.md](01-sensor-fusion-qa.md) | 20 judge questions on GPS vs IMU fusion | Q&A prep |
 | [02-environment-consistency-qa.md](02-environment-consistency-qa.md) | 20 judge questions on the network/IP channel and deployment | Q&A prep |
 | [03-edge-validator-qa.md](03-edge-validator-qa.md) | 20 judge questions on on-device computer vision, face and liveness | Q&A prep |
