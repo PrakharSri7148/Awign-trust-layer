@@ -248,12 +248,26 @@ def render(results):
     return "\n".join(lines)
 
 
+OPTIONAL = ("NEEDS N3",)  # the Android fingerprint: without it the app works but shows a URL bar (cosmetic), so it never blocks
+
+
 def exit_code(results, pre_tunnel=False):
+    """0 when nothing is red. 'NEEDS N3' (optional polish) never blocks; 'NEEDS N1' (no tunnel yet) blocks unless --pre-tunnel."""
     if any(r["status"] == FAIL for r in results):
         return 1
-    if not pre_tunnel and any(r["status"] not in (PASS,) for r in results):
+    if not pre_tunnel and any(r["status"] not in (PASS, *OPTIONAL) for r in results):
         return 1
     return 0
+
+
+def verdict(results, code):
+    red = [r["check"] for r in results if r["status"] == FAIL]
+    waiting = [f"{r['check']} ({r['status']})" for r in results if r["status"] not in (PASS, FAIL)]
+    if red:
+        return "NOT READY: fix the red lines above (" + ", ".join(red) + ")."
+    if code != 0:
+        return "NOT READY YET: nothing is red, but these cannot be checked yet: " + ", ".join(waiting) + "."
+    return "READY: nothing is red." + (" Still open, not blocking: " + ", ".join(waiting) + "." if waiting else "")
 
 
 def main(argv=None):
@@ -267,7 +281,7 @@ def main(argv=None):
     print(f"Preflight {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n")
     print(render(res))
     code = exit_code(res, a.pre_tunnel)
-    print("\n" + ("READY: nothing is red." if code == 0 else "NOT READY: fix the red lines above."))
+    print("\n" + verdict(res, code))
     return code
 
 

@@ -17,3 +17,9 @@ backend/data/geoip/*.part
 
 # macOS
 .DS_Store
+
+# Generated / runtime data (large or machine-local)
+edge-validator/samples/*/
+backend/data/demo.db
+backend/data/demo-uploads/
+demo/logs/

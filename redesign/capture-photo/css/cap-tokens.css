@@ -1,0 +1,121 @@
+/* Capture · Photo step: design tokens.
+   Every token is prefixed --cap- so the file can be pasted into the React app next to the old styles without collisions.
+   Values match the reviewer dashboard redesign (../css/tokens.css). Dark is the default; the light theme (outdoor use) is a pure
+   token swap: put data-theme="light" on <html>. Colors on top of the camera feed use the fixed --cap-ov-* tokens, which do not
+   change with the theme because the camera image is always the background there. */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../../assets/fonts/Inter-latin-var.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --cap-bg: #0a0a0c;            /* app background (the inset margin around the shell) */
+  --cap-shell: #0f0f12;         /* the lifted rounded shell */
+  --cap-card: #131316;          /* cards */
+  --cap-card-2: #1a1a1f;        /* hover, raised controls, meter track */
+  --cap-control: #17171b;       /* inputs, secondary buttons */
+  --cap-scrim: rgba(0, 0, 0, 0.55);
+  --cap-border: rgba(255, 255, 255, 0.07);
+  --cap-border-2: rgba(255, 255, 255, 0.14);
+
+  /* Text */
+  --cap-text: #f2f3f5;
+  --cap-text-2: #9a9ca3;
+
+  /* Accent: the only brand color (active nav, primary buttons, selected chips, focus ring) */
+  --cap-accent: #3b6cf6;
+  --cap-accent-hover: #5580f8;
+  --cap-accent-text: #8ba8ff;
+  --cap-on-accent: #ffffff;
+
+  /* Semantic. Tinted pills, thin borders, icons and numbers only; always with a word or icon. */
+  --cap-ok: #34d399;
+  --cap-warn: #fbbf24;
+  --cap-bad: #f04b57;
+  --cap-skip: #9a9ca3;
+  --cap-tint: 11%;              /* pill fill */
+  --cap-tint-border: 38%;       /* pill border */
+
+  /* On top of the camera feed (same in both themes) */
+  --cap-ov-bg: rgba(10, 10, 12, 0.74);   /* dark translucent scrim behind overlay text */
+  --cap-ov-bg-2: rgba(10, 10, 12, 0.88);
+  --cap-ov-border: rgba(255, 255, 255, 0.16);
+  --cap-ov-text: #f2f3f5;
+  --cap-ov-text-2: #c4c6cc;
+  --cap-ov-ok: #34d399;
+  --cap-ov-warn: #fbbf24;
+  --cap-ov-bad: #ff8d95;
+  --cap-ov-accent: #a6bbff;
+
+  /* Radii */
+  --cap-radius-card: 12px;
+  --cap-radius-control: 8px;    /* pills, buttons, inputs */
+  --cap-radius-shell: 20px;
+  --cap-radius-round: 999px;
+
+  /* Spacing (4px base) */
+  --cap-space-1: 4px;
+  --cap-space-2: 8px;
+  --cap-space-3: 12px;
+  --cap-space-4: 16px;
+  --cap-space-5: 20px;
+  --cap-space-6: 24px;
+  --cap-space-8: 32px;
+
+  /* Type */
+  --cap-font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --cap-font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --cap-text-xs: 12px;          /* the minimum size anywhere */
+  --cap-text-sm: 13px;
+  --cap-text-md: 14px;
+  --cap-text-lg: 16px;
+  --cap-text-xl: 20px;
+  --cap-text-kpi: 30px;
+
+  /* Layout */
+  --cap-inset: 24px;            /* shell margin */
+  --cap-topbar-h: 64px;
+  --cap-side-w: 380px;          /* Live quality / result column on desktop */
+  --cap-tap: 44px;              /* minimum touch target */
+  --cap-shutter: 72px;
+  --cap-stage-offset: 270px;    /* page chrome above the stage, so stage + shutter fit one screen on desktop */
+
+  /* Motion */
+  --cap-dur-fast: 120ms;
+  --cap-dur-med: 220ms;
+  --cap-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --cap-bg: #eceef2;
+  --cap-shell: #ffffff;
+  --cap-card: #f4f5f8;
+  --cap-card-2: #eaecf1;
+  --cap-control: #ffffff;
+  --cap-scrim: rgba(10, 12, 20, 0.4);
+  --cap-border: rgba(10, 12, 20, 0.1);
+  --cap-border-2: rgba(10, 12, 20, 0.22);
+
+  --cap-text: #14161b;
+  --cap-text-2: #565a63;
+
+  --cap-accent: #2f5fe3;
+  --cap-accent-hover: #2450c9;
+  --cap-accent-text: #2450c9;
+
+  --cap-ok: #09694a;
+  --cap-warn: #8f5a00;
+  --cap-bad: #c4222f;
+  --cap-skip: #565a63;
+  --cap-tint: 10%;
+  --cap-tint-border: 40%;
+}

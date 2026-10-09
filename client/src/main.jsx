@@ -6,6 +6,7 @@ import { DemoProvider, ToastProvider } from './lib/contexts.jsx'
 import Capture from './pages/Capture.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import './styles/global.css'
+import './styles/capture.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

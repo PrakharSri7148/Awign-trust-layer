@@ -96,9 +96,12 @@ def test_nothing_in_the_product_can_install_a_provider():
     hits = []
     for f in list(BACKEND.glob("*.py")) + list((BACKEND / "fusion").glob("*.py")) + list((BACKEND / "tools").rglob("*.py")):
         for i, line in enumerate(f.read_text().splitlines(), 1):
-            if "set_provider(" in line and not line.lstrip().startswith(("def ", "#", '"""')) and "ipctx.py" not in f.name:
+            # ipctx.py defines it; preflight.py calls it ONLY to prove that public mode refuses it (check_fake_provider_refused)
+            if "set_provider(" in line and not line.lstrip().startswith(("def ", "#", '"""')) and f.name not in ("ipctx.py", "preflight.py"):
                 hits.append(f"{f.name}:{i}")
     assert hits == [], hits
+    pre = (BACKEND / "tools" / "preflight.py").read_text()
+    assert pre.count("set_provider(") == 3 and "def check_fake_provider_refused" in pre  # only the refusal check, nothing else, may use the hook
 
 
 # ---------------------------------------------------------------- middleware (fast, in-process)

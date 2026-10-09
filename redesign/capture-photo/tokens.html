@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · tokens and components</title>
+  <link rel="stylesheet" href="css/cap-tokens.css" />
+  <link rel="stylesheet" href="css/cap-components.css" />
+  <link rel="stylesheet" href="css/cap-page.css" />
+  <link rel="stylesheet" href="css/cap-viewer.css" />
+</head>
+<body class="cv-body cap-body">
+<div class="cap cv-page" id="root">
+  <div><h1>Tokens and components</h1>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0"><a href="index.html">Viewer</a> · <a href="coverage.html">Coverage</a> · <a href="frames.html">Gallery</a>. Everything below is rendered with the same CSS the page uses (<span class="cv-mono">css/cap-tokens.css</span>, <span class="cap-mono">cap-components.css</span>, <span class="cv-mono">cap-page.css</span>). <button class="cap-btn cap-btn--sm" id="th" type="button">Toggle light theme</button></p></div>
+
+  <section class="cv-sec"><h2>Colors (tokens)</h2><div class="cv-grid" id="sw"></div></section>
+  <section class="cv-sec"><h2>Type scale (Inter, tabular numerals)</h2><div class="cv-demo">
+    <div style="font-size:var(--cap-text-kpi);font-weight:600" class="cap-num">30 · KPI number 12.5k</div>
+    <div style="font-size:var(--cap-text-xl);font-weight:600">20 · Page title / brief heading</div>
+    <div style="font-size:var(--cap-text-lg);font-weight:600">16 · Card title</div>
+    <div style="font-size:var(--cap-text-md)">14 · Body text, buttons on desktop</div>
+    <div style="font-size:var(--cap-text-sm)">13 · Table cells, hints, secondary text</div>
+    <div style="font-size:var(--cap-text-xs);color:var(--cap-text-2)">12 · Eyebrows, pills, captions (the minimum size anywhere)</div>
+    <div class="cap-mono">12.97164, 77.59462 · mono only for ids, coordinates, raw numbers</div></div></section>
+  <section class="cv-sec"><h2>Buttons</h2><div class="cv-demo"><div class="cv-row" id="btns"></div></div></section>
+  <section class="cv-sec"><h2>Chips and toggle chips</h2><div class="cv-demo"><div class="cv-row">
+    <span class="cap-chip">worker · worker_demo_1</span><span class="cap-chip cap-chip--warn" id="c1"></span>
+    <button class="cap-chip cap-chip--toggle" aria-pressed="true" type="button">Selected</button><button class="cap-chip cap-chip--toggle" aria-pressed="false" type="button">Not selected</button><button class="cap-chip cap-chip--toggle cap-chip--demo" aria-pressed="true" type="button">DEMO ON</button></div></div></section>
+  <section class="cv-sec"><h2>Pills and status</h2><div class="cv-demo"><div class="cv-row" id="pills"></div><div class="cv-row"><span class="cap-status cap-status--pass cap-status--pulse">SYSTEM ONLINE</span><span class="cap-status cap-status--warn">CONNECTING</span><span class="cap-status cap-status--fail">BACKEND OFFLINE</span></div></div></section>
+  <section class="cv-sec"><h2>Cards, KPI tile, key/value rows</h2><div class="cv-grid">
+    <div class="cap-card"><div class="cap-card__head"><div><div class="cap-eyebrow" id="e1"></div><h3 class="cap-card__title">Card title</h3></div><button class="cap-btn cap-btn--sm" type="button">Action</button></div><div class="cap-card__body">
+      <div class="cap-kpi"><span class="cap-kpi__label">Live quality</span><div class="cap-kpi__row"><b class="cap-kpi__value">88<small>%</small></b><span class="cap-pill cap-pill--pass">Good</span></div></div></div></div>
+    <div class="cap-card"><div class="cap-card__body"><dl class="cap-kv"><div class="cap-kv__row"><dt>Latitude</dt><dd class="cap-mono">12.97164</dd></div><div class="cap-kv__row"><dt>Last fix</dt><dd class="cap-kv__val--warn">22 s ago</dd></div><div class="cap-kv__row"><dt>Activity now</dt><dd class="cap-kv__val--pass">walking</dd></div><div class="cap-kv__row"><dt>Location permission</dt><dd>allowed</dd></div></dl></div></div>
+    <div class="cap-card cap-card--ok"><div class="cap-card__head"><div class="cap-eyebrow">Result card (border emphasis)</div></div><div class="cap-card__body"><p style="margin:0;font-size:13px;color:var(--cap-text-2)">--ok / --warn / --fail only tint the 1px border. No glow.</p></div></div></div></section>
+  <section class="cv-sec"><h2>Meters: 10-segment rows and the 20-segment overall</h2><div class="cv-grid" id="meters"></div></section>
+  <section class="cv-sec"><h2>Accordion and tabs</h2><div class="cv-grid"><div id="acc"></div><div class="cap-card" style="padding:0 12px 12px"><div class="cap-tabs" role="tablist" id="tabs"></div><div id="tabp" style="padding-top:12px;font-size:13px;color:var(--cap-text-2)"></div></div></div></section>
+  <section class="cv-sec"><h2>Banner, toast, drawer</h2><div class="cv-grid">
+    <div style="display:grid;gap:10px"><div class="cap-banner cap-banner--error" role="alert" id="b1"></div><div class="cap-banner cap-banner--warn" id="b2"></div><div class="cap-banner cap-banner--info" id="b3"></div></div>
+    <div style="display:grid;gap:10px"><div class="cap-toast" style="position:static" id="t1"></div><div class="cap-toast cap-toast--error" style="position:static" id="t2"></div></div>
+    <div style="position:relative;height:260px;border:1px solid var(--cap-border);border-radius:12px;overflow:hidden"><aside class="cap-drawer" style="position:absolute;animation:none;width:78%" id="d1"></aside></div></div></section>
+  <section class="cv-sec"><h2>Class names and React mapping</h2><table class="cv-table"><thead><tr><th>React component</th><th>Root class</th><th>Parts</th></tr></thead><tbody>
+    <tr><td>Shell / Topbar</td><td class="cv-mono">cap-shell</td><td class="cv-mono">cap-topbar, cap-brand, cap-nav, cap-nav__tab, cap-chip, cap-status, cap-bottomnav, cap-footer</td></tr>
+    <tr><td>Stepper</td><td class="cv-mono">cap-stepper</td><td class="cv-mono">__item (--done/--active/--pending), __dot, __label, __bar</td></tr>
+    <tr><td>Brief (in Capture.jsx)</td><td class="cv-mono">cap-brief</td><td class="cv-mono">__title, __ctx, __tasks, __note</td></tr>
+    <tr><td>VisitPanel</td><td class="cv-mono">cap-visit</td><td class="cv-mono">__consent, __row, __live, __dot, __note, __tools, __toolrow</td></tr>
+    <tr><td>LiveCamera</td><td class="cv-mono">cap-stage</td><td class="cv-mono">--immersive, __scene, __top, __dock, __close, cap-start, cap-chips, cap-chk, cap-hint, cap-shutter (--ready/--busy), cap-facebox, cap-mesh, cap-picker</td></tr>
+    <tr><td>LivenessOverlay</td><td class="cv-mono">cap-liveness</td><td class="cv-mono">--idle/--run/--go/--ok/--warn/--bad, __row, __title, __sub, __steps, __bar, __actions, __voice</td></tr>
+    <tr><td>LiveHud</td><td class="cv-mono">cap-hud</td><td class="cv-mono">--expanded/--compact/--overlay, __head, __toggle, __note, __rows, __row (--pass/--warn/--fail/--muted), __label, __value, __reason, __raw, cap-meter</td></tr>
+    <tr><td>PhotoOverlay</td><td class="cv-mono">cap-photo</td><td class="cv-mono">__frame, cap-box (--ok/--warn/--bad), cap-scanline, cap-terminal</td></tr>
+    <tr><td>QualityChecklist</td><td class="cv-mono">cap-result</td><td class="cv-mono">--pass/--warn/--block, __title, __hint, __actions, cap-why, cap-checks, cap-check (--ok/--warn/--bad), cap-debug, cap-drawer</td></tr>
+    <tr><td>SensorFeed</td><td class="cv-mono">cap-feed</td><td class="cv-mono">__live, __heads, __panel, __wave, cap-tabs, cap-tab, cap-kv, cap-strip, cap-trail, cap-na</td></tr></tbody></table>
+    <p style="font-size:13px;color:var(--cap-text-2);margin:0">Shared primitives: cap-btn, cap-icon-btn, cap-chip, cap-pill, cap-status, cap-card, cap-kpi, cap-kv, cap-meter, cap-acc, cap-tabs, cap-banner, cap-toast, cap-drawer, cap-field/cap-input/cap-select, cap-skeleton. All variables start with <span class="cv-mono">--cap-</span>.</p></section>
+</div>
+<script src="js/cap-icons.js"></script><script src="js/cap-data.js"></script><script src="js/cap-state.js"></script><script src="js/cap-render.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, R = window.CAP_R, ic = window.ic;
+  var toks = [['--cap-bg', 'App background'], ['--cap-shell', 'Shell'], ['--cap-card', 'Card'], ['--cap-card-2', 'Hover / track'], ['--cap-control', 'Inputs'], ['--cap-border', 'Border 7%'], ['--cap-text', 'Text'], ['--cap-text-2', 'Muted text'], ['--cap-accent', 'Accent'], ['--cap-ok', 'Pass'], ['--cap-warn', 'Warning'], ['--cap-bad', 'Fail'], ['--cap-skip', 'Skipped'], ['--cap-ov-bg', 'On camera: scrim'], ['--cap-ov-ok', 'On camera: pass'], ['--cap-ov-warn', 'On camera: warn'], ['--cap-ov-bad', 'On camera: fail']];
+  $('sw').innerHTML = toks.map(function (t) { return '<div class="cv-sw"><i style="background:var(' + t[0] + ')"></i><span><b style="color:var(--cap-text)">' + t[1] + '</b><br><span class="cv-mono">' + t[0] + '</span></span></div>'; }).join('');
+  $('btns').innerHTML = ['primary', '', 'ghost', 'danger'].map(function (v) { return ['', ' cap-btn--sm'].map(function (s) { return '<button type="button" class="cap-btn' + (v ? ' cap-btn--' + v : '') + s + '">' + (v || 'secondary') + (s ? ' sm' : ' md') + '</button>'; }).join(''); }).join('') + '<button type="button" class="cap-btn" disabled>disabled</button><button type="button" class="cap-icon-btn cap-icon-btn--bordered" aria-label="Icon button">' + ic('x', 16) + '</button>';
+  $('c1').innerHTML = ic('triangle-alert', 14) + 'IP database out of date';
+  $('pills').innerHTML = [['pass', 'check', 'Pass'], ['warn', 'triangle-alert', 'Warning'], ['fail', 'circle-x', 'Fail'], ['skip', 'ban', 'Skipped'], ['info', 'info', 'Info']].map(function (p) { return '<span class="cap-pill cap-pill--' + p[0] + '">' + ic(p[1], 12) + p[2] + '</span>'; }).join('');
+  $('e1').innerHTML = ic('map-pinned', 14) + ' Eyebrow';
+  $('meters').innerHTML = [['Pass 82%', { pct: 82, status: 'pass', ticks: { warn: 45, fail: 30 } }, 10], ['Warn 38%', { pct: 38, status: 'warn', ticks: { warn: 45, fail: 30 } }, 10], ['Fail 19%', { pct: 19, status: 'fail', ticks: { warn: 45, fail: 30 } }, 10], ['Position (brightness 58%)', { pct: 58, status: 'pass', position: true, ticks: { lo: 30, hi: 82 } }, 10], ['No score yet', { pct: 0, status: 'pass' }, 10], ['Overall 88% (20 segments)', { pct: 88, status: 'pass' }, 20], ['Overall 63%', { pct: 63, status: 'warn' }, 20]].map(function (m) { return '<div class="cap-card"><div class="cap-card__body"><span class="cap-kpi__label">' + m[0] + '</span>' + R.meter(m[1], m[2], m[0], m[0] === 'No score yet') + '</div></div>'; }).join('');
+  $('acc').innerHTML = R.acc('a1', { accOpen: {} }, 'Passed checks', '(6)', '<p style="margin:0;font-size:13px;color:var(--cap-text-2)">Panel content.</p>', true);
+  $('acc').onclick = function (e) { var b = e.target.closest('.cap-acc__trigger'); if (!b) return; var a = b.parentNode, o = !a.classList.contains('is-open'); a.classList.toggle('is-open', o); b.setAttribute('aria-expanded', o); a.querySelector('.cap-acc__panel').hidden = !o; };
+  var names = ['GPS', 'Motion', 'Session'], tb = $('tabs');
+  function sel(i) { tb.querySelectorAll('button').forEach(function (b, j) { b.setAttribute('aria-selected', j === i); }); $('tabp').textContent = names[i] + ' panel'; }
+  tb.innerHTML = names.map(function (n, i) { return '<button class="cap-tab" role="tab" type="button" aria-selected="' + (i === 0) + '">' + n + '</button>'; }).join('');
+  tb.onclick = function (e) { var b = e.target.closest('button'); if (b) sel([].indexOf.call(tb.children, b)); }; sel(0);
+  $('b1').innerHTML = ic('circle-alert', 18) + '<span class="cap-banner__text">Submission failed: Server responded 503</span><button class="cap-btn cap-btn--sm cap-btn--danger" type="button">' + ic('refresh-cw', 14) + ' Retry</button>';
+  $('b2').innerHTML = ic('circle-alert', 18) + '<span class="cap-banner__text">Camera permission was denied. Use the photo picker instead.</span>';
+  $('b3').innerHTML = ic('info', 18) + '<span class="cap-banner__text">Info banner.</span>';
+  $('t1').innerHTML = ic('circle-check', 18) + '<div class="cap-toast__body"><div class="cap-toast__title">Location sent</div><div class="cap-toast__text">Toast text</div></div>';
+  $('t2').innerHTML = ic('circle-alert', 18) + '<div class="cap-toast__body"><div class="cap-toast__title">Could not save</div><div class="cap-toast__text">Errors stay until dismissed</div></div>';
+  $('d1').innerHTML = '<div class="cap-drawer__head"><div><div class="cap-eyebrow">Diagnostics</div><div class="cap-card__title">Drawer</div></div><button type="button" class="cap-icon-btn" aria-label="Close">' + ic('x', 18) + '</button></div><div class="cap-drawer__body" style="font-size:13px;color:var(--cap-text-2)">Right drawer on desktop, bottom sheet on phones.</div>';
+  $('th').onclick = function () { var h = document.documentElement; h.setAttribute('data-theme', h.getAttribute('data-theme') === 'light' ? 'dark' : 'light'); };
+})();
+</script>
+</body>
+</html>

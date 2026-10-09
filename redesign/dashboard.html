@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Reviewer console · Trust Layer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%233b6cf6%27/%3E%3Cpath d=%27M9 11h14M16 11v12%27 stroke=%27white%27 stroke-width=%272.6%27 stroke-linecap=%27round%27 fill=%27none%27/%3E%3C/svg%3E" />
+  <link rel="preload" href="assets/fonts/Inter-latin-var.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link rel="stylesheet" href="css/case-file.css" />
+  <script>try { var t = localStorage.getItem('tl.theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}</script>
+</head>
+<body class="page-dashboard">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="wordmark" href="dashboard.html" aria-label="Trust Layer, reviewer console"><span class="wordmark__bracket">[</span>trustlayer<span class="wordmark__bracket">]</span></a>
+
+      <nav class="nav-tabs" aria-label="Primary" data-nav></nav>
+
+      <div class="topbar__right">
+        <span class="status status--online topbar__status">System online</span>
+        <button class="icon-btn" id="btn-search" aria-label="Search cases" aria-haspopup="dialog" aria-expanded="false" data-tip="Search"></button>
+        <button class="icon-btn has-dot" id="btn-bell" aria-label="Notifications, 3 unread" aria-haspopup="dialog" aria-expanded="false" data-tip="Notifications"></button>
+        <span class="topbar__divider" aria-hidden="true"></span>
+        <button class="icon-btn" id="btn-user" aria-label="Account menu for Anita Rao" aria-haspopup="menu" aria-expanded="false"><span class="avatar" aria-hidden="true">AR</span></button>
+      </div>
+    </header>
+
+    <main id="main" class="dash" data-view="overview" tabindex="-1">
+      <h1 class="sr-only" id="view-title">Overview</h1>
+
+      <!-- KPI tabs + review queue + map -->
+      <section class="panel area-main" aria-label="Activity">
+        <div class="kpi-strip" role="tablist" aria-label="Metrics. The selected metric filters the review queue and the map." id="kpis"></div>
+
+        <div class="main-split">
+          <section class="queue" aria-labelledby="queue-title" id="queue-panel" role="tabpanel">
+            <div class="panel__head">
+              <div>
+                <h2 class="panel__title" id="queue-title">Review queue <span class="badge-count" id="queue-count" aria-label="cases waiting"></span></h2>
+                <p class="panel__sub" id="queue-sub">Open cases first, most severe at the top</p>
+              </div>
+              <button class="btn btn--sm" id="queue-viewall">View all</button>
+            </div>
+            <div class="lens-note" id="lens-note" hidden></div>
+            <div class="table-wrap">
+              <table class="table table--rows table--stack" id="queue-table" aria-labelledby="queue-title" aria-describedby="queue-sub">
+                <thead><tr>
+                  <th scope="col" data-sort="case"></th>
+                  <th scope="col" data-sort="worker"></th>
+                  <th scope="col" data-sort="time"></th>
+                  <th scope="col" data-sort="severity"></th>
+                  <th scope="col" data-sort="status"></th>
+                </tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="queue__foot" id="queue-foot"></div>
+          </section>
+
+          <section class="mapcard" aria-labelledby="map-title">
+            <div class="panel__head">
+              <div>
+                <h2 class="panel__title" id="map-title">Submission map</h2>
+                <p class="panel__sub">Where each photo was taken</p>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div class="segmented" role="radiogroup" aria-label="Map area" id="map-view">
+                  <button class="segmented__item" role="radio" aria-checked="true" data-view="asia">South Asia</button>
+                  <button class="segmented__item" role="radio" aria-checked="false" data-view="world">World</button>
+                </div>
+                <button class="icon-btn icon-btn--bordered" id="map-astable" aria-pressed="false" aria-label="Show map as a table" data-tip="Show as table"></button>
+              </div>
+            </div>
+            <div class="mapcard__body">
+              <div class="map" id="map"></div>
+              <div class="map-table" id="map-table" hidden></div>
+            </div>
+            <div class="legend" role="group" aria-label="Show severity on map" id="legend"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- Needs review -->
+      <section class="panel area-needs" aria-labelledby="needs-title">
+        <div class="panel__head">
+          <h2 class="panel__title" id="needs-title">Needs review</h2>
+          <button class="btn btn--sm btn--accent-outline" id="btn-refresh"></button>
+        </div>
+        <p class="needs-updated" id="needs-updated" aria-live="polite"></p>
+        <div class="needs-list" id="needs-list"></div>
+      </section>
+
+      <!-- Top flagged sources -->
+      <section class="panel area-top" aria-labelledby="top-title">
+        <div class="panel__head">
+          <h2 class="panel__title" id="top-title">Top flagged sources</h2>
+          <div class="segmented" role="radiogroup" aria-label="Rank by" id="top-by">
+            <button class="segmented__item" role="radio" aria-checked="true" data-by="worker">Workers</button>
+            <button class="segmented__item" role="radio" aria-checked="false" data-by="site">Sites</button>
+          </div>
+        </div>
+        <ol class="sources" id="sources"></ol>
+      </section>
+
+      <!-- All submissions -->
+      <section class="panel area-subs" aria-labelledby="subs-title" id="all-submissions">
+        <div class="panel__head">
+          <div>
+            <h2 class="panel__title" id="subs-title">All submissions</h2>
+            <p class="panel__sub" id="subs-count" aria-live="polite"></p>
+          </div>
+          <div class="subs-controls">
+            <div class="input-group">
+              <span id="subs-search-icon"></span>
+              <input class="input" type="search" id="subs-search" placeholder="Search ID, worker, site, task" aria-label="Search submissions" />
+            </div>
+            <select class="select" id="subs-status" aria-label="Filter by status">
+              <option value="all">All statuses</option>
+              <option value="open">Open</option>
+              <option value="resolved">Resolved</option>
+              <option value="accepted">Accepted</option>
+            </select>
+            <select class="select" id="subs-photo" aria-label="Filter by photo issue"></select>
+            <select class="select" id="subs-range" aria-label="Date range">
+              <option value="1">Last 24 hours</option>
+              <option value="7" selected>Last 7 days</option>
+              <option value="all">All time</option>
+            </select>
+          </div>
+        </div>
+        <div id="subs-banner" hidden></div>
+        <div class="table-wrap">
+          <table class="table table--rows table--stack" id="subs-table" aria-labelledby="subs-title">
+            <thead><tr>
+              <th scope="col" data-sort="id"></th>
+              <th scope="col" data-sort="task"></th>
+              <th scope="col" data-sort="time"></th>
+              <th scope="col" data-sort="worker"></th>
+              <th scope="col" data-sort="site"></th>
+              <th scope="col" data-sort="severity"></th>
+              <th scope="col" data-sort="status"></th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="pager" id="pager"></div>
+      </section>
+
+      <!-- Insights: charts + photo quality (Overview) -->
+      <section class="area-insights insights" id="insights" aria-label="Charts"></section>
+      <section class="panel area-quality" id="quality" aria-label="Photo quality"></section>
+
+      <!-- Settings (own view) -->
+      <section class="area-settings" aria-labelledby="settings-title" hidden id="settings"></section>
+    </main>
+  </div>
+
+  <nav class="bottom-bar" aria-label="Primary" data-nav data-bottom></nav>
+  <div id="case-root"></div>
+  <div id="toast-region" class="toast-region" role="region" aria-label="Notifications"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/map-data.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/data-detail.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/insights.js"></script>
+  <script src="js/site-settings.js"></script>
+  <script src="js/case-file.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

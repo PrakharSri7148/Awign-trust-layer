@@ -38,12 +38,12 @@ const shake = (page, rot, acc) => page.evaluate((rot, acc) => { clearInterval(wi
 const open = async (page, { task, query = '', clear = true, motion = null } = {}) => {
   await page.goto(BASE + query, { waitUntil: 'networkidle0' })
   if (clear) { await page.evaluate(() => { try { localStorage.clear() } catch {} }); await page.goto(BASE + query, { waitUntil: 'networkidle0' }) }
-  if (task) for (const h of await page.$$('.tasks .chip')) if ((await h.evaluate((e) => e.innerText)) === task) await h.click()
+  if (task) for (const h of await page.$$('.cap-brief__tasks .cap-chip')) if ((await h.evaluate((e) => e.innerText)) === task) await h.click()
   if (motion) await shake(page, ...motion) // after navigation, before the camera starts
-  await page.click('.live__start'); await page.waitForSelector('.hud', { timeout: 30000 })
+  await page.click('.cap-start'); await page.waitForSelector('.cap-shutter', { timeout: 30000 })
 }
 // All rows as { id: { status, text } }
-const rows = (page) => page.$$eval('.hud__row', (r) => Object.fromEntries(r.map((x) => [x.dataset.metric, { status: x.dataset.status, text: x.querySelector('.hud__value').innerText, muted: x.classList.contains('hud__row--muted') }])))
+const rows = (page) => page.$$eval('.cap-hud__row', (r) => Object.fromEntries(r.map((x) => [x.dataset.metric, { status: x.dataset.status, text: x.querySelector('.cap-hud__value').innerText, muted: x.classList.contains('cap-hud__row--muted') }])))
 const overall = (page) => page.$eval('[data-testid=hud-overall]', (e) => e.innerText)
 const num = (t) => parseFloat(String(t).replace(/[^\d.\-]/g, ''))
 // Samples a numeric row over `ms` to measure stability.
@@ -63,7 +63,7 @@ const NEUTRAL = { blink: 0.05, smile: 0.05, jaw: 0.02, yawDeg: 0 }
 const ACTION = { blink: { blink: 0.9 }, smile: { smile: 0.9 }, open_mouth: { jaw: 0.8 }, turn_left: { yawDeg: 30 }, turn_right: { yawDeg: -30 } }
 const livenessState = (page) => page.$eval('[data-liveness]', (e) => ({ tone: e.dataset.liveness, challenge: e.dataset.challenge ?? null, text: e.innerText })).catch(() => null)
 const waitLive = (page, tone, timeout = 20000) => page.waitForFunction((t) => document.querySelector('[data-liveness]')?.dataset.liveness === t, { timeout }, tone).then(() => true, () => false)
-const shutterOk = (page) => page.$eval('.live__shutter', (e) => ({ disabled: e.disabled, ok: e.dataset.liveOk }))
+const shutterOk = (page) => page.$eval('.cap-shutter', (e) => ({ disabled: e.disabled, ok: e.dataset.liveOk }))
 // Perform the CURRENT challenge like a person would: stay neutral for a moment, do the action, go back.
 async function perform(page) {
   const st = await livenessState(page); if (!st?.challenge) return null
@@ -113,26 +113,341 @@ const fusionPage = async (page, { consent = true, geo = true, start = at(0, 0) }
   await page.setGeolocation(start)
   await page.goto(BASE, { waitUntil: 'networkidle0' })
 }
-async function submitThroughTheUi(page) {
+// The Arrival step (redesign/capture-arrival) as plain data: the card, the stepper, the four tiles, the notes.
+const arrivalSnap = (page) => page.evaluate(() => {
+  const c = document.querySelector('[data-testid=arrival-card]'); if (!c) return null
+  return {
+    eyebrow: c.querySelector('.cap-eyebrow')?.innerText.trim(), title: c.querySelector('.cap-card__title')?.innerText.trim(),
+    active: document.querySelector('.cap-stepper__item--active .cap-stepper__label')?.textContent, done: document.querySelectorAll('.cap-stepper__item--done').length,
+    tiles: [...c.querySelectorAll('.cap-sensor')].map((t) => ({ title: t.querySelector('.cap-sensor__title').innerText, state: t.dataset.state, value: t.querySelector('.cap-sensor__value').innerText.trim(), pill: t.querySelector('.cap-pill').innerText.trim(), strip: !!t.querySelector('.cap-strip'), ring: !!t.querySelector('.cap-ring'), wave: !!t.querySelector('.cap-feed__wave'), bars: t.querySelectorAll('.cap-signal i.is-on').length })),
+    notes: [...c.querySelectorAll('.cap-notice li')].map((l) => l.innerText.trim()), buttons: c.querySelectorAll('button, a, [role=button]').length,
+    count: c.querySelector('.cap-progress__count')?.innerText.trim(), continuing: !!c.querySelector('.cap-progress .cap-pill'), thumb: !!c.querySelector('.cap-thumb img'),
+  }
+})
+// The AI scan step (redesign/capture-scan) as plain data: the card, the stepper, the five rows with their states, the live region, the notes.
+const scanSnap = (page) => page.evaluate(() => {
+  const c = document.querySelector('[data-testid=scan-card]'); if (!c) return null
+  const rows = [...c.querySelectorAll('.cap-steps > li')]
+  return {
+    eyebrow: c.querySelector('.cap-eyebrow')?.innerText.trim(), title: c.querySelector('.cap-card__title')?.innerText.trim(),
+    active: document.querySelector('.cap-stepper__item--active .cap-stepper__label')?.textContent, done: document.querySelectorAll('.cap-stepper__item--done').length,
+    lines: rows.slice(0, 5).map((r) => r.querySelector('.cap-step__text').innerText.trim()), states: rows.map((r) => r.dataset.state), words: rows.slice(0, 5).map((r) => r.querySelector('.cap-step__word').innerText.trim()),
+    activeIdx: rows.findIndex((r) => r.dataset.state === 'active'), controls: c.querySelectorAll('button, a, input, select, [tabindex]').length, thumb: !!c.querySelector('.cap-thumb img'),
+    live: [...c.querySelectorAll('[aria-live]')].map((e) => e.getAttribute('aria-live') + ':' + e.getAttribute('role') + ':' + (e.tagName === 'OL' ? 'list' : 'p')),
+    bar: c.querySelector('.cap-meter--busy')?.getAttribute('role'), barValue: c.querySelector('.cap-meter--busy')?.hasAttribute('aria-valuenow'), mark: c.querySelector('.cap-scanmark')?.getAttribute('aria-hidden'),
+    notes: c.querySelector('[data-testid=scan-notes]')?.innerText.trim() ?? null, busy: c.getAttribute('aria-busy'),
+  }
+})
+// Taps "I've reached the site", watches the Arrival card until "Continuing…" shows, hands the first and the last snapshot to `onArrival`, then waits for the verdict.
+async function submitThroughTheUi(page, onArrival) {
   // After "New submission" the camera reopens by itself; on a fresh page it needs the start tap.
-  await page.waitForSelector('.live__start, .hud', { timeout: 30000 })
-  if (!(await page.$('.hud'))) { await page.evaluate(() => scrollTo(0, 0)); await sleep(300); await page.click('.live__start') }
-  try { await page.waitForSelector('.hud', { timeout: 30000 }) } catch (e) { await shot(page, 'hud-timeout'); console.log('   page text:', (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)); throw e }
+  await page.waitForSelector('.cap-start, .cap-shutter', { timeout: 30000 })
+  if (!(await page.$('.cap-shutter'))) { await page.evaluate(() => scrollTo(0, 0)); await sleep(300); await page.click('.cap-start') }
+  try { await page.waitForSelector('.cap-shutter', { timeout: 30000 }) } catch (e) { await shot(page, 'hud-timeout'); console.log('   page text:', (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)); throw e }
   await sleep(2500)
   await page.evaluate(() => scrollTo(0, 0)); await sleep(300)
-  try { await page.waitForSelector('.live__shutter', { timeout: 20000 }) } catch (e) { await shot(page, 'no-shutter'); console.log('   page text:', (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 500)); throw e }
-  await page.click('.live__shutter')
-  try { await page.waitForSelector('.qc', { timeout: 30000 }) } catch (e) { await shot(page, 'submit-timeout'); console.log('   shutter state:', JSON.stringify(await page.$eval('.live__shutter', (b) => ({ disabled: b.disabled, ok: b.dataset.liveOk })).catch(() => null)), (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 400)); throw e }
-  await (await page.$('.capture-grid__side .btn--primary')).click()
-  await page.waitForSelector('.verdict', { timeout: 60000 })
+  try { await page.waitForSelector('.cap-shutter', { timeout: 20000 }) } catch (e) { await shot(page, 'no-shutter'); console.log('   page text:', (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 500)); throw e }
+  await page.click('.cap-shutter')
+  try { await page.waitForSelector('.cap-result', { timeout: 30000 }) } catch (e) { await shot(page, 'submit-timeout'); console.log('   shutter state:', JSON.stringify(await page.$eval('.cap-shutter', (b) => ({ disabled: b.disabled, ok: b.dataset.liveOk })).catch(() => null)), (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 400)); throw e }
+  await (await page.$('[data-testid=arrived-btn]')).click()
+  if (onArrival) {
+    await page.waitForSelector('[data-testid=arrival-card]', { timeout: 8000 })
+    const first = await arrivalSnap(page); let last = first
+    for (const t0 = Date.now(); Date.now() - t0 < 7000;) { const x = await arrivalSnap(page); if (!x) break; last = x; if (x.continuing) break; await sleep(80) }
+    await onArrival(first, last)
+  }
+  await page.waitForSelector('[data-testid=verdict-card]', { timeout: 60000 })
 }
 // The live Sensor feed as { id: text } (data-testid="feed-<id>").
 const feed = (page) => page.$$eval('[data-testid^=feed-]', (els) => Object.fromEntries(els.map((e) => [e.dataset.testid.slice(5), (e.innerText ?? e.textContent ?? '').trim()])))
 const fetched = (page) => page.$$eval('[data-testid^=fetched-]', (els) => Object.fromEntries(els.filter((e) => e.dataset.testid !== 'fetched-panel').map((e) => [e.dataset.testid.slice(8), { text: e.innerText.replace(/\s+/g, ' '), cls: e.className }])))
-const vsum = (page) => page.$$eval('[data-testid=fusion-verdict] li', (els) => els.map((e) => ({ text: e.innerText.replace(/\s+/g, ' '), cls: e.className })))
+const openSensors = async (page) => { await page.waitForSelector('#case-tab-sensors', { timeout: 15000 }); await page.click('#case-tab-sensors') }
+const openPhoto = async (page) => { await page.waitForSelector('#case-tab-photo', { timeout: 15000 }); await page.click('#case-tab-photo') }
+const vsum = (page) => page.$$eval('[data-testid=fusion-verdict] li', (els) => els.map((e) => ({ text: e.innerText.replace(/\s+/g, ' '), cls: e.dataset.tone })))
 const shot = (page, name, opts = {}) => page.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/${name}.png`, ...opts })
 const latest = async (API) => { const l = await (await fetch(`${API}/submissions`)).json(); return (await fetch(`${API}/submissions/${l[0].id}`)).json() }
 
+
+// ---- Arrival -> AI scan -> Verdict as ONE flow (scenario capture_steps) --------------------------------------------------------
+// One real submission is pushed through the three redesigned steps while a requestAnimationFrame recorder in the page logs what is on
+// screen every frame (which card, the stepper, the shell, the card box, horizontal overflow). Afterwards the log is judged as a whole
+// (right order, no flash of another page, same shell and theme throughout, the two flow cards line up) and each page is audited
+// (text size, contrast, touch targets, clipping, ids/labels). Nothing here changes the app; the sensors are scripted like in the fusion scenarios.
+const cardKind = (page) => page.evaluate(() => document.querySelector('[data-testid=arrival-card]') ? 'arrival' : document.querySelector('[data-testid=scan-card]') ? 'scan' : document.querySelector('[data-testid=verdict-card]') ? 'verdict' : 'other')
+
+const startFlowLog = (page) => page.evaluate(() => {
+  const log = (window.__flow = [])
+  const r1 = (n) => Math.round(n * 10) / 10
+  const frame = () => {
+    const kind = document.querySelector('[data-testid=arrival-card]') ? 'arrival' : document.querySelector('[data-testid=scan-card]') ? 'scan' : document.querySelector('[data-testid=verdict-card]') ? 'verdict' : 'other'
+    const tb = document.querySelector('.cap-topbar')?.getBoundingClientRect()
+    const card = document.querySelector('[data-testid=arrival-card],[data-testid=scan-card],[data-testid=verdict-card]')?.getBoundingClientRect()
+    const act = document.querySelector('.cap-stepper__item--active .cap-stepper__label')?.textContent ?? null
+    log.push({
+      t: performance.now(), kind, theme: document.querySelector('.cap')?.dataset.theme ?? null,
+      tb: tb ? [r1(tb.left), r1(tb.top), r1(tb.width), r1(tb.height)] : null, card: card ? [r1(card.left), r1(card.width), r1(card.height)] : null,
+      active: act, done: document.querySelectorAll('.cap-stepper__item--done').length, scrollY: Math.round(scrollY), overflow: document.documentElement.scrollWidth - innerWidth,
+      sr: document.querySelectorAll('[role=alert]').length, tiles: [...document.querySelectorAll('.cap-sensor')].map((t) => Math.round(t.getBoundingClientRect().top + scrollY)),
+    })
+    window.__flowRaf = requestAnimationFrame(frame)
+  }
+  frame()
+})
+const stopFlowLog = (page) => page.evaluate(() => { cancelAnimationFrame(window.__flowRaf); return window.__flow })
+
+// What the user sees on one page, judged against the rules the design set (12 px text, AA contrast, 44 px touch targets, nothing clipped).
+const pageAudit = (page, { touch = false } = {}) => page.evaluate((touch) => {
+  const hidden = (el) => !!el.closest('.cap-sr, .cap-skip-link, [hidden]') || el.classList.contains('cap-sr')
+  const shown = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width >= 1 && r.height >= 1 && !hidden(el) }
+  const parse = (s) => {
+    const m = String(s).match(/^(rgba?|color)\((.*)\)$/); if (!m) return null
+    const p = m[2].replace('srgb', '').trim().split(/[\s,/]+/).filter(Boolean).map(Number)
+    return m[1] === 'color' ? [p[0] * 255, p[1] * 255, p[2] * 255, p[3] ?? 1] : [p[0], p[1], p[2], p[3] ?? 1]
+  }
+  const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+  const lum = (c) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
+  const over = (f, b) => [0, 1, 2].map((i) => f[i] * f[3] + b[i] * (1 - f[3])).concat(1)
+  const bgOf = (el) => {
+    const layers = []; let approx = false
+    for (let n = el; n; n = n.parentElement) {
+      const cs = getComputedStyle(n); const c = parse(cs.backgroundColor)
+      if (cs.backgroundImage !== 'none') approx = true
+      if (c && c[3] > 0) { layers.push(c); if (c[3] >= 1) break }
+    }
+    let base = [255, 255, 255, 1]; for (let i = layers.length - 1; i >= 0; i--) base = over(layers[i], base)
+    return { base, approx }
+  }
+  const opacityOf = (el) => { let o = 1; for (let n = el; n; n = n.parentElement) o *= Number(getComputedStyle(n).opacity); return o }
+  const out = { overflow: document.documentElement.scrollWidth - innerWidth, tiny: [], contrast: [], targets: [], clipped: [], broken: [], dupIds: [], badRefs: [], minRatio: 21, texts: 0, mains: document.querySelectorAll('main').length }
+
+  const seen = new Set()
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const el = n.parentElement; if (!el || !n.nodeValue.trim() || seen.has(el) || el.closest('script,style,noscript') || !shown(el)) continue
+    seen.add(el); out.texts++
+    const cs = getComputedStyle(el); const fs = parseFloat(cs.fontSize)
+    const label = (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 40)
+    if (fs < 12) out.tiny.push({ t: label, fs })
+    if (el.closest('button:disabled, [aria-disabled=true]')) continue
+    const fg = parse(cs.color); if (!fg) continue
+    const { base, approx } = bgOf(el); const op = opacityOf(el)
+    const f = over([fg[0], fg[1], fg[2], fg[3] * op], base)
+    const hi = Math.max(lum(f), lum(base)); const lo = Math.min(lum(f), lum(base)); const ratio = (hi + 0.05) / (lo + 0.05)
+    const large = fs >= 24 || (fs >= 18.66 && Number(cs.fontWeight) >= 700)
+    if (!approx) out.minRatio = Math.min(out.minRatio, ratio)
+    if (ratio < (large ? 3 : 4.5)) out.contrast.push({ t: label, r: Number(ratio.toFixed(2)), fs, approx, cls: String(el.className).slice(0, 40), fg: cs.color, bg: `rgb(${base.slice(0, 3).map(Math.round)})`, op: Number(op.toFixed(2)), hover: el.matches(':hover') })
+  }
+  const min = touch ? 44 : 24
+  for (const el of document.querySelectorAll('button, a[href], input:not([type=hidden]), select, summary, [role=button]')) {
+    if (!shown(el) || el.disabled || el.closest('.cap-footer')) continue
+    const r = el.getBoundingClientRect(); if (r.bottom < 0 || r.top > document.documentElement.scrollHeight) continue
+    if (r.width < min - 0.5 || r.height < min - 0.5) out.targets.push({ t: (el.getAttribute('aria-label') || el.innerText || el.tagName).trim().slice(0, 30), w: Math.round(r.width), h: Math.round(r.height) })
+  }
+  for (const el of document.querySelectorAll('.cap *')) {
+    if (!shown(el)) continue
+    const cs = getComputedStyle(el); const r = el.getBoundingClientRect()
+    if (el.scrollWidth > el.clientWidth + 1 && (cs.overflowX === 'hidden' || cs.overflowX === 'clip') && el.clientWidth > 1 && cs.textOverflow !== 'ellipsis' && !el.matches('svg, svg *, .cap-meter, .cap-stage, .cap-nav')) out.clipped.push({ t: String(el.className).slice(0, 40), sw: el.scrollWidth, cw: el.clientWidth })
+    if (r.right > innerWidth + 1 && !el.closest('.cap-skip-link, svg') && cs.position !== 'fixed' && !(() => { for (let n = el.parentElement; n; n = n.parentElement) { const ox = getComputedStyle(n).overflowX; if (ox === 'auto' || ox === 'scroll') return true } return false })()) out.clipped.push({ t: 'beyond the right edge: ' + String(el.className).slice(0, 40), right: Math.round(r.right) })
+  }
+  for (const img of document.querySelectorAll('img')) if (img.complete && img.naturalWidth === 0) out.broken.push(img.src.slice(0, 40))
+  const ids = [...document.querySelectorAll('[id]')].map((e) => e.id); out.dupIds = ids.filter((id, i) => ids.indexOf(id) !== i)
+  for (const el of document.querySelectorAll('[aria-labelledby], [aria-controls]')) for (const k of ['aria-labelledby', 'aria-controls']) for (const id of (el.getAttribute(k) ?? '').split(/\s+/).filter(Boolean)) if (!document.getElementById(id)) out.badRefs.push(`${k}=${id}`)
+  return out
+}, touch)
+const auditChecks = (name, a, { touch = false } = {}) => {
+  check(`${name}: no sideways scrolling`, a.overflow <= 0, `overflow ${a.overflow}px`)
+  check(`${name}: no text under 12 px (${a.texts} text blocks)`, a.tiny.length === 0, JSON.stringify(a.tiny.slice(0, 4)))
+  check(`${name}: text contrast reaches AA (lowest measured ${a.minRatio.toFixed(2)}:1)`, a.contrast.filter((c) => !c.approx).length === 0, JSON.stringify(a.contrast.filter((c) => !c.approx).slice(0, 4)))
+  check(`${name}: ${touch ? 'touch targets are at least 44 px' : 'targets are at least 24 px'}`, a.targets.length === 0, JSON.stringify(a.targets.slice(0, 5)))
+  check(`${name}: nothing is clipped or runs past the screen edge`, a.clipped.length === 0, JSON.stringify(a.clipped.slice(0, 3)))
+  check(`${name}: no broken images, no duplicate ids, every aria reference resolves, one <main>`, a.broken.length === 0 && a.dupIds.length === 0 && a.badRefs.length === 0 && a.mains === 1, JSON.stringify([a.broken, a.dupIds, a.badRefs, a.mains]))
+}
+
+// Photo step -> the "I've reached the site" tap (the hand-off into Arrival). Returns once the button has been tapped.
+async function toTheArrivalTap(page, name, touch) {
+  await page.waitForSelector('.cap-start, .cap-shutter', { timeout: 30000 })
+  if (!(await page.$('.cap-shutter'))) { await page.evaluate(() => scrollTo(0, 0)); await sleep(300); await page.click('.cap-start') }
+  await page.waitForSelector('.cap-shutter', { timeout: 30000 }); await sleep(2500)
+  await page.evaluate(() => scrollTo(0, 0)); await sleep(300)
+  await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 30000 })
+  const hit = await page.$eval('[data-testid=arrived-btn]', (b) => { b.scrollIntoView({ block: 'center' }); const r = b.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { ok: b === e || b.contains(e), h: Math.round(r.height), top: Math.round(r.top), bottom: Math.round(r.bottom), ih: innerHeight, on: e?.className?.toString().slice(0, 40) } })
+  check(`${name}: hand-off: "I've reached the site" is on screen and not covered by anything (bottom nav, bars)`, hit.ok && hit.top >= 0 && hit.bottom <= hit.ih, JSON.stringify(hit))
+  const prim = await page.evaluate(() => {
+    const probe = document.createElement('i'); probe.style.color = 'var(--cap-on-accent)'; document.querySelector('.cap').appendChild(probe); const want = getComputedStyle(probe).color; probe.remove()
+    return [...document.querySelectorAll('button.cap-btn--primary')].filter((b) => b.offsetWidth).map((b) => ({ t: b.innerText.trim().slice(0, 28), ok: getComputedStyle(b).color === want, fs: getComputedStyle(b).fontSize, fw: getComputedStyle(b).fontWeight }))
+  })
+  check(`${name}: every primary button on the Photo result uses the on-accent text colour, not the page text colour`, prim.length > 0 && prim.every((b) => b.ok), JSON.stringify(prim))
+  await sleep(300); auditChecks(`${name} Photo result`, await pageAudit(page, { touch }), { touch })
+  await page.$eval('[data-testid=arrived-btn]', (b) => b.scrollIntoView({ block: 'center' }))
+  return hit
+}
+
+// Runs the three steps once and judges them. `o`: { name, width, height, touch, theme, reduced, ticker, geo, flagged, failFirst, expectNotes }
+async function stepsRun(o) {
+  const API = process.env.E2E_API ?? 'http://127.0.0.1:8001'
+  const N = `[${o.name}]`
+  await putSite(API)
+  await session('good', { width: o.width, height: o.height, fn: async (page) => {
+    if (o.touch) await page.setViewport({ width: o.width, height: o.height, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+    if (o.reduced) await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+    await fusionPage(page, { geo: o.geo !== false })
+    await page.browserContext().overridePermissions(new URL(BASE).origin, [...(o.geo === false ? [] : ['geolocation']), 'clipboard-read', 'clipboard-write'])
+    if (o.geo === false) await page.waitForFunction(() => /Location access was denied/.test(document.querySelector('[data-testid=visit-panel]')?.innerText ?? ''), { timeout: 15000 })
+    else await page.waitForSelector('[data-testid=visit-panel] .cap-visit__live', { timeout: 15000 })
+    if (o.theme === 'light') { await page.click('.cap-topbar .cap-icon-btn[aria-label^="Switch to the light"]'); await sleep(200) }
+    await motionKind(page, 'still')
+    if (o.geo !== false) await stay(page, [0, 0], 8)
+    // flagged variant: the server's answer is rewritten on its way back to the page (the UI's red branch end to end; those numbers are not the server's).
+    // failFirst: the first submission fails like a dropped connection ("Failed to fetch"); the second (Retry) goes through.
+    await page.evaluate((o) => {
+      const f = window.fetch; window.__posts = 0
+      window.fetch = async (u, opt) => {
+        if (!(opt?.body instanceof FormData && String(u).endsWith('/submissions'))) return f(u, opt)
+        window.__posts++
+        if (o.failFirst && window.__posts === 1) throw new TypeError('Failed to fetch')
+        const r = await f(u, opt)
+        if (!o.flagged) return r
+        const j = await r.json(); j.status = 'flagged'; j.fraud_probability = 0.87
+        return new Response(JSON.stringify(j), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+    }, { flagged: !!o.flagged, failFirst: !!o.failFirst })
+    const ticker = o.ticker === false ? null : setInterval(() => page.setGeolocation(at(0, 0)).catch(() => {}), 1000)
+    try {
+      await toTheArrivalTap(page, N, o.touch)
+      await startFlowLog(page)
+      const tTap = Date.now()
+      await (await page.$('[data-testid=arrived-btn]')).click()
+
+      // -- walk through the pages, auditing each one once it has settled
+      const audits = {}; const thumb = {}; let arrivalDoneAt = null; let scanAt = null; let sawFail = null
+      const thumbInfo = () => page.evaluate(() => { const i = document.querySelector('.cap-thumb img'); return i ? { src: i.src, ok: i.complete && i.naturalWidth > 0 } : null })
+      for (const t0 = Date.now(); Date.now() - t0 < 120000;) {
+        const kind = await cardKind(page)
+        if (kind === 'arrival' && !audits.arrival) { await sleep(800); audits.arrival = await pageAudit(page, { touch: o.touch }); thumb.arrival = await thumbInfo(); await shot(page, `steps-${o.name.replace(/\W+/g, '-')}-1-arrival`) }
+        if (kind === 'arrival' && !arrivalDoneAt && (await page.$('[data-testid=arrival-card] .cap-progress .cap-pill'))) { arrivalDoneAt = Date.now(); audits.arrivalNotes = await page.evaluate(() => [...document.querySelectorAll('[data-testid=arrival-notes] li')].map((l) => l.innerText.trim())); audits.arrival2 = await pageAudit(page, { touch: o.touch }) }
+        if (kind === 'scan' && !scanAt) {
+          scanAt = Date.now()
+          if (o.failFirst) {
+            // the failure is held on the scan card for 1.6 s: read it first, then audit that view
+            await page.waitForSelector('[data-testid=scan-card] [role=alert]', { timeout: 3000 }).catch(() => {})
+            sawFail = await page.evaluate(() => { const c = document.querySelector('[data-testid=scan-card]'); const a = c?.querySelector('[role=alert]'); return a ? { alert: a.innerText.trim(), failCls: c.classList.contains('cap-card--fail'), busy: c.getAttribute('aria-busy'), halted: [...c.querySelectorAll('.cap-steps > li')].some((l) => l.dataset.state === 'halt'), alerts: document.querySelectorAll('[role=alert]').length } : null })
+            await shot(page, `steps-${o.name.replace(/\W+/g, '-')}-2-scan-failed`); await sleep(450) // let the fade-in finish before measuring contrast
+          } else await sleep(900)
+          audits.scan = await pageAudit(page, { touch: o.touch }); thumb.scan = await thumbInfo()
+          if (!o.failFirst) { await shot(page, `steps-${o.name.replace(/\W+/g, '-')}-2-scan`); audits.scanNotes = await page.$eval('[data-testid=scan-notes]', (e) => e.innerText.trim()).catch(() => null) }
+          if (o.failFirst) break
+        }
+        if (kind === 'verdict') { await sleep(2200); break }
+        await sleep(100)
+      }
+
+      if (o.failFirst) {
+        check(`${N} failure: the scan card shows the failure once (role=alert), stops (halted row, aria-busy=false) and keeps the shell`, !!sawFail && /^Submission failed: /.test(sawFail.alert) && sawFail.failCls && sawFail.busy === 'false' && sawFail.halted && sawFail.alerts === 1, JSON.stringify(sawFail))
+        await page.waitForFunction(() => !document.querySelector('[data-testid=scan-card]') && document.querySelector('.cap-banner--error'), { timeout: 8000 })
+        const back = await page.evaluate(() => ({ text: document.querySelector('.cap-banner--error')?.innerText.trim(), role: document.querySelector('.cap-banner--error')?.getAttribute('role'), active: document.querySelector('.cap-stepper__item--active .cap-stepper__label')?.textContent, done: document.querySelectorAll('.cap-stepper__item--done').length, retry: !!document.querySelector('.cap-banner--error button'), arrival: !!document.querySelector('[data-testid=arrival-card]'), scan: !!document.querySelector('[data-testid=scan-card]') }))
+        await shot(page, `steps-${o.name}-3-back-on-photo`)
+        check(`${N} failure: after the hold the Photo step is back (Photo active, 0 done) with the same message in an alert banner and a Retry button`, back.role === 'alert' && back.text.includes(sawFail.alert.replace(/\s+/g, ' ').slice(0, 30)) && back.active === 'Photo' && back.done === 0 && back.retry && !back.arrival && !back.scan, JSON.stringify(back))
+        await page.click('.cap-banner--error button')
+        await page.waitForSelector('[data-testid=verdict-card]', { timeout: 90000 }); await sleep(2200)
+        check(`${N} failure: Retry goes through Arrival and AI scan again and ends on the verdict`, (await cardKind(page)) === 'verdict' && (await page.evaluate(() => window.__posts)) >= 2, `posts ${await page.evaluate(() => window.__posts)}`)
+      }
+      const flow = await stopFlowLog(page)
+
+      // -- the recorded frames, judged as a whole
+      const kinds = []; for (const f of flow) if (f.kind !== 'other' && kinds[kinds.length - 1] !== f.kind) kinds.push(f.kind)
+      const seq = flow.map((f) => f.kind); const first = seq.findIndex((k) => k !== 'other'); const last = seq.length - 1 - [...seq].reverse().findIndex((k) => k !== 'other')
+      const flashes = o.failFirst ? 0 : seq.slice(first, last + 1).filter((k) => k === 'other').length
+      const dwell = (k) => { const fs = flow.filter((f) => f.kind === k); return fs.length ? fs[fs.length - 1].t - fs[0].t : 0 }
+      const frames = (k) => flow.filter((f) => f.kind === k)
+      check(`${N} order: the pages appear as Arrival -> AI scan -> Verdict, each once${o.failFirst ? ' (again after Retry)' : ''}`, kinds.join('>') === (o.failFirst ? 'arrival>scan>arrival>scan>verdict' : 'arrival>scan>verdict'), kinds.join(' > '))
+      check(`${N} order: no frame shows a different page between two steps (no flash of the Photo step or an empty page)`, flashes === 0, `${flashes} frame runs`)
+      check(`${N} timing: the scan stays on screen for at least 2.5 s (the 2.6 s floor)`, o.failFirst || dwell('scan') >= 2500, `${(dwell('scan') / 1000).toFixed(1)} s`)
+      const arr = frames('arrival'); const scn = frames('scan'); const vrd = frames('verdict')
+      const st = (fs) => [...new Set(fs.map((f) => `${f.active}/${f.done}`))].join(',')
+      check(`${N} stepper: Arrival = "Arrival" active with 1 done; AI scan = "AI scan" active with 2 done; Verdict = nothing active, 4 done`, st(arr) === 'Arrival/1' && st(scn) === 'AI scan/2' && st(vrd) === 'null/4', JSON.stringify([st(arr), st(scn), st(vrd)]))
+      const tbs = new Set(flow.filter((f) => f.tb && f.kind !== 'other').map((f) => f.tb.map((n) => Math.round(n)).join(',')))
+      check(`${N} shell: the top bar does not move or change size across the three pages`, tbs.size === 1, [...tbs].join(' | '))
+      const themes = new Set(flow.map((f) => f.theme))
+      check(`${N} theme: the whole flow stays in the ${o.theme ?? 'dark'} theme`, themes.size === 1 && themes.has(o.theme ?? 'dark'), [...themes].join(','))
+      const box = (fs) => { const b = fs.filter((f) => f.card).map((f) => f.card); return b.length ? [Math.min(...b.map((x) => x[0])), Math.max(...b.map((x) => x[0])), Math.min(...b.map((x) => x[1])), Math.max(...b.map((x) => x[1]))] : null }
+      const ba = box(arr); const bs = box(scn)
+      check(`${N} continuity: Arrival and AI scan cards have the same left edge and width (they read as one card changing)`, !!ba && !!bs && Math.abs(ba[0] - bs[0]) <= 1 && Math.abs(ba[2] - bs[2]) <= 1 && ba[3] - ba[2] <= 1 && bs[3] - bs[2] <= 1, JSON.stringify([ba, bs]))
+      const hs = (fs) => { const h = fs.filter((f) => f.card).map((f) => f.card[2]); return h.length ? Math.max(...h) - Math.min(...h) : 0 }
+      check(`${N} no layout jump: the AI scan card keeps its height while the lines advance (<= 2 px)`, o.failFirst || hs(scn) <= 2, `${hs(scn).toFixed(1)} px`)
+      const tileMove = Math.max(0, ...[0, 1, 2, 3].map((i) => { const t = arr.filter((f) => f.tiles && f.tiles[i] != null).map((f) => f.tiles[i]); return t.length ? Math.max(...t) - Math.min(...t) : 0 }))
+      check(`${N} no layout jump: the four sensor tiles stay where they are while the readings resolve (a note may only be added below them)`, tileMove <= 2, `${tileMove.toFixed(1)} px; card height ${hs(arr).toFixed(1)} px${o.expectNotes ? ' (a note was added)' : ''}`)
+      if (!o.expectNotes) check(`${N} no layout jump: the Arrival card keeps its height (<= 2 px) when no note appears`, hs(arr) <= 2, `${hs(arr).toFixed(1)} px`)
+      check(`${N} sideways scrolling never appears during the transitions`, flow.every((f) => f.overflow <= 0), `max ${Math.max(...flow.map((f) => f.overflow))} px`)
+      const land = (fs) => (fs[0] ? fs[0].scrollY : 0)
+      check(`${N} each page opens at the top (scrollY on its first frame <= 40 px; Arrival ${land(arr)}, scan ${land(scn)}, verdict ${land(vrd)})`, land(arr) <= 40 && land(scn) <= 40 && land(vrd) <= 40, JSON.stringify([land(arr), land(scn), land(vrd)]))
+      check(`${N} timing: Arrival hands over within 12 s of the tap (the one-shot GPS has a 10 s timeout)`, !!arrivalDoneAt && (arrivalDoneAt - tTap) <= 12500, `${arrivalDoneAt ? ((arrivalDoneAt - tTap) / 1000).toFixed(1) : 'never'} s${o.ticker === false ? ' (no GPS nudges: the raw timing)' : ''}`)
+
+      // -- each page on its own
+      if (audits.arrival) { auditChecks(`${N} Arrival (acquiring)`, audits.arrival, { touch: o.touch }); if (audits.arrival2) auditChecks(`${N} Arrival (resolved)`, audits.arrival2, { touch: o.touch }) } else check(`${N} Arrival page was audited`, false)
+      if (audits.scan) auditChecks(`${N} AI scan`, audits.scan, { touch: o.touch }); else check(`${N} AI scan page was audited`, false)
+      check(`${N} thumbnails: the same verified photo shows, loaded, on Arrival and AI scan`, !!thumb.arrival?.ok && !!thumb.scan?.ok && thumb.arrival.src === thumb.scan.src, JSON.stringify(thumb))
+
+      // -- the verdict, against what the server stored
+      await page.waitForSelector('[data-testid=verdict-card]')
+      const a3 = await pageAudit(page, { touch: o.touch }); await shot(page, `steps-${o.name}-4-verdict`)
+      auditChecks(`${N} Verdict`, a3, { touch: o.touch })
+      const full = await latest(API)
+      const v = await page.evaluate(() => ({
+        status: document.querySelector('[data-testid=verdict-card]').dataset.status, title: document.querySelector('#vres-title')?.innerText.trim(), focusId: document.activeElement?.id,
+        id: document.querySelector('[data-testid=submission-id]')?.innerText.trim(), gauge: document.querySelector('[data-testid=fraud-gauge]')?.getAttribute('aria-valuenow'), gaugeText: document.querySelector('.cap-gauge__value')?.innerText.trim(),
+        reason: document.querySelector('[data-testid=top-reason]')?.innerText.trim(), fusion: [...document.querySelectorAll('[data-testid=fusion-verdict] li')].map((l) => l.dataset.tone),
+        shap: [...document.querySelectorAll('.cap-shap__row')].map((r) => r.querySelector('.cap-shap__name').innerText.replace(/\s+/g, ' ').trim()), tops: document.querySelectorAll('.cap-shap__tag').length,
+        noteBanner: document.querySelector('[data-testid=sensor-notes]')?.innerText.trim() ?? null, buttons: [...document.querySelectorAll('[data-testid=new-submission]')].length,
+        steps: document.querySelectorAll('.cap-stepper__item--done').length,
+      }))
+      const expectStatus = o.flagged ? 'flagged' : full.status
+      check(`${N} verdict: the status, title and id match the server (${full.status}${o.flagged ? ', rewritten to flagged for this run' : ''}, #${full.id})`, v.status === expectStatus && v.title === (expectStatus === 'flagged' ? 'FLAGGED FOR REVIEW' : 'VERIFIED') && v.id === `ID #${full.id}`, JSON.stringify([v.status, v.title, v.id]))
+      check(`${N} verdict: the gauge shows the server's fraud probability${o.flagged ? ' (87.0, as rewritten)' : ''} and the count-up has finished`, o.flagged ? v.gauge === '87' && v.gaugeText === '87.0%' : Math.abs(Number(v.gauge) - full.fraud_probability * 100) < 0.06 && v.gaugeText === `${(full.fraud_probability * 100).toFixed(1)}%`, JSON.stringify([v.gauge, v.gaugeText, full.fraud_probability]))
+      check(`${N} verdict: the reason is the server's sentence; three fusion lines; three SHAP rows with exactly one TOP DRIVER`, v.reason === full.top_reason && v.fusion.length === 3 && v.shap.length === 3 && v.tops === 1, JSON.stringify([v.reason === full.top_reason, v.fusion, v.shap, v.tops]))
+      check(`${N} verdict: the title takes focus on arrival (screen readers start there)`, v.focusId === 'vres-title', String(v.focusId))
+      check(`${N} verdict: exactly one "New submission" action`, v.buttons === 1, String(v.buttons))
+      if (o.touch) {
+        const sticky = await page.$eval('[data-testid=new-submission]', (b) => { b.scrollIntoView({ block: 'end' }); const r = b.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); const nav = document.querySelector('.cap-bottomnav')?.getBoundingClientRect(); return { ok: b === e || b.contains(e), bottom: Math.round(r.bottom), navTop: nav ? Math.round(nav.top) : null } })
+        check(`${N} verdict (phone): "New submission" sits above the bottom nav and receives the tap`, sticky.ok && (sticky.navTop == null || sticky.bottom <= sticky.navTop), JSON.stringify(sticky))
+      }
+      // "What was fetched": every row, behind Details on phones
+      if (o.touch) {
+        // keyboard focus must not end up under the sticky bar / bottom nav (WCAG 2.4.11): focus the Details button the way Tab would and see what is at its centre
+        const fo = await page.evaluate(() => { const b = document.querySelector('.cap-vfet__toggle'); window.scrollTo({ top: 0, behavior: 'instant' }); b.focus(); const r = b.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { ok: b === e || b.contains(e), top: Math.round(r.top), bottom: Math.round(r.bottom), covered: e?.className?.toString().slice(0, 40) } })
+        check(`${N} verdict (phone): keyboard focus on "Details" is not hidden behind the sticky bar or the bottom nav`, fo.ok, JSON.stringify(fo))
+        await page.$eval('.cap-vfet__toggle', (b) => b.scrollIntoView({ block: 'center' })); await sleep(150)
+        await page.click('.cap-vfet__toggle'); await sleep(250)
+      }
+      const fe = await page.evaluate(() => ({ rows: [...document.querySelectorAll('[data-testid^=fetched-]')].filter((e) => e.dataset.testid !== 'fetched-panel').map((e) => e.dataset.testid.slice(8)), hidden: document.getElementById('vfet-list')?.hidden, exp: document.querySelector('.cap-vfet__toggle')?.getAttribute('aria-expanded') }))
+      check(`${N} verdict: "What was fetched" lists all 8 received-rows and the 3 not-available rows${o.touch ? ' after Details is opened' : ''}`, fe.rows.length === 11 && fe.hidden === false && fe.exp === 'true' && ['fixes', 'windows', 'activity', 'jumps', 'site', 'ip', 'hidden', 'restarts', 'wifi', 'cell', 'mock'].every((r) => fe.rows.includes(r)), JSON.stringify(fe))
+      // the notes: the same sentence on all three pages
+      if (o.expectNotes) {
+        const n1 = (audits.arrivalNotes ?? []).join('|')
+        check(`${N} notes: Arrival, AI scan and Verdict all say "${o.expectNotes}"`, n1.includes(o.expectNotes) && (audits.scanNotes ?? '').includes(o.expectNotes) && (v.noteBanner ?? '').includes(o.expectNotes), JSON.stringify([audits.arrivalNotes, audits.scanNotes, v.noteBanner]))
+      } else check(`${N} notes: no sensor note appears on any of the three pages when every sensor worked`, (audits.arrivalNotes ?? []).length === 0 && audits.scanNotes == null && v.noteBanner == null, JSON.stringify([audits.arrivalNotes, audits.scanNotes, v.noteBanner]))
+      // copy the id
+      if (!o.touch) {
+        // headless Chrome has no focused window, so the real clipboard write is refused: the call is recorded instead (the button's own logic still runs)
+        await page.evaluate(() => { window.__copied = null; Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t) => { window.__copied = t } }, configurable: true }) })
+        await page.click('.cap-idrow__btn'); await sleep(250)
+        const cp = await page.evaluate(() => ({ cls: document.querySelector('.cap-idrow__btn').classList.contains('is-copied'), tip: document.querySelector('.cap-idrow__btn').dataset.tip, said: document.querySelector('.cap-idrow .cap-sr')?.innerText, clip: window.__copied }))
+        check(`${N} verdict: the copy button copies the id, says "Copied" (tooltip + screen-reader text) and then goes back`, cp.cls && cp.tip === 'Copied' && cp.clip === String(full.id) && /copied/i.test(cp.said), JSON.stringify(cp))
+        await sleep(1800)
+        check(`${N} verdict: the copied state clears after ~1.5 s`, await page.$eval('.cap-idrow__btn', (b) => !b.classList.contains('is-copied')))
+      }
+      if (o.reduced) {
+        const rm = await page.evaluate(() => ({ burst: [...document.querySelectorAll('.cap-burst__dot')].every((d) => getComputedStyle(d).animationName === 'none' || getComputedStyle(d).display === 'none' || getComputedStyle(d).animationDuration === '0s' || parseFloat(getComputedStyle(d).animationDuration) < 0.01), spin: [...document.querySelectorAll('.cap-spin')].length }))
+        check(`${N} reduced motion: the celebration dots do not animate`, rm.burst, JSON.stringify(rm))
+      }
+
+      // -- "New submission" goes back to the Photo step with the theme kept and the camera ready
+      await page.click('[data-testid=new-submission]')
+      await page.waitForFunction(() => !document.querySelector('[data-testid=verdict-card]') && document.querySelector('.cap-start, .cap-shutter'), { timeout: 15000 })
+      const nx = await page.evaluate(() => ({ active: document.querySelector('.cap-stepper__item--active .cap-stepper__label')?.textContent, done: document.querySelectorAll('.cap-stepper__item--done').length, theme: document.querySelector('.cap')?.dataset.theme, scrollY: Math.round(scrollY), camera: !!document.querySelector('.cap-shutter, .cap-start'), live: !!document.querySelector('[data-testid=visit-panel] .cap-visit__live') }))
+      check(`${N} new submission: back on Photo (Photo active, 0 done), same theme, scrolled to the top, camera ready`, nx.active === 'Photo' && nx.done === 0 && nx.theme === (o.theme ?? 'dark') && nx.scrollY <= 2 && nx.camera, JSON.stringify(nx))
+    } finally { if (ticker) clearInterval(ticker) }
+  } })
+}
 
 const scenarios = {
   async good() {
@@ -150,7 +465,7 @@ const scenarios = {
       check('steadiness shows the injected rotation (3 deg/s per axis = 5)', r.steady.text === '5°/s', r.steady.text)
       check('face reads "off" on a task without a face', r.face.text === 'off', r.face.text)
       check('every scored row passes', ['brightness', 'focus', 'lens', 'glare', 'steady', 'noise', 'resolution'].every((k) => r[k].status === 'pass'), JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.status]))))
-      check('compression is accounted for', (await page.$eval('.hud__note', (e) => e.innerText)).includes('Compression: checked when you capture'))
+      check('compression is accounted for', (await page.$eval('.cap-hud__note', (e) => e.innerText)).includes('Compression: checked when you capture'))
       const jb = await sample(page, 'brightness'); const jf = await sample(page, 'focus')
       check('brightness stable within +-3 points over 3 s', Math.max(...jb) - Math.min(...jb) <= 6, `swing ${(Math.max(...jb) - Math.min(...jb)).toFixed(1)}`)
       check('focus stable within +-3 points over 3 s', Math.max(...jf) - Math.min(...jf) <= 6, `swing ${(Math.max(...jf) - Math.min(...jf)).toFixed(1)}`)
@@ -160,7 +475,7 @@ const scenarios = {
     await session('dark', { fn: async (page) => {
       await open(page); await sleep(2500); const r = await rows(page)
       check(`dark (source luma ${meta.dark.meanLuma}): brightness < 16% and red`, num(r.brightness.text) < 16 && r.brightness.status === 'fail', `${r.brightness.text} ${r.brightness.status}`)
-      check('hint says too dark', /too dark/i.test(await page.$eval('.live__hint', (e) => e.innerText)))
+      check('hint says too dark', /too dark/i.test(await page.$eval('.cap-hint', (e) => e.innerText)))
     } })
     await session('dim', { fn: async (page) => {
       await open(page); await sleep(2500); const r = await rows(page)
@@ -191,7 +506,7 @@ const scenarios = {
       await open(page, { motion: [90, 5] }); await sleep(2500); const r = await rows(page)
       check('shaky: steadiness fails and shows ~156 deg/s', r.steady.status === 'fail' && Math.abs(num(r.steady.text) - 156) <= 3, `${r.steady.text} ${r.steady.status}`)
       const acc = await (async () => { await shake(page, 5, 2.2); await sleep(3000); return rows(page) })()
-      check('acceleration-driven warning explains itself', acc.steady.status !== 'pass' && /acceleration/.test(await page.$eval('[data-metric=steady] .hud__reason', (e) => e.innerText)), `${acc.steady.text} ${acc.steady.status}`)
+      check('acceleration-driven warning explains itself', acc.steady.status !== 'pass' && /acceleration/.test(await page.$eval('[data-metric=steady] .cap-hud__reason', (e) => e.innerText)), `${acc.steady.text} ${acc.steady.status}`)
     } })
   },
   async face() {
@@ -218,8 +533,8 @@ const scenarios = {
     await session('moving', { fn: async (page) => {
       await open(page); await sleep(3500); const r = await rows(page)
       check('no sensor, panning picture: steadiness fails and says so', r.steady.status === 'fail' && /^motion [2-9]\./.test(r.steady.text), `${r.steady.text} ${r.steady.status}`)
-      check('the reason names the image', /image moving/.test(await page.$eval('[data-metric=steady] .hud__reason', (e) => e.innerText)))
-      check('the hint tells the worker to hold still', /hold still/i.test(await page.$eval('.live__hint', (e) => e.innerText)))
+      check('the reason names the image', /image moving/.test(await page.$eval('[data-metric=steady] .cap-hud__reason', (e) => e.innerText)))
+      check('the hint tells the worker to hold still', /hold still/i.test(await page.$eval('.cap-hint', (e) => e.innerText)))
     } })
   },
   async mesh() {
@@ -229,12 +544,12 @@ const scenarios = {
       await page.waitForFunction(() => document.querySelector('.facemesh')?.dataset.mesh === 'on', { timeout: 25000 }).catch(() => {})
       await sleep(800)
       // 7b: on a wide screen the panel sits BESIDE the preview, so it cannot cover the face and may start expanded
-      const sep = await page.evaluate(() => { const h = document.querySelector('.hud').getBoundingClientRect(); const v = document.querySelector('.cam__stage').getBoundingClientRect(); return { apart: h.left >= v.right - 1 || h.top >= v.bottom - 1 || h.right <= v.left + 1, mode: document.querySelector('.hud').dataset.mode } })
+      const sep = await page.evaluate(() => { const h = document.querySelector('.cap-hud').getBoundingClientRect(); const v = document.querySelector('.cap-stage').getBoundingClientRect(); return { apart: h.left >= v.right - 1 || h.top >= v.bottom - 1 || h.right <= v.left + 1, mode: document.querySelector('.cap-hud').dataset.mode } })
       check(`${st}: on a wide screen the HUD sits beside the preview and cannot cover the face (and starts expanded)`, sep.apart && sep.mode === 'expanded', JSON.stringify(sep))
       check(`${st}: the mesh appears over the face`, (await page.$eval('.facemesh', (c) => c.dataset.mesh)) === 'on')
       const px = await page.$eval('.facemesh', (c) => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let blue = 0, white = 0; for (let i = 0; i < d.length; i += 4) { if (d[i + 2] > 200 && d[i] < 90 && d[i + 1] < 140 && d[i + 3] > 200) blue++; if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235 && d[i + 3] > 200) white++ } return { blue, white, w: c.width, h: c.height } })
       check(`${st}: blue dots and white lines are drawn`, px.blue > 400 && px.white > 300, JSON.stringify(px))
-      await (await page.$('.cam__stage')).screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/mesh-${st}.png` })
+      await (await page.$('.cap-stage')).screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/mesh-${st}.png` })
       // the mesh follows the face: its bounding box is around the face box, not the whole frame
       const box = await page.$eval('.facemesh', (c) => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let x0 = c.width, x1 = 0, y0 = c.height, y1 = 0; for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 60) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y) } return { w: (x1 - x0) / c.width, h: (y1 - y0) / c.height } })
       check(`${st}: the mesh covers the face, not the whole frame`, box.w > 0.08 && box.w < 0.7 && box.h > 0.15, JSON.stringify(box))
@@ -283,8 +598,8 @@ const scenarios = {
       check('liveness passes after both challenges', await waitLive(page, 'ok', 8000), JSON.stringify(await livenessState(page)))
       check('the shutter unlocks', !(await shutterOk(page)).disabled)
       check('the HUD Liveness row reads "passed"', (await rows(page)).liveness?.text === 'passed', JSON.stringify((await rows(page)).liveness))
-      await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
-      const qc = await page.$$eval('.qc__row', (r) => r.map((x) => x.innerText.replace(/\s+/g, ' ')))
+      await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 30000 })
+      const qc = await page.$$eval('.cap-check', (r) => r.map((x) => x.innerText.replace(/\s+/g, ' ')))
       check('the captured photo\'s checklist has a passing Liveness row', qc.some((t) => /Liveness.*live check passed/.test(t)), qc.join(' | '))
     } })
     // 2. no motion (a photo): the challenge times out, the shutter stays locked, three misses offer "send for review" which unlocks it, flagged
@@ -295,16 +610,16 @@ const scenarios = {
       check('static signals: the attempt fails after the time limit', await waitLive(page, 'bad', 15000), JSON.stringify(await livenessState(page)))
       check('static signals: the shutter stays locked', (await shutterOk(page)).disabled)
       for (let a = 1; a < 3; a++) {
-        await page.click('.liveness__actions .btn'); check(`retry ${a}: a new attempt starts`, await waitLive(page, 'run', 25000))
+        await page.click('.cap-liveness__actions .cap-btn'); check(`retry ${a}: a new attempt starts`, await waitLive(page, 'run', 25000))
         check(`retry ${a}: and fails again`, await waitLive(page, 'bad', 15000))
       }
-      const btn = await page.$eval('.liveness__actions', (e) => e.innerText)
+      const btn = await page.$eval('.cap-liveness__actions', (e) => e.innerText)
       check('after 3 failed attempts the worker is offered "Send for review" (not stranded)', /Send for review/.test(btn) && !/Try again/.test(btn), btn)
-      await page.click('.liveness__actions .btn'); await sleep(400)
+      await page.click('.cap-liveness__actions .cap-btn'); await sleep(400)
       check('"Send for review" unlocks the shutter', !(await shutterOk(page)).disabled)
-      await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
-      const qc = await page.$$eval('.qc__row', (r) => r.map((x) => x.innerText.replace(/\s+/g, ' ')))
-      check('the photo is accepted with a Liveness WARNING (sent for review), not blocked', qc.some((t) => /Liveness.*sent for review/.test(t)) && /accepted with warnings/i.test(await page.$eval('.qc__title', (e) => e.innerText)), qc.join(' | '))
+      await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 30000 })
+      const qc = await page.$$eval('.cap-check', (r) => r.map((x) => x.innerText.replace(/\s+/g, ' ')))
+      check('the photo is accepted with a Liveness WARNING (sent for review), not blocked', qc.some((t) => /Liveness.*sent for review/.test(t)) && /accepted with warnings/i.test(await page.$eval('[data-testid=result-title]', (e) => e.innerText)), qc.join(' | '))
     } })
     // 3. NO MOCK: the real landmarker on a still photograph of a face (what the user reported) cannot pass
     await session('face', { fn: async (page) => {
@@ -348,9 +663,9 @@ const scenarios = {
       const r = (await rows(page)).liveness
       check('phone screen: the HUD says the picture looks like a screen even though the challenge passed', r?.status === 'warn' && /screen/.test(r.text), JSON.stringify(r))
       await page.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/spoof-screen-hud.png` })
-      await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
-      const qc = await page.$$eval('.qc__row', (x) => x.map((e) => e.innerText.replace(/\s+/g, ' ')))
-      check('phone screen: the captured photo is flagged "may show a screen or a print" (warning, sent for review), not passed', qc.some((t) => /Liveness.*screen or a print/.test(t)) && /accepted with warnings/i.test(await page.$eval('.qc__title', (e) => e.innerText)), qc.filter((t) => /Liveness/.test(t)).join(' | '))
+      await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 30000 })
+      const qc = await page.$$eval('.cap-check', (x) => x.map((e) => e.innerText.replace(/\s+/g, ' ')))
+      check('phone screen: the captured photo is flagged "may show a screen or a print" (warning, sent for review), not passed', qc.some((t) => /Liveness.*screen or a print/.test(t)) && /accepted with warnings/i.test(await page.$eval('[data-testid=result-title]', (e) => e.innerText)), qc.filter((t) => /Liveness/.test(t)).join(' | '))
     })
     await run('spoofprint', 'paper print', async (page, passive) => {
       check('paper print: the paper frame is detected (evidence)', passive?.session?.bezel?.score >= 0.4, String(passive?.session?.bezel?.score))
@@ -382,9 +697,9 @@ const scenarios = {
       check('the challenge came from the server (a nonce was requested)', reqs.length >= 1 && reqs[0].startsWith(API), reqs.join(','))
       for (let i = 0; i < 2; i++) { const before = (await livenessState(page))?.challenge; await perform(page); if (i === 0) await page.waitForFunction((b) => { const e = document.querySelector('[data-liveness]'); return e?.dataset.challenge && e.dataset.challenge !== b }, { timeout: 6000 }, before).catch(() => {}) }
       check('live check passes', await waitLive(page, 'ok', 8000))
-      await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
-      const submit = await page.$('.capture-grid__side .btn--primary'); await submit.click()
-      await page.waitForSelector('.verdict', { timeout: 60000 })
+      await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 30000 })
+      const submit = await page.$('[data-testid=arrived-btn]'); await submit.click()
+      await page.waitForSelector('[data-testid=verdict-card]', { timeout: 60000 })
       const list = await (await fetch(`${API}/submissions`)).json(); const latest = list[0]
       const full = await (await fetch(`${API}/submissions/${latest.id}`)).json()
       const live = full.photo_quality.server.checks.liveness
@@ -416,9 +731,9 @@ const scenarios = {
     for (const [w, h] of [[1440, 900], [1280, 720], [1024, 768]]) await session('good', { width: w, height: h, fn: async (page) => {
       await page.goto(BASE, { waitUntil: 'networkidle0' }); await page.evaluate(() => { try { localStorage.clear() } catch {} }); await page.goto(BASE, { waitUntil: 'networkidle0' })
       const visit = await page.evaluate(() => document.querySelector('[data-testid=visit-panel]')?.getBoundingClientRect().height ?? 0)
-      check(`${w}x${h}: the visit box is a single compact row (<= 70 px)`, visit > 0 && visit <= 70, `${visit.toFixed(0)} px`)
-      await page.click('.live__start'); await page.waitForSelector('.hud', { timeout: 30000 }); await sleep(1500)
-      const m = await page.evaluate(() => ({ scrollY: Math.round(scrollY), b: document.querySelector('.live__shutter').getBoundingClientRect().bottom, ih: innerHeight, stageW: document.querySelector('.cam__stage').getBoundingClientRect().width, iw: innerWidth }))
+      check(`${w}x${h}: the visit recording card stays compact (<= 260 px; it was a one-line row before the Photo redesign)`, visit > 0 && visit <= 260, `${visit.toFixed(0)} px`)
+      await page.click('.cap-start'); await page.waitForSelector('.cap-shutter', { timeout: 30000 }); await sleep(1500)
+      const m = await page.evaluate(() => ({ scrollY: Math.round(scrollY), b: document.querySelector('.cap-shutter').getBoundingClientRect().bottom, ih: innerHeight, stageW: document.querySelector('.cap-stage').getBoundingClientRect().width, iw: innerWidth }))
       check(`${w}x${h}: the shutter is in view without the page having to scroll`, m.scrollY <= 2 && m.b <= m.ih, `scrollY ${m.scrollY}, shutter bottom ${m.b.toFixed(1)} of ${m.ih}`)
       check(`${w}x${h}: the camera is still large (>= 45% of the window width)`, m.stageW >= 0.45 * m.iw, `${m.stageW.toFixed(0)} of ${m.iw}`)
     } })
@@ -430,7 +745,7 @@ const scenarios = {
     check('setup: the site location is registered in the isolated backend', await putSite(API))
     await session('good', { fn: async (page) => {
       await fusionPage(page)
-      await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 15000 })
+      await page.waitForSelector('[data-testid=visit-panel] .cap-visit__live', { timeout: 15000 })
       check('consent was given earlier: the recording started by itself (no tap)', true)
       check('the server opened a visit for it', await page.waitForFunction(() => document.querySelector('[data-testid=visit-panel]')?.innerText.includes('Recording'), { timeout: 5000 }).then(() => true, () => false))
       await motionKind(page, 'walk')
@@ -442,7 +757,7 @@ const scenarios = {
       check('live feed: |acceleration| and |rotation| are live numbers, the sensor rate is shown', num(b.acc) > 0.3 && num(b.gyro) > 3 && num(b.rate) >= 20, `${b.acc} · ${b.gyro} · ${b.rate}`)
       check('live feed: the activity is "walking" with a step rhythm near 1.9 Hz', b.activity === 'walking' && Math.abs(num(b.rhythm) - 1.9) < 0.4, `${b.activity} ${b.rhythm}`)
       check('live feed: the visit id, the clock offset and 5 s windows are shown', /^[\w-]{8}$/.test(b.visit) && /ms$/.test(b.offset) && Number(b.windows) >= 4, `${b.visit} ${b.offset} ${b.windows}`)
-      check('live feed: the trail drawing is there, with the registered site', (await page.$('[data-testid=feed-trail] .fz-site')) !== null && (await page.$('[data-testid=feed-trail] .fz-path')) !== null)
+      check('live feed: the trail drawing is there, with the registered site', (await page.$('[data-testid=feed-trail] .cap-trail__site')) !== null && (await page.$('[data-testid=feed-trail] .cap-trail__path')) !== null)
       const na = await page.$eval('[data-testid=feed-na]', (e) => e.innerText)
       check('live feed: what cannot be fetched is listed with the reason (WiFi, cell, mock flag, background)', /WiFi/.test(na) && /Cell towers/.test(na) && /mock location/i.test(na) && /screen is off/i.test(na) && /native app/.test(na))
       await page.evaluate(() => document.querySelector('[data-testid=sensor-feed]').scrollIntoView({ block: 'start' })); await sleep(400)
@@ -454,13 +769,31 @@ const scenarios = {
       check('live feed: standing at the site the activity becomes "still"', c.activity === 'still', c.activity)
       check('the live summary shows fixes and distance', /\d+ location fixes? · \d+ m/.test(await page.$eval('[data-testid=visit-panel]', (e) => e.innerText)), await page.$eval('[data-testid=visit-panel]', (e) => e.innerText.replace(/\s+/g, ' ')))
       const n0 = (await (await fetch(`${API}/submissions`)).json()).length // earlier scenarios in a full run have already stored submissions
-      await page.click('.live__start').catch(() => {}); await page.waitForSelector('.hud', { timeout: 30000 }); await sleep(2500)
-      await page.evaluate(() => scrollTo(0, 0)); await sleep(300); await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
+      await page.click('.cap-start').catch(() => {}); await page.waitForSelector('.cap-shutter', { timeout: 30000 }); await sleep(2500)
+      await page.evaluate(() => scrollTo(0, 0)); await sleep(300); await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 30000 })
       check('worker flow: after the photo is verified the button is "I\'ve reached the site" and a hint explains what happens next', /I've reached the site/.test(await page.$eval('[data-testid=arrived-btn]', (e) => e.innerText)) && /Photo checked/.test(await page.$eval('[data-testid=arrival-hint]', (e) => e.innerText)))
       check('worker flow: the sensor fusion has NOT been sent yet (no NEW submission exists before the tap)', (await (await fetch(`${API}/submissions`)).json()).length === n0)
       await (await page.$('[data-testid=arrived-btn]')).click()
-      check('worker flow: the next step is "Arrival" (the stepper marks it active)', /arrival/i.test(await page.$eval('.stepper [aria-current=step]', (e) => e.innerText).catch(() => '')) || /verifying your arrival/i.test(await page.evaluate(() => document.body.innerText)))
-      await page.waitForSelector('.verdict', { timeout: 60000 })
+      await page.waitForSelector('[data-testid=arrival-card]', { timeout: 8000 })
+      const a0 = await arrivalSnap(page); await shot(page, 'arrival-acquiring'); let a1 = a0; const tArr = Date.now()
+      for (const t0 = Date.now(); Date.now() - t0 < 25000;) { const x = await arrivalSnap(page); if (!x) break; a1 = x; if (x.continuing) break; await sleep(80) }
+      const arrSecs = ((Date.now() - tArr) / 1000).toFixed(1)
+      await shot(page, 'arrival-continuing')
+      check('worker flow: the next step is "Arrival" (Photo done, Arrival active) with the redesigned card', a0.active === 'Arrival' && a0.done === 1 && a0.eyebrow === 'Verifying your arrival' && a0.title === 'Sending your location', JSON.stringify([a0.active, a0.done, a0.eyebrow, a0.title]))
+      check('arrival: four tiles in order GPS, Motion, Network, Approach trail; the photo thumbnail; no buttons on the card', a0.tiles.map((t) => t.title).join('|') === 'GPS|Motion|Network|Approach trail' && a0.thumb && a0.buttons === 0, JSON.stringify([a0.tiles.map((t) => t.title), a0.thumb, a0.buttons]))
+      check('arrival: the Motion tile shows the countdown ring and the waveform while acquiring', a0.tiles[1].state === 'acq' && a0.tiles[1].ring && a0.tiles[1].wave, JSON.stringify(a0.tiles[1]))
+      check('arrival: the readings resolve (GPS lat, lng with 5 decimals; Motion "N samples · mean x.xx m/s²"; trail summary with fixes) and then "Continuing…" shows', a1.continuing && /^-?\d+\.\d{5}, -?\d+\.\d{5}$/.test(a1.tiles[0].value) && /^\d+ samples · mean \d\.\d\d m\/s²$/.test(a1.tiles[1].value) && a1.tiles[3].state === 'ok' && /location fix/.test(a1.tiles[3].value) && a1.tiles.every((t) => t.pill === 'Locked' || t.pill === 'Unavailable'), `${arrSecs} s on the card; ` + JSON.stringify(a1.tiles))
+      check('arrival: the count says how many readings are done and the card moves on by itself', /^\d of 4 readings done$/.test(a1.count), a1.count)
+      await page.waitForSelector('[data-testid=scan-card]', { timeout: 8000 })
+      const s0 = await scanSnap(page); let s1 = s0; let seenIdx = s0.activeIdx
+      for (const t0 = Date.now(); Date.now() - t0 < 2400;) { const x = await scanSnap(page); if (!x) break; s1 = x; seenIdx = Math.max(seenIdx, x.activeIdx); await sleep(80) }
+      check('scan: the next step is "AI scan" (Photo and Arrival done) with the redesigned card, same words as before', s0.active === 'AI scan' && s0.done === 2 && s0.eyebrow === 'AI analysis' && s0.title === 'Neural scan in progress' && s0.busy === 'true', JSON.stringify([s0.active, s0.done, s0.eyebrow, s0.title, s0.busy]))
+      check('scan: the five lines keep their exact wording and order; the photo thumbnail shows; no buttons, links or inputs on the card', s0.lines.join('|') === ["Comparing the GPS trail with the phone's movement…", 'Checking the network against the site…', 'Re-checking the photo on the server…', 'Running gradient-boosting classifier…', 'Computing SHAP explanation…'].join('|') && s0.thumb && s0.controls === 0, JSON.stringify([s0.lines, s0.thumb, s0.controls]))
+      check('scan: it starts on line 1 (Running) with the others Waiting, and "Finishing up…" is not shown yet', s0.activeIdx === 0 && s0.words.join(',') === 'Running,Waiting,Waiting,Waiting,Waiting' && s0.states[5] === 'off', JSON.stringify([s0.words, s0.states]))
+      check('scan: the active line moves down while the scan is on screen (line 3 or later within 2.4 s)', seenIdx >= 2, `furthest active row ${seenIdx + 1}`)
+      check('scan: one polite status region for the whole list (the checklist itself is not live); the bar is an indeterminate progressbar; the mark is aria-hidden', s0.live.join(',') === 'polite:status:p' && s0.bar === 'progressbar' && s0.barValue === false && s0.mark === 'true', JSON.stringify([s0.live, s0.bar, s0.barValue, s0.mark]))
+      check('scan: no sensor note when every sensor worked', s0.notes === null, String(s0.notes))
+      await page.waitForSelector('[data-testid=verdict-card]', { timeout: 60000 })
       const payload = JSON.parse(await page.evaluate(() => window.__payload))
       check('the submission carried a visit id and a trail with fixes and windows', !!payload.visit_id && payload.trail?.fixes?.length >= 8 && payload.trail?.windows?.length >= 8, `${payload.trail?.fixes?.length} fixes, ${payload.trail?.windows?.length} windows`)
       check('the trail says what the sensors were (location granted, motion granted, gyroscope)', payload.trail.sensors.geo === 'granted' && payload.trail.sensors.motion === 'granted' && payload.trail.sensors.gyro === true, JSON.stringify(payload.trail.sensors))
@@ -481,12 +814,13 @@ const scenarios = {
       await page.evaluate(() => document.querySelector('[data-testid=fetched-panel]').scrollIntoView({ block: 'center' })); await sleep(500)
       await shot(page, 'fusion-verdict-genuine')
       await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
-      await page.waitForSelector('tbody tr', { timeout: 20000 })
-      await (await page.$$('tbody tr'))[0].click()
-      await page.waitForSelector('[data-testid=fusion-section] .fz-trail', { timeout: 15000 })
+      await page.waitForSelector('[data-testid=subs-table] tbody tr', { timeout: 20000 })
+      await (await page.$$('[data-testid=subs-table] tbody tr'))[0].click()
+      await openSensors(page)
+      await page.waitForSelector('[data-testid=fusion-section] .rd-fz-trail', { timeout: 15000 })
       await sleep(1200)
       const t = await page.$eval('[data-testid=fusion-section]', (e) => e.innerText.replace(/\s+/g, ' '))
-      check('the case file shows the Sensor fusion section: both scores, "consistent", the trail drawing and the timeline', /Motion vs GPS trail/i.test(t) && /Network vs claimed area/i.test(t) && /consistent/.test(t) && (await page.$$('.fz-strip')).length >= 2, t.slice(0, 200))
+      check('the case file shows the Sensor fusion section: both scores, "consistent", the trail drawing and the timeline', /Motion vs GPS trail/i.test(t) && /Network vs claimed area/i.test(t) && /consistent/.test(t) && (await page.$$('.rd-fz-strip')).length >= 2, t.slice(0, 200))
       await page.evaluate(() => document.querySelector('[data-testid=fusion-section]').scrollIntoView({ block: 'start' })); await sleep(300)
       await page.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/fusion-genuine.png` })
     } })
@@ -497,7 +831,7 @@ const scenarios = {
     await putSite(API)
     await session('good', { fn: async (page) => {
       await fusionPage(page, { start: at(-14000, 0) }) // the faker's GPS starts far away (so there is exactly ONE jump, onto the site)
-      await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 15000 })
+      await page.waitForSelector('[data-testid=visit-panel] .cap-visit__live', { timeout: 15000 })
       await motionKind(page, 'still')
       await stay(page, [-14000, 0], 32)
       await stay(page, [0, 0], 32)
@@ -506,20 +840,21 @@ const scenarios = {
       check('server: the GPS jump with a still phone is detected', full.quality_flags.includes('gps_jump') && full.quality_flags.includes('gps_jump_flat_motion'), full.quality_flags.join(','))
       check('server: motion consistency is low (< 0.4) even though the photo is fine', full.motion_score < 0.4 && full.photo_verdict !== 'block', `${full.motion_score} ${full.photo_verdict}`)
       check('server: flagged by the classifier and in the review queue, with a reason that states what was measured', full.status === 'flagged' && full.needs_review === true && /jumped/.test(full.top_reason) && !/location change/.test(full.top_reason), `${full.status} ${full.top_reason}`)
-      check('the verdict screen shows FLAGGED and the reason', /FLAGGED/.test(await page.$eval('.verdict', (e) => e.innerText)) && /jumped/.test(await page.$eval('.reason__text', (e) => e.innerText)))
+      check('the verdict screen shows FLAGGED and the reason', /FLAGGED/.test(await page.$eval('[data-testid=verdict-card]', (e) => e.innerText)) && /jumped/.test(await page.$eval('[data-testid=top-reason]', (e) => e.innerText)))
       const vs = await vsum(page)
       const mv = vs.find((l) => /Movement vs GPS/i.test(l.text))
       check('verdict: "Movement vs GPS" states the jump, in red', mv && /jumped/.test(mv.text) && /red/.test(mv.cls), JSON.stringify(mv))
       const fe = await fetched(page)
-      check('verdict: "What was fetched" shows the GPS jump in red', /1 jump/.test(fe.jumps?.text) && /feed--red/.test(fe.jumps?.cls), JSON.stringify(fe.jumps))
+      check('verdict: "What was fetched" shows the GPS jump in red', /1 jump/.test(fe.jumps?.text) && /cap-frow--bad/.test(fe.jumps?.cls), JSON.stringify(fe.jumps))
       await page.evaluate(() => document.querySelector('[data-testid=fusion-verdict]').scrollIntoView({ block: 'start' })); await sleep(500)
       await shot(page, 'fusion-verdict-teleport')
       await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
-      await page.waitForSelector('tbody tr', { timeout: 20000 })
-      await (await page.$$('tbody tr'))[0].click()
-      await page.waitForSelector('[data-testid=fusion-section] .fz-trail', { timeout: 15000 }); await sleep(1200)
+      await page.waitForSelector('[data-testid=subs-table] tbody tr', { timeout: 20000 })
+      await (await page.$$('[data-testid=subs-table] tbody tr'))[0].click()
+      await openSensors(page)
+      await page.waitForSelector('[data-testid=fusion-section] .rd-fz-trail', { timeout: 15000 }); await sleep(1200)
       const t = await page.$eval('[data-testid=fusion-section]', (e) => e.innerText.replace(/\s+/g, ' '))
-      check('the case file shows "inconsistent", the jump in words and a dashed jump line', /inconsistent/.test(t) && /GPS jump, phone still/.test(t) && (await page.$('.fz-jump')) !== null, t.slice(0, 220))
+      check('the case file shows "inconsistent", the jump in words and a dashed jump line', /inconsistent/.test(t) && /GPS jump, phone still/.test(t) && (await page.$('.rd-fz-jump')) !== null, t.slice(0, 220))
       await page.evaluate(() => document.querySelector('[data-testid=fusion-section]').scrollIntoView({ block: 'start' })); await sleep(300)
       await page.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/fusion-teleport.png` })
     } })
@@ -530,7 +865,7 @@ const scenarios = {
     await putSite(API)
     await session('good', { fn: async (page) => {
       await fusionPage(page, { start: at(-500, 0) })
-      await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 15000 })
+      await page.waitForSelector('[data-testid=visit-panel] .cap-visit__live', { timeout: 15000 })
       await motionKind(page, 'still')
       await stay(page, [-500, 0], 32)
       await submitThroughTheUi(page)
@@ -547,15 +882,19 @@ const scenarios = {
     const API = process.env.E2E_API ?? 'http://127.0.0.1:8001'
     await session('good', { fn: async (page) => {
       await fusionPage(page, { consent: false })
-      check('without consent the panel shows the consent text and a start button, and nothing is recording', (await page.$('[data-testid=visit-panel] .fz-live')) === null && /Start recording my visit/.test(await page.$eval('[data-testid=visit-panel]', (e) => e.innerText)) && /recorded|records/i.test(await page.$eval('[data-testid=visit-panel]', (e) => e.innerText)))
-      await submitThroughTheUi(page)
+      check('without consent the panel shows the consent text and a start button, and nothing is recording', (await page.$('[data-testid=visit-panel] .cap-visit__live')) === null && /Start recording my visit/.test(await page.$eval('[data-testid=visit-panel]', (e) => e.innerText)) && /recorded|records/i.test(await page.$eval('[data-testid=visit-panel]', (e) => e.innerText)))
+      await submitThroughTheUi(page, async (a0, a1) => {
+        const tr = a1.tiles[3]
+        check('arrival: nothing was recorded, so the Approach trail tile is Unavailable with the original wording and no strip', tr.state === 'na' && tr.pill === 'Unavailable' && tr.value === 'Not recorded (start the visit recording on the first screen to add the approach)' && !tr.strip, JSON.stringify(tr))
+      })
       const payload = JSON.parse(await page.evaluate(() => window.__payload))
       check('no trail and no visit id were sent', payload.trail === null && payload.visit_id === null, JSON.stringify([payload.trail, payload.visit_id]))
       const full = await latest(API)
       check('server: not suspicious: the info flag, a GPS-only site check (inside the site: 0.9), accepted', full.quality_flags.includes('fusion_insufficient_evidence') && full.fusion.motion.sensor_used === false && full.motion_score >= 0.85 && full.status === 'accepted', `${full.quality_flags.join(',')} ${full.motion_score} ${full.status}`)
       check('the case file says the check was GPS only and that there was not enough sensor data', await (async () => {
-        await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }); await page.waitForSelector('tbody tr', { timeout: 20000 }); await (await page.$$('tbody tr'))[0].click()
-        await page.waitForSelector('[data-testid=fusion-section] .fz-score', { timeout: 15000 }); await sleep(900)
+        await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }); await page.waitForSelector('[data-testid=subs-table] tbody tr', { timeout: 20000 }); await (await page.$$('[data-testid=subs-table] tbody tr'))[0].click()
+        await openSensors(page)
+        await page.waitForSelector('[data-testid=fusion-section] .rd-fz-score', { timeout: 15000 }); await sleep(900)
         const t = await page.$eval('[data-testid=fusion-section]', (e) => e.innerText.replace(/\s+/g, ' ')); return /GPS only \(no motion data\)/.test(t) && /Not enough sensor data/i.test(t) && !/inconsistent/.test(t)
       })())
     } })
@@ -568,7 +907,10 @@ const scenarios = {
       await page.waitForFunction(() => /Location access was denied/.test(document.querySelector('[data-testid=visit-panel]')?.innerText ?? ''), { timeout: 15000 })
       check('the worker is told location was denied, in words', true)
       await motionKind(page, 'still'); await sleep(8000)
-      await submitThroughTheUi(page)
+      await submitThroughTheUi(page, async (a0, a1) => {
+        check('arrival: GPS is Unavailable with "Location unavailable or denied" and its note appears in the quiet notice', a1.tiles[0].state === 'na' && a1.tiles[0].value === 'Location unavailable or denied' && a1.notes.includes('GPS unavailable or denied'), JSON.stringify([a1.tiles[0], a1.notes]))
+        check('arrival: the other readings are not blamed (Motion locked, no motion note)', a1.tiles[1].state === 'ok' && !a1.notes.some((n) => /motion/.test(n)), JSON.stringify([a1.tiles[1], a1.notes]))
+      })
       const payload = JSON.parse(await page.evaluate(() => window.__payload))
       check('the trail records that location was denied (not a fake position)', payload.trail?.sensors?.geo === 'denied' && payload.trail.fixes.length === 0, JSON.stringify(payload.trail?.sensors))
       const full = await latest(API)
@@ -600,12 +942,12 @@ const scenarios = {
 
       console.log('   2. genuine arrival: go 60 m away, start recording, walk to the spot, stand there, photo, submit')
       // On stage: register at the spot, walk away, then start the recording (a fresh visit) and walk back.
-      if (await page.$('[data-testid=visit-panel] .fz-live')) await page.click('[data-testid=visit-panel] .btn--sm')
+      if (await page.$('[data-testid=visit-panel] .cap-visit__live')) await page.click('[data-testid=visit-panel] .cap-visit__row .cap-btn--sm')
       await page.setGeolocation(at(-60, 0))
       await page.waitForFunction(() => /Start recording my visit/.test(document.querySelector('[data-testid=visit-panel]')?.innerText ?? ''), { timeout: 10000 })
       await sleep(1500)
       await page.$$eval('[data-testid=visit-panel] button', (bs) => bs.find((b) => /Start recording/.test(b.innerText))?.click())
-      await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 15000 })
+      await page.waitForSelector('[data-testid=visit-panel] .cap-visit__live', { timeout: 15000 })
       await page.evaluate(() => document.querySelector('[data-testid=sensor-feed]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
       await motionKind(page, 'walk')
       await walkTo(page, [-60, 0], [0, 0], 40)
@@ -621,8 +963,8 @@ const scenarios = {
       console.log('   3. fake location: the GPS sits 14 km away, then jumps onto the site; the phone stays on the table')
       await page.setGeolocation(at(-14000, 0))
       await motionKind(page, 'still')
-      await (await page.$('.btn--block')).click() // New submission (the recording restarts by itself: consent was given)
-      await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 15000 })
+      await (await page.$('[data-testid=new-submission]')).click() // New submission (the recording restarts by itself: consent was given)
+      await page.waitForSelector('[data-testid=visit-panel] .cap-visit__live', { timeout: 15000 })
       await stay(page, [-14000, 0], 30)
       await stay(page, [0, 0], 30)
       await submitThroughTheUi(page)
@@ -633,11 +975,12 @@ const scenarios = {
 
       console.log('   4. the dashboard case file of the flagged visit')
       await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
-      await page.waitForSelector('tbody tr', { timeout: 20000 })
-      await (await page.$$('tbody tr'))[0].click()
-      await page.waitForSelector('[data-testid=fusion-section] .fz-trail', { timeout: 15000 }); await sleep(1200)
+      await page.waitForSelector('[data-testid=subs-table] tbody tr', { timeout: 20000 })
+      await (await page.$$('[data-testid=subs-table] tbody tr'))[0].click()
+      await openSensors(page)
+      await page.waitForSelector('[data-testid=fusion-section] .rd-fz-trail', { timeout: 15000 }); await sleep(1200)
       await page.evaluate(() => document.querySelector('[data-testid=fusion-section]').scrollIntoView({ block: 'start', behavior: 'smooth' })); await sleep(600)
-      check('demo: the case file shows the dashed jump', (await page.$('.fz-jump')) !== null)
+      check('demo: the case file shows the dashed jump', (await page.$('.rd-fz-jump')) !== null)
       await shot(page, 'fusion-demo-casefile')
     } })
   },
@@ -645,11 +988,12 @@ const scenarios = {
     // The dashboard case file shows the live-check evidence for submissions made by `fullstack` (isolated backend).
     await session('good', { fn: async (page) => {
       await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
-      await page.waitForSelector('tbody tr', { timeout: 20000 })
-      const rowsText = await page.$$eval('tbody tr', (r) => r.map((x) => x.innerText.replace(/\s+/g, ' ')))
+      await page.waitForSelector('[data-testid=subs-table] tbody tr', { timeout: 20000 })
+      const rowsText = await page.$$eval('[data-testid=subs-table] tbody tr', (r) => r.map((x) => x.innerText.replace(/\s+/g, ' ')))
       const idx = rowsText.findIndex((t) => /liveness/i.test(t))
       check('the feed lists submissions with liveness flags', idx >= 0, `${rowsText.length} rows`)
-      const trs = await page.$$('tbody tr'); await trs[Math.max(0, idx)].click()
+      const trs = await page.$$('[data-testid=subs-table] tbody tr'); await trs[Math.max(0, idx)].click()
+      await openPhoto(page)
       await page.waitForSelector('[data-testid=liveness-section]', { timeout: 10000 })
       const t = await page.$eval('[data-testid=liveness-section]', (e) => e.innerText.replace(/\s+/g, ' '))
       check('the case file has a Live check section with the result, the challenges and the nonce state', /live check/i.test(t) && /result/i.test(t) && /nonce/i.test(t), t.slice(0, 220))
@@ -693,15 +1037,15 @@ const scenarios = {
       await page.waitForSelector('[data-testid=review-queue]', { timeout: 20000 })
       await page.waitForFunction(() => Number(document.querySelector('[data-testid=review-count]')?.innerText) >= 1, { timeout: 15000 })
       const before = Number(await page.$eval('[data-testid=review-count]', (e) => e.innerText))
-      check('the Review queue lists the blocked photo with its reason', await page.$$eval('.rq__row', (r) => r.some((x) => x.innerText.includes('worker_review_e2e') && /blocked/i.test(x.innerText))), `queue ${before}`)
-      await page.$$eval('.rq__row', (r) => { (r.find((x) => x.innerText.includes('worker_review_e2e')) ?? r[0]).click() })
+      check('the Review queue lists the blocked photo with its reason', await page.$$eval('[data-testid=queue-row]', (r) => r.some((x) => x.innerText.includes('worker_review_e2e') && /blocked/i.test(x.innerText))), `queue ${before}`)
+      await page.$$eval('[data-testid=queue-row]', (r) => { (r.find((x) => x.innerText.includes('worker_review_e2e')) ?? r[0]).click() })
       await page.waitForSelector('[data-testid=review-section]', { timeout: 10000 })
       await sleep(900) // the drawer slides in
-      await page.type('.rv__field input', 'Reviewer E2E')
-      await page.click('.rv__choices button:nth-child(2)'); await page.click('.rv button[type=submit]')
-      check('a reject without a reason is refused in plain words', /why/i.test(await page.$eval('.rv .banner', (e) => e.innerText).catch(() => '')))
-      await page.type('.rv__field textarea', 'black frame, nothing to verify')
-      await page.click('.rv button[type=submit]')
+      await page.type('[data-testid=review-name]', 'Reviewer E2E')
+      await page.click('[data-testid=review-choice-reject]'); await page.click('[data-testid=review-submit]')
+      check('a reject without a reason is refused in plain words', /why/i.test(await page.$eval('[data-testid=review-error]', (e) => e.innerText).catch(() => '')))
+      await page.type('[data-testid=review-reason]', 'black frame, nothing to verify')
+      await page.click('[data-testid=review-submit]')
       await page.waitForSelector('[data-testid=review-current]', { timeout: 10000 })
       const cur = await page.$eval('[data-testid=review-current]', (e) => e.innerText)
       check('the case file shows the decision, the reviewer and the reason', /Reject/.test(cur) && /Reviewer E2E/.test(cur) && /black frame/.test(cur), cur)
@@ -717,13 +1061,13 @@ const scenarios = {
     for (const [w, h, layout] of [[390, 844, 'overlay'], [768, 1024, 'under'], [1440, 900, 'side']]) {
       await session('good', { width: w, height: h, fn: async (page) => {
         await open(page); await sleep(2200)
-        check(`${w}px: layout is "${layout}"`, (await page.$eval('.cam', (e) => e.dataset.layout)) === layout)
+        check(`${w}px: layout is "${layout}"`, (await page.$eval('.cap-stage[data-layout]', (e) => e.dataset.layout)) === layout)
         const geo = await page.evaluate(() => {
           const r = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { t: b.top, b: b.bottom, l: b.left, r: b.right, w: b.width, h: b.height } }
-          const sh = document.querySelector('.live__shutter'); const sr = sh.getBoundingClientRect(); const hit = document.elementFromPoint(sr.left + sr.width / 2, sr.top + sr.height / 2)
-          const v = document.querySelector('.live__video')
-          return { stage: r('.cam__stage'), hud: r('.hud'), hint: r('.live__hint'), shutter: r('.live__shutter'), hitShutter: !!hit?.closest('.live__shutter'), vw: v.videoWidth, vh: v.videoHeight, iw: innerWidth, ih: innerHeight, scrollH: document.documentElement.scrollHeight,
-            topHit: !!document.elementFromPoint(10, 10)?.closest('.cam'), snapshotTop: r('.topbar') }
+          const sh = document.querySelector('.cap-shutter'); const sr = sh.getBoundingClientRect(); const hit = document.elementFromPoint(sr.left + sr.width / 2, sr.top + sr.height / 2)
+          const v = document.querySelector('.cap-stage__video')
+          return { stage: r('.cap-stage'), hud: r('.cap-hud'), hint: r('.cap-hint'), shutter: r('.cap-shutter'), hitShutter: !!hit?.closest('.cap-shutter'), vw: v.videoWidth, vh: v.videoHeight, iw: innerWidth, ih: innerHeight, scrollH: document.documentElement.scrollHeight,
+            topHit: !!document.elementFromPoint(10, 10)?.closest('.cap-stage[data-layout]'), snapshotTop: r('.cap-topbar') }
         })
         const overlap = (a, b) => a.t < b.b && b.t < a.b && a.l < b.r && b.l < a.r
         check(`${w}px: shutter is inside the viewport without scrolling`, geo.shutter.t >= 0 && geo.shutter.b <= geo.ih, `shutter ${geo.shutter.t.toFixed(0)}-${geo.shutter.b.toFixed(0)} of ${geo.ih}`)
@@ -735,15 +1079,15 @@ const scenarios = {
           check(`${w}px: immersive: the camera fills the visible viewport and covers the page header`, Math.abs(geo.stage.h - geo.ih) <= 1 && geo.topHit, `${geo.stage.h.toFixed(0)} of ${geo.ih}`)
           check(`${w}px: the page behind does not scroll while the camera is open`, await page.evaluate(() => getComputedStyle(document.documentElement).overflow === 'hidden'))
           check(`${w}px: panel stays inside the camera and <= 45% of its height`, geo.hud.t >= geo.stage.t - 1 && geo.hud.h <= 0.45 * geo.stage.h + 1, `${geo.hud.h.toFixed(0)} of ${geo.stage.h.toFixed(0)}`)
-          check(`${w}px: starts compact, with the chips`, (await page.$eval('.hud', (e) => e.dataset.mode)) === 'compact' && (await page.$('.live__chips')) !== null)
+          check(`${w}px: starts compact, with the chips`, (await page.$eval('.cap-hud', (e) => e.dataset.mode)) === 'compact' && (await page.$('.cap-chips')) !== null)
           await page.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/layout-${w}x${h}.png` })
-          await page.click('.live__close'); await sleep(400)
-          check(`${w}px: the close button leaves immersive mode and stops the camera`, (await page.$('.live__start')) !== null && (await page.$eval('.cam', (e) => e.dataset.immersive)) === '0' && (await page.evaluate(() => !document.querySelector('.live__video').srcObject?.active)))
+          await page.click('.cap-stage__close'); await sleep(400)
+          check(`${w}px: the close button leaves immersive mode and stops the camera`, (await page.$('.cap-start')) !== null && (await page.$eval('.cap-stage[data-layout]', (e) => e.dataset.immersive)) === '0' && (await page.evaluate(() => !document.querySelector('.cap-stage__video').srcObject?.active)))
         } else {
           const ar = geo.vw / geo.vh
           check(`${w}px: the stage has the camera's own aspect ratio (no black bars)`, Math.abs(geo.stage.w / geo.stage.h - ar) / ar < 0.02, `stage ${(geo.stage.w / geo.stage.h).toFixed(3)} vs camera ${ar.toFixed(3)}`)
-          check(`${w}px: expanded by default`, (await page.$eval('.hud', (e) => e.dataset.mode)) === 'expanded')
-          check(`${w}px: no chips when expanded`, (await page.$('.live__chips')) === null)
+          check(`${w}px: expanded by default`, (await page.$eval('.cap-hud', (e) => e.dataset.mode)) === 'expanded')
+          check(`${w}px: no chips when expanded`, (await page.$('.cap-chips')) === null)
           if (layout === 'side') {
             check(`${w}px: the panel sits beside the preview, not over it`, geo.hud.l >= geo.stage.r - 1, `hud ${geo.hud.l.toFixed(0)} stage right ${geo.stage.r.toFixed(0)}`)
             check(`${w}px: the stage is large (>= 60% of the viewport width)`, geo.stage.w >= 0.6 * geo.iw, `${geo.stage.w.toFixed(0)} of ${geo.iw}`)
@@ -758,56 +1102,56 @@ const scenarios = {
     // the file-picker fallback keeps a sensible size, never a tiny box
     for (const [w, h] of [[390, 844], [1440, 900]]) await session('good', { width: w, height: h, fn: async (page) => {
       await page.goto(BASE, { waitUntil: 'networkidle0' }); await page.evaluate(() => { try { localStorage.clear() } catch {} })
-      await page.click('.picker-link'); await sleep(400)
-      const vf = await page.$eval('.viewfinder', (e) => { const b = e.getBoundingClientRect(); return { w: b.width, h: b.height } })
+      await page.click('.cap-link'); await sleep(400)
+      const vf = await page.$eval('.cap-picker', (e) => { const b = e.getBoundingClientRect(); return { w: b.width, h: b.height } })
       check(`${w}px: the photo-picker viewfinder is not a tiny box (>= 55% of the width, ratio >= 4:3 on desktop)`, vf.w >= 0.55 * w && (w < 700 || vf.w / vf.h >= 1.3), `${vf.w.toFixed(0)}x${vf.h.toFixed(0)}`)
     } })
   },
   async segments() {
-    const lit = (page, id) => page.$eval(`[data-metric=${id}] .segm`, (e) => ({ n: e.querySelectorAll('.segm__cell').length, lit: +e.dataset.lit, at: e.dataset.at == null ? null : +e.dataset.at, now: +e.getAttribute('aria-valuenow'), min: e.getAttribute('aria-valuemin'), max: e.getAttribute('aria-valuemax'), role: e.getAttribute('role'), cls: e.className, text: e.getAttribute('aria-valuetext') }))
+    const lit = (page, id) => page.$eval(`[data-metric=${id}] .cap-meter`, (e) => ({ n: e.querySelectorAll('.cap-meter__cell').length, lit: +e.dataset.lit, at: e.dataset.at == null ? null : +e.dataset.at, now: +e.getAttribute('aria-valuenow'), min: e.getAttribute('aria-valuemin'), max: e.getAttribute('aria-valuemax'), role: e.getAttribute('role'), cls: e.className, text: e.getAttribute('aria-valuetext') }))
     const ats = []
     for (const [stream, expect] of [['dark', 'fail'], ['dim', 'warn'], ['good', 'pass']]) await session(stream, { fn: async (page) => {
       await open(page); await sleep(2500)
-      const ids = await page.$$eval('.hud__row', (r) => r.map((x) => x.dataset.metric))
+      const ids = await page.$$eval('.cap-hud__row', (r) => r.map((x) => x.dataset.metric))
       const all = await Promise.all(ids.map((id) => lit(page, id)))
       check(`${stream}: every metric renders exactly 10 segments as a role=meter`, all.length === 8 && all.every((m) => m.n === 10 && m.role === 'meter' && m.min === '0' && m.max === '100'), JSON.stringify(all.map((m) => m.n)))
-      check(`${stream}: the overall meter has 20 segments`, (await page.$$eval('.hud__head .segm__cell', (c) => c.length)) === 20)
+      check(`${stream}: the overall meter has 20 segments`, (await page.$$eval('.cap-hud > .cap-meter--20 .cap-meter__cell', (c) => c.length)) === 20)
       const b = await lit(page, 'brightness'); ats.push(b.at)
-      const shown = num(await page.$eval('[data-metric=brightness] .hud__value', (e) => e.innerText))
+      const shown = num(await page.$eval('[data-metric=brightness] .cap-hud__value', (e) => e.innerText))
       check(`${stream}: brightness aria-valuenow matches the number shown (+-1)`, Math.abs(b.now - shown) <= 1, `${b.now} vs ${shown}`)
       check(`${stream}: brightness shows ONE lit position segment at floor(value/10)`, b.lit === 1 && b.at === Math.min(9, Math.floor(shown / 10)), `at ${b.at}, value ${shown}`)
-      check(`${stream}: brightness meter is coloured ${expect}`, b.cls.includes(`segm--${expect}`), b.cls)
+      check(`${stream}: brightness meter is coloured ${expect}`, b.cls.includes(`cap-meter--${expect}`), b.cls)
       const f = await lit(page, 'focus')
       check(`${stream}: focus lit segments = round(aria-valuenow / 10)`, f.lit === Math.round(f.now / 10), `${f.lit} vs ${f.now}`)
       const st = await rows(page)
-      const bad = await page.$$eval('.hud__row', (r) => r.filter((x) => x.dataset.status !== 'pass').every((x) => x.querySelector('.segm').className.includes(`segm--${x.dataset.status}`)))
+      const bad = await page.$$eval('.cap-hud__row', (r) => r.filter((x) => x.dataset.status !== 'pass').every((x) => x.querySelector('.cap-meter').className.includes(`cap-meter--${x.dataset.status}`)))
       check(`${stream}: every warn/fail row's meter is amber/red, never green`, bad, JSON.stringify(Object.fromEntries(Object.entries(st).map(([k, v]) => [k, v.status]))))
     } })
     check('a dark -> dim -> good ramp moves the brightness segment monotonically to the right', ats[0] <= ats[1] && ats[1] < ats[2] && ats[0] < ats[2], ats.join(' -> '))
     await session('good', { fn: async (page) => {
       await open(page); await sleep(1500)
-      const on = await page.$eval('.segm__cell', (e) => getComputedStyle(e).transitionDuration)
+      const on = await page.$eval('.cap-hud .cap-meter__cell', (e) => getComputedStyle(e).transitionDuration)
       await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await sleep(200)
-      const off = await page.$eval('.segm__cell', (e) => getComputedStyle(e).transitionDuration)
+      const off = await page.$eval('.cap-hud .cap-meter__cell', (e) => getComputedStyle(e).transitionDuration)
       check('cells fade over ~120 ms normally and not at all (under 1 ms) with prefers-reduced-motion', /0\.12s/.test(on) && parseFloat(off) < 0.001, `${on} / ${off}`)
     } })
   },
   async toggle() {
     await session('good', { width: 1440, fn: async (page) => {
       await open(page); await sleep(1500)
-      check('wide: expanded by default', (await page.$eval('.hud', (e) => e.dataset.mode)) === 'expanded')
-      await page.click('.hud__toggle'); await sleep(300)
-      check('toggle collapses to compact', (await page.$eval('.hud', (e) => e.dataset.mode)) === 'compact')
-      await page.goto(BASE, { waitUntil: 'networkidle0' }); await page.click('.live__start'); await page.waitForSelector('.hud')
-      check('the choice survives a reload', (await page.$eval('.hud', (e) => e.dataset.mode)) === 'compact')
-      check('the shutter still works with the HUD on screen', await (async () => { await page.click('.live__shutter'); try { await page.waitForSelector('.qc', { timeout: 30000 }); return true } catch { return false } })())
-      check('the result checklist shows values like the HUD ("Focus NN%", "Brightness NN%")', await page.$$eval('.qc__val', (v) => v.some((x) => /^Focus \d+%$/.test(x.innerText)) && v.some((x) => /^Brightness \d+%$/.test(x.innerText))))
+      check('wide: expanded by default', (await page.$eval('.cap-hud', (e) => e.dataset.mode)) === 'expanded')
+      await page.click('.cap-hud__toggle'); await sleep(300)
+      check('toggle collapses to compact', (await page.$eval('.cap-hud', (e) => e.dataset.mode)) === 'compact')
+      await page.goto(BASE, { waitUntil: 'networkidle0' }); await page.click('.cap-start'); await page.waitForSelector('.cap-shutter')
+      check('the choice survives a reload', (await page.$eval('.cap-hud', (e) => e.dataset.mode)) === 'compact')
+      check('the shutter still works with the HUD on screen', await (async () => { await page.click('.cap-shutter'); try { await page.waitForSelector('.cap-result', { timeout: 30000 }); return true } catch { return false } })())
+      check('the result checklist shows values like the HUD ("Focus NN%", "Brightness NN%")', await page.$$eval('.cap-check__val', (v) => v.some((x) => /^Focus \d+%$/.test(x.innerText)) && v.some((x) => /^Brightness \d+%$/.test(x.innerText))))
     } })
     // storage that throws must not break the HUD
     await session('good', { width: 1440, fn: async (page) => {
       await page.evaluateOnNewDocument(() => { Object.defineProperty(window, 'localStorage', { get() { throw new Error('blocked') } }) })
       await open(page, { clear: false }); await sleep(800)
-      check('works with localStorage blocked', (await page.$('.hud')) !== null)
+      check('works with localStorage blocked', (await page.$('.cap-hud')) !== null)
     } })
   },
   async sharpcapture() {
@@ -816,22 +1160,24 @@ const scenarios = {
     if (!sharp.length) console.log('   (no samples/good photos: the REAL-photo part is skipped)')
     for (const st of sharp) await session(st, { fn: async (page) => {
       await open(page, { query: '?debug=checks' }); await sleep(1500)
-      await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
-      const t = await page.$eval('.qc__title', (e) => e.innerText)
+      await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 30000 })
+      const t = await page.$eval('[data-testid=result-title]', (e) => e.innerText)
       // since the sensor-fusion iteration the next step after a verified photo is "I've reached the site" (the submit); older builds said "Submit"
-      const canSubmit = (await page.$('[data-testid=arrived-btn]')) !== null || await page.$$eval('.capture-grid__side .btn', (b) => b.some((x) => /^Submit/.test(x.innerText.trim())))
+      const canSubmit = (await page.$('[data-testid=arrived-btn]')) !== null || await page.$$eval('.cap-result .cap-btn', (b) => b.some((x) => /^Submit/.test(x.innerText.trim())))
       check(`${st} (real photo, not enlarged): the capture is NOT refused and can be submitted`, !/retake/i.test(t) && canSubmit, t)
-      check(`${st}: no "Why this photo can't be submitted" box`, (await page.$('.qc__why')) === null)
+      check(`${st}: no "Why this photo can't be submitted" box`, (await page.$('.cap-why')) === null)
     } })
     await session('blurry', { fn: async (page) => {
       await open(page, { query: '?debug=checks' }); await sleep(1500)
-      await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
-      const why = await page.$eval('.qc__why', (e) => e.innerText).catch(() => '')
+      await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 30000 })
+      const why = await page.$eval('.cap-why', (e) => e.innerText).catch(() => '')
       // since the sensor-fusion iteration the next step after a verified photo is "I've reached the site" (the submit); older builds said "Submit"
-      const canSubmit = (await page.$('[data-testid=arrived-btn]')) !== null || await page.$$eval('.capture-grid__side .btn', (b) => b.some((x) => /^Submit/.test(x.innerText.trim())))
+      const canSubmit = (await page.$('[data-testid=arrived-btn]')) !== null || await page.$$eval('.cap-result .cap-btn', (b) => b.some((x) => /^Submit/.test(x.innerText.trim())))
       check('blurry capture is still refused (no Submit button)', !canSubmit)
       check('the refusal names the check and the number vs the limit ("Focus NN% — needs at least NN%")', /Focus/.test(why) && /Focus \d+% — needs at least \d+%/.test(why), why.replace(/\s+/g, ' '))
-      check('the debug panel (?debug=checks) shows the numbers', (await page.$('[data-testid=checks-debug]')) !== null)
+      // the panel is behind a Diagnostics button (a drawer) since the Photo redesign
+      await page.click('[data-testid=checks-debug-open]'); await page.waitForSelector('[data-testid=checks-debug]', { timeout: 5000 }).catch(() => {})
+      check('the debug panel (?debug=checks) shows the numbers (Diagnostics button opens it)', (await page.$('[data-testid=checks-debug]')) !== null && /\d/.test(await page.$eval('[data-testid=checks-debug]', (e) => e.innerText).catch(() => '')))
     } })
   },
   async timing() {
@@ -846,14 +1192,14 @@ const scenarios = {
       const at = await page.evaluate(() => window.__liveTickAt ?? []); const late = at.slice(Math.floor(at.length / 2)); const gaps = late.slice(1).map((v, i) => v - late[i])
       console.log(`   steady-state tick gaps: p50 ${pctile(gaps, 0.5).toFixed(0)} ms, p95 ${pctile(gaps, 0.95).toFixed(0)} ms (target 200); first tick at ${(at[0] - at[0]).toFixed(0)}, ${at.length} ticks total`)
       check('steady-state rate is about 5 Hz (median gap <= 260 ms)', pctile(gaps, 0.5) <= 260, `${pctile(gaps, 0.5).toFixed(0)} ms`)
-      check('raw numbers are shown with ?hud=raw', (await page.$$eval('.hud__raw', (e) => e.length)) === 8)
+      check('raw numbers are shown with ?hud=raw', (await page.$$eval('.cap-hud__raw', (e) => e.length)) === 8)
     } })
   },
   async burst() {
     let hits = 0; const runs = 6
     for (let i = 0; i < runs; i++) await session('alternating', { fn: async (page) => {
       const bursts = []; page.on('console', (m) => { if (m.text().startsWith('[burst]')) bursts.push(JSON.parse(m.text().slice(8))) })
-      await open(page); await sleep(1200); await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 30000 })
+      await open(page); await sleep(1200); await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 30000 })
       const b = bursts[0]; if (b && b.frames[b.picked].s > 0.4) hits++
     } })
     check(`the burst still picks the sharp frame (>= 5 of ${runs})`, hits >= 5, `${hits}/${runs}`)
@@ -901,6 +1247,7 @@ const scenarios = {
         for (const id of ['us', 'vpnin']) {
           await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
           await page.evaluate((sid) => { const rows = [...document.querySelectorAll('tr, li, button, div')].filter((e) => e.innerText?.includes('net_' + sid)); (rows.find((e) => e.tagName === 'TR' || e.tagName === 'BUTTON') ?? rows[rows.length - 1])?.click() }, id)
+          await openSensors(page).catch(() => {})
           await page.waitForSelector('[data-testid=fusion-section]', { timeout: 15000 }).catch(() => {})
           const t = await page.$eval('[data-testid=fusion-section]', (e) => e.innerText.replace(/\s+/g, ' ')).catch(() => '')
           check(`(${w}px) case file "${id}": the Network section names the provider, the IP data date and the site's learned visits`, /Network/i.test(t) && /DB-IP lite · data from 20\d\d-\d\d-\d\d/.test(t) && /Site network/i.test(t), t.slice(t.indexOf('Network'), t.indexOf('Network') + 220))
@@ -961,12 +1308,12 @@ const scenarios = {
       const urls = []
       page.on('request', (r) => urls.push(r.url()))
       await page.goto(BASE, { waitUntil: 'networkidle0' })
-      check('the Capture page loads from the single origin', /Trust Layer/.test(await page.title()) && (await page.$('.live__start, .hud, [data-testid=visit-panel]')) !== null)
+      check('the Capture page loads from the single origin', /Trust Layer/.test(await page.title()) && (await page.$('.cap-start, .cap-shutter, [data-testid=visit-panel]')) !== null)
       await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }) // a hard load of a client route
       check('a hard refresh on /dashboard works and, without the token, asks for it', (await page.$('input[name=token]')) !== null)
       await page.type('input[name=token]', TOKEN); await page.keyboard.press('Enter')
       await page.waitForFunction(() => !document.querySelector('input[name=token]'), { timeout: 15000 })
-      check('with the token the dashboard loads its data', (await page.$('[data-testid=site-location-panel]')) !== null)
+      check('with the token the dashboard loads its data', (await page.$('[data-testid=review-queue]')) !== null)
       await page.reload({ waitUntil: 'networkidle0' })
       check('refreshing the dashboard keeps working with the token (same tab)', (await page.$('input[name=token]')) === null)
       await page.evaluate(() => sessionStorage.clear()); await page.reload({ waitUntil: 'networkidle0' })
@@ -987,7 +1334,7 @@ const scenarios = {
       await session('good', { width: 1280, height: 860, fn: async (page) => {
         if (ip) await page.setExtraHTTPHeaders({ 'X-Forwarded-For': ip })
         await fusionPage(page, { start: kind === 'teleport' ? at(-14000, 0) : at(-60, 0) })
-        await page.waitForSelector('[data-testid=visit-panel] .fz-live', { timeout: 20000 })
+        await page.waitForSelector('[data-testid=visit-panel] .cap-visit__live', { timeout: 20000 })
         if (kind === 'walk') {
           await motionKind(page, 'walk'); await walkTo(page, [-60, 0], [-30, 0], 20); await walkTo(page, [-30, 0], [0, 0], 20)
           await motionKind(page, 'still'); await stay(page, [0, 0], 25)
@@ -1057,11 +1404,12 @@ const scenarios = {
         await shot(page, `pub-capture-${w}`)
         const ov = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
         check(`(${w}px) the capture page has no sideways scroll`, ov <= 0, `overflow ${ov}px`)
-        await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }); await page.waitForSelector('tbody tr', { timeout: 20000 })
+        await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }); await page.waitForSelector('[data-testid=subs-table] tbody tr', { timeout: 20000 })
         await page.addStyleTag({ content: '.topbar{position:static !important}' })
         for (const [i, name] of [[0, 'teleport'], [4, 'us']]) {
-          await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }); await page.waitForSelector('tbody tr', { timeout: 20000 })
-          await page.evaluate((n) => document.querySelectorAll('tbody tr')[n]?.click(), i)
+          await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' }); await page.waitForSelector('[data-testid=subs-table] tbody tr', { timeout: 20000 })
+          await page.evaluate((n) => document.querySelectorAll('[data-testid=subs-table] tbody tr')[n]?.click(), i)
+          await openSensors(page).catch(() => {})
           await page.waitForSelector('[data-testid=fusion-section]', { timeout: 15000 }).catch(() => {})
           const el = await page.$('[data-testid=fusion-section]')
           if (el) { await el.evaluate((e) => e.scrollIntoView({ block: 'start' })); await sleep(300); await el.screenshot({ path: `${process.env.E2E_SHOTS ?? '/tmp'}/pub-case-${name}-${w}.png` }) }
@@ -1121,7 +1469,7 @@ const scenarios = {
     await session('good', { width: 1280, height: 900, fn: async (page) => {
       await page.browserContext().overridePermissions(new URL(BASE).origin, ['geolocation'])
       await page.setGeolocation({ ...VENUE, accuracy: 80 })
-      await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
+      await page.goto(BASE + 'dashboard?view=settings', { waitUntil: 'networkidle0' })
       await page.waitForSelector('[data-testid=site-location-panel]', { timeout: 20000 })
       await page.waitForFunction(() => !/Loading/.test(document.querySelector('[data-testid=site-location-panel]').innerText), { timeout: 15000 })
       check('the Site location panel is on the dashboard and names the site', /site_demo_1/i.test(await txt(page, 'site-location-panel')))
@@ -1143,7 +1491,8 @@ const scenarios = {
       check('the confirm step shows old and new values', /12\.925948/.test(c1) && /77\.672259/.test(c1) && /Home \(test\)/.test(c1), c1.slice(0, 120))
       await panelShot(page, 'site-panel-confirm-desktop')
       await page.click('[data-testid=confirm-save]')
-      await page.waitForFunction(() => document.querySelectorAll('[data-testid=log-row]').length >= 1 && document.querySelector('[data-testid=site-current]'), { timeout: 15000 })
+      // done = the confirm step is gone again (the panel reloads after the save); an existing site already shows its log and current values
+      await page.waitForFunction(() => document.querySelectorAll('[data-testid=log-row]').length >= 1 && document.querySelector('[data-testid=site-current]') && !document.querySelector('[data-testid=confirm]'), { timeout: 15000 })
       const s1 = await (await fetch(`${API}/sites/site_demo_1`)).json()
       check('saving stores exactly the typed values (the API says so)', s1.lat === HOME.lat && s1.lng === HOME.lng && s1.radius_m === 100 && s1.country === 'IN' && s1.label === 'Home (test)', JSON.stringify(s1))
       check('the change log has a line for it', (await logRows(page)).length >= 1 && /Registered|moved|radius|label/.test((await logRows(page))[0]), (await logRows(page))[0])
@@ -1202,7 +1551,8 @@ const scenarios = {
       console.log('   5. confirm the move')
       await page.click('[data-testid=review]'); await page.waitForSelector('[data-testid=confirm]')
       await page.click('[data-testid=confirm-save]')
-      await page.waitForFunction((n) => document.querySelectorAll('[data-testid=log-row]').length >= n, { timeout: 15000 }, 2)
+      // wait for THIS save's row at the top (counting rows is not enough: earlier scenarios in a full run already left rows in the log)
+      await page.waitForFunction(() => /moved 2\d\d km/.test(document.querySelector('[data-testid=log-row]')?.innerText ?? ''), { timeout: 15000 })
       const s2 = await (await fetch(`${API}/sites/site_demo_1`)).json()
       check('the site is now at the venue', s2.lat === 13.0827 && s2.lng === 80.2707 && s2.radius_m === 120 && s2.label === 'Hackathon venue (test)', JSON.stringify(s2))
       const ch = await (await fetch(`${API}/sites/site_demo_1/changes`)).json()
@@ -1221,7 +1571,7 @@ const scenarios = {
     console.log('   7. the same panel on a phone-sized screen')
     await session('good', { width: 390, height: 844, fn: async (page) => {
       await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
-      await page.goto(BASE + 'dashboard', { waitUntil: 'networkidle0' })
+      await page.goto(BASE + 'dashboard?view=settings', { waitUntil: 'networkidle0' })
       await page.waitForSelector('[data-testid=site-current]', { timeout: 20000 })
       const m = await page.evaluate(() => {
         const root = document.querySelector('[data-testid=site-location-panel]')
@@ -1235,11 +1585,23 @@ const scenarios = {
       check('with every field equal to the saved site there is nothing to review', await page.$eval('[data-testid=review]', (b) => b.disabled))
       await typeInto(page, 'f-radius', '130')
       check('changing only the radius is a real change and enables Review', await page.$eval('[data-testid=review]', (b) => !b.disabled))
+      // a person scrolls the button into view before tapping it; the fixed bottom tab bar must not sit on top of it once there
+      await page.$eval('[data-testid=review]', (b) => b.scrollIntoView({ block: 'center' }))
       await page.click('[data-testid=review]'); await page.waitForSelector('[data-testid=confirm]')
       const o2 = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)
       check('the confirm step also fits the phone', o2 <= 0, `overflow ${o2}px`)
       await panelShot(page, 'site-panel-confirm-phone')
     } })
+  },
+  async capture_steps() {
+    // Arrival -> AI scan -> Verdict as one flow, six ways (see stepsRun above): every page is audited and the frames between them are judged.
+    const D = { width: 1440, height: 900 }
+    await stepsRun({ name: 'desktop dark', ...D, ticker: false })
+    await stepsRun({ name: 'tablet light, reduced motion', width: 820, height: 1180, theme: 'light', reduced: true })
+    await stepsRun({ name: 'phone dark', width: 390, height: 844, touch: true })
+    await stepsRun({ name: 'phone light, flagged', width: 390, height: 844, touch: true, theme: 'light', flagged: true })
+    await stepsRun({ name: 'desktop dark, location denied', ...D, geo: false, expectNotes: 'GPS unavailable or denied' })
+    await stepsRun({ name: 'desktop dark, failed submission then Retry', ...D, failFirst: true })
   },
 }
 // `npm run e2e a,b` runs several scenarios in one database, in file order

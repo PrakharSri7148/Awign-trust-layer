@@ -1,0 +1,144 @@
+/* Capture · Verdict step (step 4 of 4): the components that are new on top of the Photo step's tokens, primitives and page chrome
+   (../../capture-photo/css/cap-tokens.css, cap-components.css, cap-page.css). Same --cap-* tokens, same cap-card anatomy, same pills,
+   meters, banners and buttons; nothing here introduces a new colour. Breakpoints as on the Photo step: desktop >= 1000, tablet 721-999, phone <= 720.
+   New components: cap-badge, cap-gauge, cap-burst, cap-idrow, cap-reason, cap-shap, cap-frows, cap-vaction, plus the .cap-meter--accent / --neutral tones. */
+
+:root { --cap-gauge: 188px; }
+
+/* ---------- Page grid ---------- */
+.cap-verdict { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: var(--cap-space-4); align-items: start; width: 100%; max-width: 1080px; margin: 0 auto; }
+.cap-verdict__side { display: grid; gap: var(--cap-space-4); align-content: start; min-width: 0; position: sticky; top: var(--cap-space-4); }
+.cap-verdict__main { display: grid; gap: var(--cap-space-4); align-content: start; min-width: 0; }
+
+/* ---------- Status badge (the "status pill" of the result card: tinted fill, thin border, icon) ---------- */
+.cap-badge { --b: var(--cap-skip); position: relative; display: grid; place-items: center; width: 48px; height: 48px; flex: none; border-radius: var(--cap-radius-card); border: 1px solid color-mix(in srgb, var(--b) var(--cap-tint-border), transparent); background: color-mix(in srgb, var(--b) 14%, transparent); color: var(--b); }
+.cap-badge--ok { --b: var(--cap-ok); }
+.cap-badge--fail { --b: var(--cap-bad); }
+.cap-badge .cap-icon { position: relative; z-index: 0; }
+
+/* One-time celebration: a few small dots from the badge (accepted only). Hidden with reduced motion. */
+.cap-burst { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; z-index: 1; }
+.cap-burst__dot { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--c); opacity: 0; animation: cap-burst 1.1s var(--cap-ease) 0.25s both; }
+@keyframes cap-burst { 0% { opacity: 0; transform: translate(0, 0) scale(1); } 12% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3); } }
+.cap-burst--done { display: none; }
+.cap-burst--frame .cap-burst__dot { animation: none; opacity: 0.9; transform: translate(calc(var(--dx) * 0.72), calc(var(--dy) * 0.72)) scale(0.8); }
+@media (prefers-reduced-motion: reduce) { .cap-burst { display: none; } }
+html[data-motion='reduce'] .cap-burst { display: none; }
+
+/* ---------- Result card ---------- */
+.cap-vres__grid { display: grid; gap: var(--cap-space-4); padding: var(--cap-space-4); grid-template-columns: minmax(0, 1fr); grid-template-areas: 'head' 'gauge' 'id' 'foot'; justify-items: center; }
+.cap-vres__head { grid-area: head; display: flex; align-items: center; gap: 12px; min-width: 0; justify-self: start; }
+.cap-vres__text { min-width: 0; }
+.cap-vres__title { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; margin-top: 2px; overflow-wrap: anywhere; }
+.cap-vres__gauge { grid-area: gauge; }
+.cap-vres__id { grid-area: id; min-width: 0; max-width: 100%; }
+.cap-vres__foot { grid-area: foot; justify-self: stretch; }
+
+/* ---------- Fraud gauge: 60 segments like the quality meters, a 50% threshold mark, text in the middle ---------- */
+.cap-gauge { --tone: var(--cap-ok); position: relative; width: var(--cap-gauge); height: var(--cap-gauge); flex: none; }
+.cap-gauge--ok { --tone: var(--cap-ok); }
+.cap-gauge--fail { --tone: var(--cap-bad); }
+.cap-gauge__svg { width: 100%; height: 100%; overflow: visible; }
+.cap-gauge__seg { stroke: var(--cap-border-2); stroke-width: 2.4; stroke-linecap: round; }
+.cap-gauge__seg--on { stroke: var(--tone); }
+.cap-gauge__mark { stroke: var(--cap-text); stroke-width: 1.8; stroke-linecap: round; }
+.cap-gauge__center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; gap: 0; padding: 0 12%; }
+.cap-gauge__label, .cap-gauge__cap { font-size: var(--cap-text-xs); color: var(--cap-text-2); line-height: 1.3; white-space: nowrap; }
+.cap-gauge__value { font-size: 34px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; color: var(--tone); font-variant-numeric: tabular-nums; }
+
+/* ---------- Submission id + copy ---------- */
+.cap-idrow { display: inline-flex; align-items: stretch; max-width: 100%; min-height: 40px; border: 1px solid var(--cap-border-2); border-radius: var(--cap-radius-control); background: var(--cap-control); }
+.cap-idrow__id { display: flex; align-items: center; padding: 0 4px 0 12px; font-size: var(--cap-text-sm); min-width: 0; overflow-wrap: anywhere; }
+.cap .cap-idrow__btn { height: auto; min-height: 38px; border-radius: 0 7px 7px 0; border: 0; border-left: 1px solid var(--cap-border); }
+.cap-idrow__btn.is-copied { color: var(--cap-ok); }
+.cap [data-tip].is-tip::after { opacity: 1; }
+@media (pointer: coarse), (max-width: 720px) { .cap-idrow { min-height: calc(var(--cap-tap) + 2px); } .cap .cap-idrow__btn { min-height: var(--cap-tap); } }
+
+/* ---------- Why? card ---------- */
+.cap-reason { font-size: var(--cap-text-lg); font-weight: 500; line-height: 1.4; letter-spacing: -0.005em; overflow-wrap: anywhere; max-width: 68ch; }
+.cap-fused { border-top: 1px solid var(--cap-border); }
+.cap-check--muted > .cap-icon { color: var(--cap-text-2); }
+.cap-fused .cap-check__hint { color: var(--cap-text); }
+.cap-fused .cap-check--muted .cap-check__hint { color: var(--cap-text-2); }
+.cap-fused .cap-check--warn .cap-check__label { color: var(--cap-warn); }
+.cap-fused .cap-check--bad .cap-check__label { color: var(--cap-bad); }
+.cap-fused .cap-check__hint { overflow-wrap: anywhere; }
+
+/* SHAP factor breakdown: the Photo step's segmented meter, accent on the top driver, neutral on the rest */
+.cap-shap { display: grid; gap: var(--cap-space-3); border-top: 1px solid var(--cap-border); padding-top: var(--cap-space-3); }
+.cap-shap__rows { display: grid; gap: 14px; }
+.cap-shap__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.cap-shap__name { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: var(--cap-text-sm); font-weight: 500; min-width: 0; }
+.cap-shap__val { font-size: var(--cap-text-sm); color: var(--cap-text-2); font-variant-numeric: tabular-nums; flex: none; }
+.cap-shap__row--top .cap-shap__val { color: var(--cap-text); font-weight: 600; }
+.cap-shap__tag { height: 20px; padding: 0 6px; letter-spacing: 0.02em; }
+.cap-shap .cap-meter { height: 8px; gap: 2px; }
+.cap-meter--accent { --tone: var(--cap-accent); }
+.cap-meter--neutral { --tone: var(--cap-skip); }
+.cap-meter--neutral .cap-meter__cell--on { opacity: 0.7; }
+
+/* ---------- What was fetched ---------- */
+.cap-vfet { container-type: inline-size; container-name: vfet; }
+.cap-vfet__toggle { display: none; }
+.cap-vfet__sum { display: none; gap: 6px; flex-wrap: wrap; }
+.cap-vfet__chev { transition: transform var(--cap-dur-med) var(--cap-ease); }
+.cap-vfet__toggle.is-open .cap-vfet__chev { transform: rotate(180deg); }
+.cap-frows { display: grid; }
+.cap-frow { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 10px; row-gap: 2px; align-items: baseline; padding: 10px 4px; border-bottom: 1px solid var(--cap-border); }
+.cap-frow:last-child { border-bottom: 0; }
+.cap-frow:hover { background: color-mix(in srgb, var(--cap-text) 3%, transparent); }
+.cap-frow__ic { grid-column: 1; grid-row: 1; align-self: start; display: grid; margin-top: 1px; }
+.cap-frow__label { grid-column: 2; font-size: var(--cap-text-sm); font-weight: 600; }
+.cap-frow__text { grid-column: 2; font-size: var(--cap-text-sm); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+@container vfet (min-width: 520px) {
+  .cap-frow { grid-template-columns: 20px 150px minmax(0, 1fr); }
+  .cap-frow__text { grid-column: 3; }
+}
+.cap-frow--ok .cap-frow__ic { color: var(--cap-ok); }
+.cap-frow--na .cap-frow__ic, .cap-frow--na .cap-frow__label, .cap-frow--na .cap-frow__text { color: var(--cap-text-2); }
+.cap-frow--bad .cap-frow__ic, .cap-frow--bad .cap-frow__text { color: var(--cap-bad); }
+
+/* ================= Tablet 721-999 ================= */
+@media (max-width: 999px) {
+  :root { --cap-gauge: 168px; }
+  .cap-verdict { grid-template-columns: minmax(0, 1fr); }
+  .cap-verdict__side { position: static; }
+  .cap-verdict__main { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .cap-verdict__main > :only-child { grid-column: 1 / -1; }
+  .cap-vres__grid { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto 1fr; grid-template-areas: 'head gauge' 'id gauge' 'foot gauge'; justify-items: start; }
+  .cap-vres__gauge { align-self: center; }
+  .cap-vres__id { align-self: start; }
+  .cap-vres__foot { align-self: end; justify-self: start; }
+  .cap-vres__btn { width: auto; min-width: 240px; }
+}
+@media (min-width: 721px) and (max-width: 999px) {
+  .cap-vres__grid { padding: var(--cap-space-5); }
+}
+
+/* ================= Phone <= 720 ================= */
+@media (max-width: 720px) {
+  :root { --cap-gauge: 132px; }
+  .cap-verdict { display: flex; flex-direction: column; align-items: stretch; gap: var(--cap-space-3); max-width: none; }
+  /* the Photo step shows only the active step's label on phones; here every step is done, so the current one (Verdict) keeps its label */
+  .cap-stepper__item[aria-current='step'] .cap-stepper__label { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: nowrap; }
+  .cap-verdict__side, .cap-verdict__main { display: contents; }
+  .cap-vres__head { display: grid; gap: 10px; justify-items: start; }
+  .cap-vres__title { font-size: 20px; }
+  .cap-gauge__value { font-size: 26px; }
+  .cap-vfet__toggle { display: inline-flex; }
+  .cap-vfet__sum { display: flex; }
+  .cap-vfet .cap-card__body { gap: var(--cap-space-2); }
+  /* the primary action stays on screen: a sticky bar above the bottom nav */
+  .cap-vaction { position: sticky; bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 20; margin: 0 calc(var(--cap-space-3) * -1); padding: 10px var(--cap-space-3); background: var(--cap-shell); border-top: 1px solid var(--cap-border); }
+}
+@media (max-width: 359px) {
+  .cap-vres__grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: 'head' 'gauge' 'id'; }
+  .cap-vres__gauge { justify-self: center; }
+}
+
+/* Reduced motion, forced from the prototype viewer (the OS setting is handled by cap-components.css) */
+html[data-motion='reduce'] .cap *, html[data-motion='reduce'] .cap *::before, html[data-motion='reduce'] .cap *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+
+/* The toast region inherits .cap { min-height: 100dvh }, which made the empty fixed region a full-screen tap blocker on phones. */
+.cap-toast-region { min-height: 0; pointer-events: none; }
+.cap-toast-region > * { pointer-events: auto; }

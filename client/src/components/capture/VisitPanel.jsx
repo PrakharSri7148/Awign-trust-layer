@@ -1,4 +1,4 @@
-import { Download, LocateFixed, MapPinned, Square } from 'lucide-react'
+import { Download, LocateFixed, MapPinned, Square, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { CONSENT_SHORT, CONSENT_TEXT, CONSENT_TITLE } from '../../lib/sensorFusion/consent.js'
 import { recentFix, recordingSummary } from '../../lib/sensorFusion/display.js'
@@ -6,6 +6,7 @@ import { SCENARIOS, buildTraceDoc, demoToolsOn, downloadTrace, recordModeOn } fr
 import { BIG_MOVE_M, distanceM, fmtDist } from '../../lib/sensorFusion/siteForm.js'
 import { SITE_EVENT, currentPosition, getSite, saveSite } from '../../lib/sensorFusion/sites.js'
 import { useRecorderState } from '../../lib/sensorFusion/useRecorder.js'
+import { Accordion } from './ui.jsx'
 import { getNetworkInfo } from '../../lib/sensors.js'
 
 // Visit recording: the consent text, a start button (a tap, which iOS needs for the motion permission) and the live summary.
@@ -55,52 +56,70 @@ export default function VisitPanel({ recorder, onStart, onStop, note, siteId = '
   }
 
   return (
-    <div className="panel panel--tight fz-visit" data-testid="visit-panel">
-      <div className="eyebrow eyebrow--cyan fz-visit__eyebrow"><MapPinned size={12} style={{ verticalAlign: '-1px' }} /> Visit recording</div>
-      {s.running ? (
-        <div className="fz-visit__row">
-          <span className="fz-live" role="status"><i aria-hidden="true" /> Recording · {recordingSummary(s)}</span>
-          <button type="button" className="btn btn--sm" onClick={onStop}><Square size={13} /> Stop</button>
-        </div>
-      ) : (
-        <div className="fz-visit__row">
-          <p className="fz-visit__text"><b>{CONSENT_TITLE}.</b> {CONSENT_SHORT}</p>
-          <button type="button" className="btn btn--primary btn--sm" onClick={start} disabled={busy}>{busy ? 'Starting…' : 'Start recording my visit'}</button>
-          <details className="fz-visit__more">
-            <summary>What is recorded?</summary>
-            <p className="fz-visit__text">{CONSENT_TEXT}</p>
-          </details>
-        </div>
-      )}
-      {s.running && (s.motion === 'null_events' || s.motion === 'absent' || s.motion === 'denied') && (
-        <p className="fz-visit__text" role="note">
-          {s.motion === 'denied' ? 'Motion access was denied, so only the location is recorded.' : 'This device has no motion sensor, so only the location is recorded.'}
-        </p>
-      )}
-      {s.geo === 'denied' && <p className="fz-visit__text" role="note">Location access was denied, so no trail can be recorded.</p>}
-      {note && <p className="fz-visit__text" role="note">{note}</p>}
-      {tools && (
-        <div className="fz-visit__row" data-testid="demo-tools">
-          <button type="button" className="btn btn--sm" onClick={registerHere}><LocateFixed size={13} /> Register this spot as the site</button>
-          {siteMsg && <span className="fz-visit__text" role="status">{siteMsg}</span>}
-        </div>
-      )}
-      {record && (
-        <div className="fz-visit__row" data-testid="record-mode">
-          <select value={scenario} onChange={(e) => setScenario(e.target.value)} aria-label="Scenario folder" className="chip">
-            {SCENARIOS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-          </select>
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="phone, OS/browser, what you did" aria-label="Note" className="chip" style={{ minWidth: 220 }} />
-          <button
-            type="button"
-            className="btn btn--sm"
-            disabled={!s.running}
-            onClick={() => downloadTrace(buildTraceDoc({ scenario, note: text, trail: recorder.snapshot(), networkInfo: getNetworkInfo(), userAgent: navigator.userAgent }))}
-          >
-            <Download size={13} /> Download trace
-          </button>
-        </div>
-      )}
-    </div>
+    <section className="cap-card cap-visit" aria-label="Visit recording" data-testid="visit-panel">
+      <div className="cap-card__head"><div className="cap-eyebrow"><MapPinned size={14} className="cap-icon" aria-hidden="true" /> Visit recording</div></div>
+      <div className="cap-card__body">
+        {s.running ? (
+          <div className="cap-visit__row">
+            <span className="cap-visit__live" role="status"><i className="cap-visit__dot" aria-hidden="true" /><span>Recording · {recordingSummary(s)}</span></span>
+            <button type="button" className="cap-btn cap-btn--sm" onClick={onStop}><Square size={13} className="cap-icon" aria-hidden="true" /> Stop</button>
+          </div>
+        ) : (
+          <>
+            <p className="cap-visit__consent"><b>{CONSENT_TITLE}.</b> {CONSENT_SHORT}</p>
+            <div className="cap-visit__row">
+              <button type="button" className="cap-btn cap-btn--primary" onClick={start} disabled={busy}>{busy ? 'Starting…' : 'Start recording my visit'}</button>
+            </div>
+            <Accordion title="What is recorded?">
+              <p className="cap-visit__consent">{CONSENT_TEXT}</p>
+            </Accordion>
+          </>
+        )}
+        {s.running && (s.motion === 'null_events' || s.motion === 'absent' || s.motion === 'denied') && (
+          <p className="cap-visit__note" role="note">
+            <TriangleAlert size={16} className="cap-icon" aria-hidden="true" />
+            <span>{s.motion === 'denied' ? 'Motion access was denied, so only the location is recorded.' : 'This device has no motion sensor, so only the location is recorded.'}</span>
+          </p>
+        )}
+        {s.geo === 'denied' && (
+          <p className="cap-visit__note" role="note"><TriangleAlert size={16} className="cap-icon" aria-hidden="true" /><span>Location access was denied, so no trail can be recorded.</span></p>
+        )}
+        {note && <p className="cap-visit__note" role="note"><TriangleAlert size={16} className="cap-icon" aria-hidden="true" /><span>{note}</span></p>}
+        {(tools || record) && (
+          <Accordion title="Demo and record tools" meta="(diagnostics)" defaultOpen>
+            <div className="cap-visit__tools">
+              {tools && (
+                <div className="cap-visit__toolrow" data-testid="demo-tools">
+                  <button type="button" className="cap-btn cap-btn--sm" onClick={registerHere}><LocateFixed size={13} className="cap-icon" aria-hidden="true" /> Register this spot as the site</button>
+                  {siteMsg && <span className="cap-visit__consent" role="status">{siteMsg}</span>}
+                </div>
+              )}
+              {record && (
+                <div className="cap-visit__toolrow" data-testid="record-mode">
+                  <label className="cap-field">
+                    <span className="cap-field__label">Scenario folder</span>
+                    <select value={scenario} onChange={(e) => setScenario(e.target.value)} aria-label="Scenario folder" className="cap-select">
+                      {SCENARIOS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                    </select>
+                  </label>
+                  <label className="cap-field">
+                    <span className="cap-field__label">Note</span>
+                    <input value={text} onChange={(e) => setText(e.target.value)} placeholder="phone, OS/browser, what you did" aria-label="Note" className="cap-input" />
+                  </label>
+                  <button
+                    type="button"
+                    className="cap-btn cap-btn--sm"
+                    disabled={!s.running}
+                    onClick={() => downloadTrace(buildTraceDoc({ scenario, note: text, trail: recorder.snapshot(), networkInfo: getNetworkInfo(), userAgent: navigator.userAgent }))}
+                  >
+                    <Download size={13} className="cap-icon" aria-hidden="true" /> Download trace
+                  </button>
+                </div>
+              )}
+            </div>
+          </Accordion>
+        )}
+      </div>
+    </section>
   )
 }

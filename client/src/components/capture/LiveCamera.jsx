@@ -1,4 +1,4 @@
-import { Camera, Loader2, X } from 'lucide-react'
+import { Camera, Check, CircleX, Loader2, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { THRESHOLDS } from '../../lib/photoQuality/config.js'
 import { analyzeLiveInWorker } from '../../lib/photoQuality/client.js'
@@ -89,7 +89,7 @@ export const cameraSupported = () =>
 
 // An in-app viewfinder: live guidance while framing, then a burst on the shutter
 // that keeps the sharpest frame (and how steady the phone was when it was taken).
-export default function LiveCamera({ task, taskId = null, workerId = null, detector, autoStart = false, onCapture, onUnavailable }) {
+export default function LiveCamera({ task, taskId = null, workerId = null, detector, autoStart = false, onCapture, onUnavailable, onUsePicker }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const bufRef = useRef(null)
@@ -118,14 +118,14 @@ export default function LiveCamera({ task, taskId = null, workerId = null, detec
   const [isReady, setIsReady] = useState(false)
   const [busy, setBusy] = useState(false)
   const [dims, setDims] = useState(null)
-  const [wrap, fit] = useContainFit(dims?.w, dims?.h)
+  const layout = useLayoutMode()
+  const [wrap, fit] = useContainFit(dims?.w, dims?.h, layout === 'overlay' ? 'cover' : 'contain')
   const mirrored = task.camera === 'user'
   const needsFace = task.face !== 'off'
   // Active liveness (a random blink / turn / smile / mouth challenge) only for tasks that REQUIRE a face.
   const needsLive = task.face === 'required'
   const [live, setLive] = useState(null)
   const [offline, setOffline] = useState(false) // the server could not be reached for the challenge
-  const layout = useLayoutMode()
   const [hudMode, toggleHud] = useHudMode(layout)
 
   // Every start gets an id; if the component unmounts or starts again meanwhile (React
@@ -443,54 +443,76 @@ export default function LiveCamera({ task, taskId = null, workerId = null, detec
   const face = hud?.checks.face
   const box = face?.box
   const faceBox = box && fit ? { left: fit.x + (mirrored ? 1 - box.x - box.w : box.x) * fit.w, top: fit.y + box.y * fit.h, width: box.w * fit.w, height: box.h * fit.h } : null
+  const faceTone = face?.status === STATUS.PASS ? 'ok' : face?.status === STATUS.FAIL ? 'bad' : 'warn'
 
-  const ar = dims ? dims.w / dims.h : layout === 'overlay' ? 3 / 4 : 4 / 3
-  const hudEl = <LiveHud summary={hud} mode={hudMode} onToggle={toggleHud} raw={raw} />
+  const ar = state === 'live' && dims ? dims.w / dims.h : 4 / 3
+  const overlayLayout = layout === 'overlay'
+  const hudEl = <LiveHud summary={hud} mode={hudMode} onToggle={toggleHud} raw={raw} variant={overlayLayout ? 'overlay' : 'side'} faceMode={task.face} />
+  const chipIcon = { pass: Check, warn: TriangleAlert, fail: CircleX }
+  const hint = busy ? 'Hold still…' : !liveOk ? 'Complete the live check to enable the shutter.' : isReady ? 'Looks good. Tap to capture.' : hud?.hint ?? 'Frame your photo.'
 
   return (
-    <div className={`cam cam--${layout}${immersive ? ' cam--immersive' : ''}`} data-layout={layout} data-immersive={immersive ? '1' : '0'} style={{ '--ar': `${ar}`, '--ar-num': ar }}>
-      <div className="live cam__stage" ref={wrap}>
-        <video ref={videoRef} playsInline muted className={`live__video${mirrored ? ' live__video--mirror' : ''}`} aria-label="Camera preview" />
+    <>
+      <div className="cap-grid__stage">
+        <div className={`cap-stage cap-on-camera${immersive ? ' cap-stage--immersive' : ''}`} ref={wrap} data-layout={layout} data-immersive={immersive ? '1' : '0'} data-cam={state} style={{ '--cap-ar': `${ar}`, '--cap-ar-num': ar }}>
+          <video ref={videoRef} playsInline muted className={`cap-stage__video${mirrored ? ' cap-stage__video--mirror' : ''}`} aria-label="Camera preview" />
 
-        {state !== 'live' && (
-          <button type="button" className="live__start" onClick={start} disabled={state === 'starting'}>
-            {state === 'starting' ? <Loader2 size={28} className="spin" /> : <Camera size={28} />}
-            <strong>{state === 'starting' ? 'Opening camera…' : 'Tap to open camera'}</strong>
-            <span className="eyebrow">{task.camera === 'user' ? 'Front camera' : 'Rear camera'} · live guidance</span>
-          </button>
-        )}
-
-        {immersive && (
-          <button type="button" className="live__close" onClick={closeCamera} aria-label="Close camera">
-            <X size={20} />
-          </button>
-        )}
-
-        {state === 'live' && (
-          <>
-            {needsFace && <FaceMesh targetRef={meshTarget} fit={fit} mirrored={mirrored} accentRef={accentRef} />}
-            {faceBox && <div className={`ovl ovl--${face.status === STATUS.PASS ? 'ok' : face.status === STATUS.FAIL ? 'bad' : 'warn'}`} style={faceBox}><span>face</span></div>}
-            {hudMode === 'compact' && layout === 'overlay' && (
-              <div className="live__chips" aria-label="Live checks">
-                {chips.map((id) => (
-                  <span key={id} className={`live__chip live__chip--${hud.checks[id].status}`} data-check={id}>{LIVE_LABELS[id]}</span>
-                ))}
-              </div>
-            )}
-            {needsLive && <LivenessOverlay live={live ?? sessionRef.current?.state() ?? { snapshot: null, valid: false, canRetry: true, attempts: 0 }} offline={offline} onRetry={retryLive} onReview={reviewLive} />}
-            <div className="live__dock">
-              {layout === 'overlay' && hudEl}
-              <div className={`live__hint${isReady ? ' live__hint--ready' : ''}`} role="status">
-                {busy ? 'Hold still…' : !liveOk ? 'Complete the live check to enable the shutter.' : isReady ? 'Looks good. Tap to capture.' : hud?.hint ?? 'Frame your photo.'}
-              </div>
-            </div>
-            <button type="button" className={`live__shutter${isReady ? ' live__shutter--ready' : ''}`} onClick={capture} disabled={busy || !liveOk} aria-label={liveOk ? 'Take photo' : 'Take photo (complete the live check first)'} data-live-ok={liveOk ? '1' : '0'}>
-              {busy ? <Loader2 size={26} className="spin" /> : <i />}
+          {state !== 'live' && (
+            <button type="button" className="cap-start" onClick={start} disabled={state === 'starting'}>
+              <span className="cap-start__icon">{state === 'starting' ? <Loader2 size={28} className="cap-icon cap-spin" aria-hidden="true" /> : <Camera size={28} className="cap-icon" aria-hidden="true" />}</span>
+              <strong className="cap-start__title">{state === 'starting' ? 'Opening camera…' : 'Tap to open camera'}</strong>
+              <span className="cap-start__cap">{task.camera === 'user' ? 'Front camera' : 'Rear camera'} · live guidance</span>
             </button>
-          </>
+          )}
+
+          {immersive && <div className="cap-minisp" role="img" aria-label="Step 1 of 4: Photo"><i /><i /><i /><i /></div>}
+
+          {state === 'live' && needsFace && <FaceMesh targetRef={meshTarget} fit={fit} mirrored={mirrored} accentRef={accentRef} />}
+          {state === 'live' && faceBox && <div className={`cap-facebox cap-facebox--${faceTone}`} style={faceBox}><span className="cap-facebox__label">face</span></div>}
+
+          {(immersive || state === 'live') && (
+            <div className="cap-stage__top">
+              <div className="cap-stage__topline">
+                {state === 'live' && hudMode === 'compact' && overlayLayout ? (
+                  <div className="cap-chips" aria-label="Live checks">
+                    {chips.map((id) => {
+                      const st = hud.checks[id].status
+                      const I = chipIcon[st] ?? Check
+                      return (
+                        <span key={id} className={`cap-chk cap-chk--${st}`} data-check={id}>
+                          <I size={12} className="cap-icon" aria-hidden="true" /><span className="cap-chk__txt">{LIVE_LABELS[id]}</span><span className="cap-sr"> {st === 'pass' ? 'passed' : st === 'fail' ? 'failed' : 'warning'}</span>
+                        </span>
+                      )
+                    })}
+                  </div>
+                ) : <span />}
+                {immersive && (
+                  <button type="button" className="cap-stage__close" onClick={closeCamera} aria-label="Close camera"><X size={20} className="cap-icon" aria-hidden="true" /></button>
+                )}
+              </div>
+              {state === 'live' && needsLive && <LivenessOverlay live={live ?? sessionRef.current?.state() ?? { snapshot: null, valid: false, canRetry: true, attempts: 0 }} offline={offline} onRetry={retryLive} onReview={reviewLive} />}
+            </div>
+          )}
+
+          {state === 'live' && (
+            <div className="cap-stage__dock">
+              {overlayLayout && hudEl}
+              <div className={`cap-hint${isReady && liveOk && !busy ? ' cap-hint--ready' : ''}`} role="status" data-testid="live-hint">{hint}</div>
+              <button type="button" className={`cap-shutter${isReady && liveOk ? ' cap-shutter--ready' : ''}${busy ? ' cap-shutter--busy' : ''}`} onClick={capture} disabled={busy || !liveOk} aria-label={liveOk ? 'Take photo' : 'Take photo (complete the live check first)'} data-live-ok={liveOk ? '1' : '0'}>
+                {busy ? <Loader2 size={26} className="cap-icon cap-spin" aria-hidden="true" /> : <span className="cap-shutter__core" />}
+              </button>
+            </div>
+          )}
+        </div>
+        {!task.live && onUsePicker && (
+          <button type="button" className="cap-link" onClick={onUsePicker}>Use the photo picker instead</button>
         )}
       </div>
-      {state === 'live' && layout !== 'overlay' && <aside className="cam__side">{hudEl}</aside>}
-    </div>
+      {!overlayLayout && (
+        <div className="cap-grid__hud">
+          <section className="cap-card"><div className="cap-card__body cap-card__body--hud">{hudEl}</div></section>
+        </div>
+      )}
+    </>
   )
 }

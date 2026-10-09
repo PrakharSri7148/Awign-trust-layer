@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · AI scan step · gallery</title>
+  <link rel="stylesheet" href="../capture-photo/css/cap-tokens.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-components.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-viewer.css" />
+</head>
+<body class="cv-body">
+<div class="cv-page">
+  <div><h1>Gallery: every state at desktop, tablet and phone</h1><p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0">Dark theme. Frames are live iframes of <a href="app.html">app.html</a> (lazy loaded), scaled down; the rings and the bar are moving. The last sections show the phone in the light theme and the reduced-motion variant. <a href="index.html">Back to the viewer</a></p></div>
+  <div id="g"></div>
+</div>
+<script src="js/scan-data.js"></script><script src="js/scan-state.js"></script>
+<script>
+(function () {
+  var SIZES = [['Desktop 1280×860', 1280, 860, 0.34], ['Tablet 820×1000', 820, 1000, 0.34], ['Phone 390×844', 390, 844, 0.5]];
+  var g = document.getElementById('g'), P = window.SCAN_STATE.presets;
+  function item(id, s, theme, motion) {
+    var d = document.createElement('div'); d.className = 'cv-gal-item';
+    var w = s[1] * s[3], h = s[2] * s[3];
+    d.innerHTML = '<div class="cv-label">' + id + ' · ' + s[0] + (theme === 'light' ? ' · light' : '') + (motion ? ' · reduced motion' : '') + '</div><div class="cv-box" style="width:' + w + 'px;height:' + h + 'px"></div>';
+    var f = document.createElement('iframe'); f.loading = 'lazy'; f.title = id + ' ' + s[0]; f.src = 'app.html?state=' + id + '&theme=' + (theme || 'dark') + (motion ? '&motion=reduce' : '');
+    f.style.width = s[1] + 'px'; f.style.height = s[2] + 'px'; f.style.transform = 'scale(' + s[3] + ')';
+    d.lastChild.appendChild(f); return d;
+  }
+  P.forEach(function (p) {
+    var sec = document.createElement('section'); sec.className = 'cv-sec'; sec.id = p.id;
+    sec.innerHTML = '<h2>' + p.group + ' · ' + p.label + '</h2><div class="cv-gal-row"></div>';
+    SIZES.forEach(function (s) { sec.lastChild.appendChild(item(p.id, s)); });
+    g.appendChild(sec);
+  });
+  var sec = document.createElement('section'); sec.className = 'cv-sec'; sec.id = 'phone-light'; sec.innerHTML = '<h2>Phone · light theme (outdoor)</h2><div class="cv-gal-row"></div>';
+  ['l1', 'l3', 'finishing', 'notes3', 'slow-notes3', 'fail-503'].forEach(function (id) { sec.lastChild.appendChild(item(id, SIZES[2], 'light')); });
+  g.appendChild(sec);
+  var sec2 = document.createElement('section'); sec2.className = 'cv-sec'; sec2.id = 'phone-reduced'; sec2.innerHTML = '<h2>Phone · reduced motion, dark and light</h2><div class="cv-gal-row"></div>';
+  [['l3', 'dark'], ['finishing', 'dark'], ['l3', 'light']].forEach(function (x) { sec2.lastChild.appendChild(item(x[0], SIZES[2], x[1], true)); });
+  g.appendChild(sec2);
+})();
+</script>
+</body>
+</html>

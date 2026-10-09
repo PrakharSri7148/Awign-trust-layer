@@ -1,23 +1,27 @@
 import { useEffect, useRef } from 'react'
 
-// Live oscilloscope of |acceleration| from devicemotion. With no sensor (desktop)
-// the trace is honestly flat.
-export default function Waveform({ active }) {
-  const ref = useRef(null)
+const N = 90
+const W = 240
+const H = 44
+
+// An oscilloscope trace of |acceleration| from devicemotion, drawn as one SVG path (the Photo step's cap-feed__wave box).
+// `active`: record live. `hold`: not live any more, keep the last trace on screen (the reading is Locked). Neither: a flat line
+// (waiting, unavailable, or a laptop with no sensor), which is the honest picture.
+function pathOf(buf) {
+  let d = ''
+  for (let i = 0; i < buf.length; i++) {
+    const x = (i / (buf.length - 1)) * W
+    const y = H / 2 - Math.min(1, buf[i] / 3) * (H / 2 - 3) * (i % 2 ? 1 : -1)
+    d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`
+  }
+  return d
+}
+
+export default function Waveform({ active = false, hold = false, label = 'Live motion waveform' }) {
+  const line = useRef(null)
+  const buf = useRef(new Array(N).fill(0))
 
   useEffect(() => {
-    const canvas = ref.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    const dpr = window.devicePixelRatio || 1
-    const w = canvas.clientWidth
-    const h = canvas.clientHeight
-    canvas.width = w * dpr
-    canvas.height = h * dpr
-    ctx.scale(dpr, dpr)
-
-    const N = 90
-    const buf = new Array(N).fill(0)
     let latest = 0
     let gravity = null
     const onMotion = (e) => {
@@ -31,38 +35,30 @@ export default function Waveform({ active }) {
         latest = Math.hypot(g.x - gravity.x, g.y - gravity.y, g.z - gravity.z)
       }
     }
-    window.addEventListener('devicemotion', onMotion)
+    if (active) window.addEventListener('devicemotion', onMotion)
 
+    const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    let last = 0
     let raf
-    const draw = () => {
-      buf.push(active ? latest : 0)
-      buf.shift()
-      ctx.clearRect(0, 0, w, h)
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)'
-      ctx.beginPath()
-      ctx.moveTo(0, h / 2)
-      ctx.lineTo(w, h / 2)
-      ctx.stroke()
-      ctx.strokeStyle = '#22d3ee'
-      ctx.lineWidth = 1.8
-      ctx.shadowColor = '#22d3ee'
-      ctx.shadowBlur = 8
-      ctx.beginPath()
-      buf.forEach((v, i) => {
-        const x = (i / (N - 1)) * w
-        const y = h / 2 - Math.min(1, v / 3) * (h / 2 - 3) * (i % 2 ? 1 : -1)
-        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)
-      })
-      ctx.stroke()
-      ctx.shadowBlur = 0
-      raf = requestAnimationFrame(draw)
+    const draw = (t) => {
+      if (!reduced || t - last > 250) {
+        last = t
+        if (active) { buf.current.push(latest); buf.current.shift() } else if (!hold) { buf.current.push(0); buf.current.shift() }
+        line.current?.setAttribute('d', pathOf(buf.current))
+      }
+      if (active || (!hold && buf.current.some((v) => v !== 0))) raf = requestAnimationFrame(draw)
     }
     raf = requestAnimationFrame(draw)
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('devicemotion', onMotion)
     }
-  }, [active])
+  }, [active, hold])
 
-  return <canvas ref={ref} className="wave" aria-hidden="true" />
+  return (
+    <svg className="cap-feed__wave" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={label}>
+      <path className="cap-wave__base" d={`M0 ${H / 2} L${W} ${H / 2}`} />
+      <path className="cap-wave__line" ref={line} d={pathOf(buf.current)} />
+    </svg>
+  )
 }

@@ -1,0 +1,28 @@
+15 presets × 3 widths
+
+Inventory ids with DOM presence: 19/19 found
+Additions with their own marker: 9/9
+Timeline:
+  PASS 650 ms cadence, one announcement per message, slow line at 8 s · 7 announcements, each once; rows at 21, 661, 1321, 1961, 2621, 3261 ms; slow line at 8004 ms
+  PASS 2.6 s floor: a fast server still shows the scan until 2.6 s · verdict at 2622 ms
+  PASS stays until the server answers (no verdict before) · still on the scan after 5 s
+  PASS failure: alert with the exact message, scan stops, returns after the hold · alert shown once, scan stopped
+Contrast:
+  PASS dark muted text (done / pending rows) on card 6.76
+  PASS dark text (active row) on active tint 15.27
+  PASS dark “Running” word (accent-text) on active tint 7.38
+  PASS dark muted sub text on active tint 6.18
+  PASS dark “Done” check (ok) on card 9.65
+  PASS dark “Stopped” word (bad) on stopped tint 4.81
+  PASS dark text on stopped tint 15.54
+  PASS dark text on warning banner 14.78
+  PASS light muted text (done / pending rows) on card 6.34
+  PASS light text (active row) on active tint 14.49
+  PASS light “Running” word (accent-text) on active tint 5.49
+  PASS light muted sub text on active tint 5.54
+  PASS light “Done” check (ok) on card 6.15
+  PASS light “Stopped” word (bad) on stopped tint 4.69
+  PASS light text on stopped tint 14.62
+  PASS light text on warning banner 15.1
+
+Problems: 0

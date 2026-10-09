@@ -13,6 +13,7 @@ const saveVoice = (on) => { try { localStorage.setItem(VOICE_KEY, on ? '1' : '0'
 
 // The live-check prompt over the camera for face-required tasks: what to do, a countdown, the steps, and what
 // to do after a miss. Presentational: everything comes from the liveness session's state().
+// The data-liveness tone ('idle' | 'run' | 'go' | 'ok' | 'warn' | 'bad') and data-challenge are read by the e2e suite.
 export default function LivenessOverlay({ live, offline = false, onRetry, onReview }) {
   const [voice, setVoice] = useState(readVoice)
   const spoken = useRef('')
@@ -62,33 +63,36 @@ export default function LivenessOverlay({ live, offline = false, onRetry, onRevi
     sub = 'Do it again before taking the photo.'
   }
 
+  const toggleVoice = () => { const on = !voice; setVoice(on); saveVoice(on); spoken.current = ''; if (!on) window.speechSynthesis.cancel() }
+
   return (
-    <div className={`liveness liveness--${tone}`} data-liveness={offline && tone === 'bad' && !failed ? 'offline' : tone} data-challenge={running ? snap.current.id : undefined} role="status">
-      <div className="liveness__row">
-        {tone === 'ok' ? <Check size={18} /> : <ScanFace size={18} />}
-        <strong className="liveness__title">{title}</strong>
+    <div className={`cap-liveness cap-liveness--${tone}`} data-liveness={offline && tone === 'bad' && !failed ? 'offline' : tone} data-challenge={running ? snap.current.id : undefined} role="status">
+      <div className="cap-liveness__row">
+        {tone === 'ok' ? <Check size={18} className="cap-icon" aria-hidden="true" /> : <ScanFace size={18} className="cap-icon" aria-hidden="true" />}
+        <strong className="cap-liveness__title">{title}</strong>
         {snap && snap.total > 0 && running && (
-          <span className="liveness__steps" aria-label={`Step ${snap.index + 1} of ${snap.total}`}>
+          <span className="cap-liveness__steps" aria-label={`Step ${snap.index + 1} of ${snap.total}`}>
             {Array.from({ length: snap.total }, (_, i) => (
               <i key={i} className={i < snap.index ? 'is-done' : i === snap.index ? 'is-now' : ''} />
             ))}
           </span>
         )}
       </div>
-      <span className="liveness__sub">{sub}</span>
+      <span className="cap-liveness__sub">{sub}</span>
       {canSpeak() && (
-        <button type="button" className="btn btn--sm" aria-pressed={voice} onClick={() => { const on = !voice; setVoice(on); saveVoice(on); spoken.current = ''; if (!on) window.speechSynthesis.cancel() }}>
-          {voice ? <VolumeX size={14} /> : <Volume2 size={14} />} {voice ? 'Stop reading aloud' : 'Read prompts aloud'}
+        <button type="button" className="cap-btn cap-btn--sm cap-liveness__voice" aria-pressed={voice} onClick={toggleVoice} data-tip={voice ? 'Stop reading aloud' : 'Read prompts aloud'}>
+          {voice ? <VolumeX size={14} className="cap-icon" aria-hidden="true" /> : <Volume2 size={14} className="cap-icon" aria-hidden="true" />}
+          <span className="cap-liveness__voicetxt">{voice ? 'Stop reading aloud' : 'Read prompts aloud'}</span>
         </button>
       )}
-      {running && <span className="liveness__bar" style={{ '--p': `${Math.max(0, Math.min(1, snap.current.remainingMs / L.timeoutMs)) * 100}%` }} />}
+      {running && <span className="cap-liveness__bar" style={{ '--p': `${Math.max(0, Math.min(1, snap.current.remainingMs / L.timeoutMs)) * 100}%` }}><i /></span>}
       {(failed || (snap?.phase === 'passed' && !done)) && !live.reviewRequested && (
-        <div className="liveness__actions">
+        <div className="cap-liveness__actions">
           {(live.canRetry || (snap?.phase === 'passed' && !done)) && (
-            <button type="button" className="btn btn--sm btn--primary" onClick={onRetry}><RefreshCw size={14} /> Try again</button>
+            <button type="button" className="cap-btn cap-btn--sm cap-btn--primary" onClick={onRetry}><RefreshCw size={14} className="cap-icon" aria-hidden="true" /> Try again</button>
           )}
           {!live.canRetry && failed && (
-            <button type="button" className="btn btn--sm" onClick={onReview}><Send size={14} /> Send for review</button>
+            <button type="button" className="cap-btn cap-btn--sm" onClick={onReview}><Send size={14} className="cap-icon" aria-hidden="true" /> Send for review</button>
           )}
         </div>
       )}

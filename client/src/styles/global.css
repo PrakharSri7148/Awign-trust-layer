@@ -259,18 +259,8 @@ a { color: inherit; text-decoration: none; }
 .signal i { width: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); }
 .signal i.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
 
-.neural { position: relative; width: 220px; height: 220px; margin: 0 auto; display: grid; place-items: center; }
-.neural i { position: absolute; border-radius: 50%; border: 1px solid; }
-.neural i:nth-child(1) { inset: 0; border-color: rgba(34, 211, 238, 0.5); border-top-color: transparent; animation: spin 2.4s linear infinite; }
-.neural i:nth-child(2) { inset: 22px; border-color: rgba(139, 92, 246, 0.6); border-bottom-color: transparent; animation: spin 3.2s linear infinite reverse; }
-.neural i:nth-child(3) { inset: 44px; border-color: rgba(34, 211, 238, 0.4); border-left-color: transparent; animation: spin 1.8s linear infinite; }
-.neural i:nth-child(4) { inset: 66px; border-color: rgba(52, 211, 153, 0.5); border-right-color: transparent; animation: spin 2.8s linear infinite reverse; }
-.neural__core { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; color: var(--cyan); background: radial-gradient(circle, rgba(34, 211, 238, 0.35), transparent 70%); animation: breathe 1.6s ease-in-out infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes breathe { 50% { transform: scale(1.18); } }
-.terminal { font-family: var(--font-mono); font-size: 12px; color: var(--cyan); display: grid; gap: 4px; padding: 14px; border-radius: var(--r-md); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border); min-height: 96px; align-content: end; }
-.terminal div { opacity: 0.5; } .terminal div:last-child { opacity: 1; }
-.terminal div:last-child::after { content: '▍'; animation: blink 1s steps(2) infinite; margin-left: 2px; }
 @keyframes blink { 50% { opacity: 0; } }
 
 .verdict { text-align: center; display: grid; gap: var(--s3); justify-items: center; }

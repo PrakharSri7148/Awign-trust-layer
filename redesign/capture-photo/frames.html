@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · Photo step · gallery</title>
+  <link rel="stylesheet" href="css/cap-tokens.css" />
+  <link rel="stylesheet" href="css/cap-components.css" />
+  <link rel="stylesheet" href="css/cap-viewer.css" />
+</head>
+<body class="cv-body">
+<div class="cv-page">
+  <div><h1>Gallery: every state at desktop, tablet and phone</h1><p class="cap-muted" style="color:var(--cap-text-2);font-size:13px">Dark theme. Frames are live iframes of <a href="app.html">app.html</a> (lazy loaded), scaled down. The last section shows the phone result and the phone immersive camera in the light theme. <a href="index.html">Back to the viewer</a></p></div>
+  <div id="g"></div>
+</div>
+<script src="js/cap-icons.js"></script><script src="js/cap-data.js"></script><script src="js/cap-state.js"></script>
+<script>
+(function () {
+  var SIZES = [['Desktop 1280×860', 1280, 860, 0.34], ['Tablet 820×1100', 820, 1100, 0.34], ['Phone 390×844', 390, 844, 0.5]];
+  var g = document.getElementById('g'), P = window.CAP_STATE.presets, seen = {};
+  function item(id, label, s, theme) {
+    var d = document.createElement('div'); d.className = 'cv-gal-item';
+    var w = s[1] * s[3], h = s[2] * s[3];
+    d.innerHTML = '<div class="cv-label">' + label + ' · ' + s[0] + (theme === 'light' ? ' · light' : '') + '</div><div class="cv-box" style="width:' + w + 'px;height:' + h + 'px"></div>';
+    var f = document.createElement('iframe'); f.loading = 'lazy'; f.title = id + ' ' + s[0]; f.src = 'app.html?state=' + id + '&theme=' + (theme || 'dark');
+    f.style.width = s[1] + 'px'; f.style.height = s[2] + 'px'; f.style.transform = 'scale(' + s[3] + ')';
+    d.firstChild.nextSibling.appendChild(f); return d;
+  }
+  P.forEach(function (p) {
+    var sec = document.createElement('section'); sec.className = 'cv-sec'; sec.id = p.id;
+    sec.innerHTML = '<h2>' + p.group + ' · ' + p.label + '</h2><div class="cv-gal-row"></div>';
+    SIZES.forEach(function (s) { sec.lastChild.appendChild(item(p.id, p.id, s)); });
+    g.appendChild(sec);
+  });
+  var sec = document.createElement('section'); sec.className = 'cv-sec'; sec.innerHTML = '<h2>Light theme (outdoor): phone result and phone immersive camera</h2><div class="cv-gal-row"></div>';
+  [['result-pass', SIZES[2]], ['result-warn', SIZES[2]], ['result-block', SIZES[2]], ['live-ready', SIZES[2]], ['live-dark', SIZES[2]], ['lv-running', SIZES[2]]].forEach(function (x) { sec.lastChild.appendChild(item(x[0], x[0], x[1], 'light')); });
+  g.appendChild(sec);
+})();
+</script>
+</body>
+</html>

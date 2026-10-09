@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · Verdict step · gallery</title>
+  <link rel="stylesheet" href="../capture-photo/css/cap-tokens.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-components.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-viewer.css" />
+</head>
+<body class="cv-body">
+<div class="cv-page">
+  <div><h1>Gallery: every state at desktop, tablet and phone</h1><p style="color:var(--cap-text-2);font-size:13px">Dark theme, final values shown at once (<span class="cv-mono">?static=1</span>). Frames are live iframes of <a href="app.html">app.html</a> (lazy loaded), scaled down. The last sections show the phone in the light theme and the reduced-motion variant. <a href="index.html">Back to the viewer</a></p></div>
+  <div id="g"></div>
+</div>
+<script src="../capture-photo/js/cap-icons.js"></script><script src="js/cap-icons-extra.js"></script><script src="js/cap-verdict-data.js"></script><script src="js/cap-verdict-state.js"></script>
+<script>
+(function () {
+  var SIZES = [['Desktop 1280×900', 1280, 900, 0.34], ['Tablet 820×1100', 820, 1100, 0.34], ['Phone 390×844', 390, 844, 0.5]];
+  var g = document.getElementById('g'), P = window.CAP_VSTATE.presets;
+  function item(id, label, s, extra) {
+    var d = document.createElement('div'); d.className = 'cv-gal-item';
+    var w = s[1] * s[3], h = s[2] * s[3];
+    d.innerHTML = '<div class="cv-label">' + label + ' · ' + s[0] + (extra && extra.indexOf('light') >= 0 ? ' · light' : '') + (extra && extra.indexOf('reduce') >= 0 ? ' · reduced motion' : '') + '</div><div class="cv-box" style="width:' + w + 'px;height:' + h + 'px"></div>';
+    var f = document.createElement('iframe'); f.loading = 'lazy'; f.title = id + ' ' + s[0]; f.src = 'app.html?state=' + id + '&static=1' + (extra ? '&' + extra : '');
+    f.style.width = s[1] + 'px'; f.style.height = s[2] + 'px'; f.style.transform = 'scale(' + s[3] + ')';
+    d.firstChild.nextSibling.appendChild(f); return d;
+  }
+  P.forEach(function (p) {
+    var sec = document.createElement('section'); sec.className = 'cv-sec'; sec.id = p.id;
+    sec.innerHTML = '<h2>' + p.group + ' · ' + p.label + '</h2><div class="cv-gal-row"></div>';
+    SIZES.forEach(function (s) { sec.lastChild.appendChild(item(p.id, p.id, s)); });
+    g.appendChild(sec);
+  });
+  var sec = document.createElement('section'); sec.className = 'cv-sec'; sec.innerHTML = '<h2>Light theme (outdoor), phone and desktop</h2><div class="cv-gal-row"></div>';
+  [['accepted-full', SIZES[2]], ['accepted-muted', SIZES[2]], ['flagged-outside', SIZES[2]], ['flagged-network', SIZES[2]], ['nofusion-flagged', SIZES[2]], ['flagged-outside', SIZES[0]]].forEach(function (x) { sec.lastChild.appendChild(item(x[0], x[0], x[1], 'theme=light')); });
+  g.appendChild(sec);
+  var sec2 = document.createElement('section'); sec2.className = 'cv-sec'; sec2.innerHTML = '<h2>Reduced motion: no celebration, the gauge shows its final value at once</h2><div class="cv-gal-row"></div>';
+  [['accepted-full', SIZES[2]], ['accepted-full', SIZES[0]]].forEach(function (x) { sec2.lastChild.appendChild(item(x[0], x[0], x[1], 'motion=reduce')); });
+  g.appendChild(sec2);
+})();
+</script>
+</body>
+</html>

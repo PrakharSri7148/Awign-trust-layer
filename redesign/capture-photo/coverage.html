@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · Photo step · coverage</title>
+  <link rel="stylesheet" href="css/cap-tokens.css" />
+  <link rel="stylesheet" href="css/cap-components.css" />
+  <link rel="stylesheet" href="css/cap-viewer.css" />
+</head>
+<body class="cv-body">
+<div class="cv-page">
+  <div><h1>Coverage: every inventory item, where it lives</h1>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0" id="sum"></p>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0"><a href="index.html">Viewer</a> · <a href="frames.html">Gallery</a> · <a href="tokens.html">Tokens + components</a>. “Found in states” is measured by <span class="cv-mono">node tools/verify.mjs</span> (every element carries a <span class="cv-mono">data-inv</span> id; the tool loads every state at desktop and phone width and records which ids are in the DOM).</p></div>
+  <table class="cv-table"><thead><tr><th>ID</th><th>Item</th><th>Where it lives now</th><th>Component</th><th>Open</th><th>Found in</th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+<script src="js/cap-coverage-data.js"></script>
+<script src="coverage-report.js"></script>
+<script>
+(function () {
+  var rep = window.CAP_COVERAGE_REPORT || null, rows = document.getElementById('rows'), ok = 0;
+  window.CAP_COVERAGE.forEach(function (r) {
+    var found = rep && rep.found[r[0]]; var gone = r[5] === 'removed';
+    if (!gone && found && found.length) ok++;
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td class="cv-mono"><b>' + r[0] + '</b></td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[4] + '</td><td><a href="index.html?state=' + r[3] + '">' + r[3] + '</a></td><td>' + (gone ? '<span class="cap-pill cap-pill--skip">removed by request</span>' : rep ? (found && found.length ? '<span class="cap-pill cap-pill--pass">' + found.length + ' states</span>' : '<span class="cap-pill cap-pill--fail">missing</span>') : '<span class="cap-pill cap-pill--skip">not measured</span>') + '</td>';
+    rows.appendChild(tr);
+  });
+  document.getElementById('sum').textContent = window.CAP_COVERAGE.length + ' inventory items, ' + window.CAP_COVERAGE.filter(function (r) { return r[5] === 'removed'; }).length + ' removed at your request' + (rep ? ' · ' + ok + ' found in the DOM · measured ' + rep.when : ' · run tools/verify.mjs to measure');
+})();
+</script>
+</body>
+</html>

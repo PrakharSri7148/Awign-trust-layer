@@ -1,0 +1,119 @@
+/* Trust Layer design tokens.
+   Dark is the default. A light theme (for outdoor use on the worker side) is a pure token swap:
+   put data-theme="light" on <html>. Nothing else in the CSS changes.
+   Semantic colors are used as text/dot colors; tinted fills are derived with color-mix() so they follow the theme. */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter-latin-var.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --color-bg: #0a0a0c;            /* app background, visible as the inset margin around the shell */
+  --color-shell: #0f0f12;         /* raised rounded shell + panels */
+  --color-card: #131316;          /* cards and rows */
+  --color-card-hover: #1a1a1f;    /* row hover, raised controls */
+  --color-control: #17171b;       /* inputs and secondary buttons */
+  --color-overlay: rgba(0, 0, 0, 0.55);
+  --color-border: rgba(255, 255, 255, 0.07);
+  --color-border-strong: rgba(255, 255, 255, 0.14);
+
+  /* Text */
+  --color-text: #f2f3f5;
+  --color-text-2: #9a9ca3;
+
+  /* Accent: the only brand color. Active nav, primary + refresh buttons, selected KPI tab, focus rings. */
+  --color-accent: #3b6cf6;
+  --color-accent-hover: #5580f8;
+  --color-accent-text: #8ba8ff;   /* accent used as text on dark (AA) */
+  --color-on-accent: #ffffff;
+
+  /* Semantic. Always shown as a tinted pill with a word, never as a large fill. */
+  --color-ok: #34d399;            /* ok / resolved / low */
+  --color-warn: #fbbf24;          /* medium / open */
+  --color-high: #fb923c;          /* high */
+  --color-crit: #f04b57;          /* critical / flagged */
+  --color-neutral: #9a9ca3;       /* unverified / accepted */
+
+  --tint-strength: 11%;
+  --tint-border-strength: 38%;
+
+  /* Radii */
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --radius-shell: 20px;
+  --radius-round: 999px;
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Type */
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --text-xs: 12px;     /* tiny column headers, pills, captions: the minimum size */
+  --text-sm: 13px;     /* table cells, secondary */
+  --text-md: 14px;     /* body */
+  --text-lg: 16px;     /* panel titles */
+  --text-xl: 20px;     /* page titles */
+  --text-kpi: 30px;    /* KPI numbers */
+
+  /* Layout */
+  --shell-inset: 24px;
+  --topbar-h: 64px;
+  --slideover-w: 520px;
+  --tap: 44px;         /* minimum touch target */
+
+  /* Motion */
+  --dur-fast: 120ms;
+  --dur-med: 220ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Map */
+  --map-dot: rgba(255, 255, 255, 0.16);
+  --map-dot-home: rgba(255, 255, 255, 0.30);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg: #eceef2;
+  --color-shell: #ffffff;
+  --color-card: #f4f5f8;
+  --color-card-hover: #eaecf1;
+  --color-control: #ffffff;
+  --color-overlay: rgba(10, 12, 20, 0.4);
+  --color-border: rgba(10, 12, 20, 0.1);
+  --color-border-strong: rgba(10, 12, 20, 0.22);
+
+  --color-text: #14161b;
+  --color-text-2: #565a63;
+
+  --color-accent: #2f5fe3;
+  --color-accent-hover: #2450c9;
+  --color-accent-text: #2450c9;
+  --color-on-accent: #ffffff;
+
+  --color-ok: #09694a;
+  --color-warn: #8f5a00;
+  --color-high: #9f3f08;
+  --color-crit: #c4222f;
+  --color-neutral: #565a63;
+
+  --tint-strength: 10%;
+  --tint-border-strength: 40%;
+
+  --map-dot: rgba(10, 12, 20, 0.16);
+  --map-dot-home: rgba(10, 12, 20, 0.34);
+}

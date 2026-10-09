@@ -1,7 +1,7 @@
 # Environment consistency: iteration 2, deploy, package and rehearse (everything except the phone test)
 
 Date: 2026-10-08
-Status: **planned, not started.** Starts after [`iteration-1.md`](iteration-1.md) (E0-E6) is done. Live state: [`progress.md`](progress.md). Prompt: [`iteration-2-prompt.md`](iteration-2-prompt.md).
+Status: **implemented up to what needs you (2026-10-08)**: P0, P1, P4-P8 done and verified; P2 and P3 written, not run (blocked on N1 and N3). Evidence and open items: `progress.md`. Starts after [`iteration-1.md`](iteration-1.md) (E0-E6) is done. Live state: [`progress.md`](progress.md). Prompt: [`iteration-2-prompt.md`](iteration-2-prompt.md).
 Audience: you (section 1), then the engineer / agent who implements it.
 
 **Goal of this iteration.** When it is finished, the only thing left is **the final phone test** (section 5): install the APK on your Android phone and walk through the demo. Everything before that (public hosting, security, APK packaging files, preflight, reset tool, demo runbook, rehearsal in a desktop browser, the phone-test pack) is done and verified here.

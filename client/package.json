@@ -15,6 +15,7 @@
     "calibrate": "../backend/.venv/bin/python ../backend/tools/calibrate.py",
     "report": "../backend/.venv/bin/python ../backend/tools/accuracy_report.py",
     "e2e": "node tools/e2e/run.mjs",
+    "e2e:steps": "node tools/e2e/run.mjs capture_steps",
     "fusion:parity": "node tools/fusion-parity.mjs",
     "apk": "node tools/apk.mjs",
     "demo:laptop": "E2E_HEADFUL=1 node tools/e2e/run.mjs fusion_demo",

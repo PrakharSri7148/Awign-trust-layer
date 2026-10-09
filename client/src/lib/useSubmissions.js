@@ -19,7 +19,7 @@ export function useSubmissions() {
       if (res.status === 401) throw new Error('UNAUTHORIZED')
       if (!res.ok) throw new Error(`Server responded ${res.status}`)
       const rows = await res.json()
-      if (!alive.current) return
+      if (!alive.current) return rows
       const ids = new Set(rows.map((r) => r.id))
       if (seen.current) {
         const added = rows.filter((r) => !seen.current.has(r.id)).map((r) => r.id)
@@ -32,8 +32,10 @@ export function useSubmissions() {
       setData(rows)
       setError(null)
       setLastUpdated(new Date())
+      return rows
     } catch (err) {
       if (alive.current) setError(err.message)
+      return null
     } finally {
       if (alive.current) setLoading(false)
     }

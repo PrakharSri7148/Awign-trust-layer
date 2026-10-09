@@ -1,19 +1,22 @@
-import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, CircleAlert, RefreshCw, Satellite, Send, ScanLine, Activity, Wifi, ShieldX } from 'lucide-react'
+import { CircleAlert, RefreshCw, ScanFace } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import Analysis from '../components/capture/Analysis.jsx'
+import ArrivalCard from '../components/capture/ArrivalCard.jsx'
 import PhotoOverlay, { overlayBoxes } from '../components/capture/PhotoOverlay.jsx'
 import LiveCamera, { cameraSupported } from '../components/capture/LiveCamera.jsx'
 import QualityChecklist from '../components/capture/QualityChecklist.jsx'
+import ScanCard from '../components/capture/ScanCard.jsx'
 import SensorFeed from '../components/capture/SensorFeed.jsx'
-import SensorTile from '../components/capture/SensorTile.jsx'
 import Stepper from '../components/capture/Stepper.jsx'
-import TrailTile from '../components/capture/TrailTile.jsx'
+import CapShell from '../components/capture/CapShell.jsx'
+import FilePicker from '../components/capture/FilePicker.jsx'
+import { useCapTheme } from '../components/capture/useCapTheme.js'
+import { useLayoutMode } from '../components/capture/useLayoutMode.js'
 import Verdict from '../components/capture/Verdict.jsx'
 import VisitPanel from '../components/capture/VisitPanel.jsx'
-import Gauge from '../components/ui/Gauge.jsx'
-import Waveform from '../components/capture/Waveform.jsx'
 import { API_BASE, startVisit } from '../lib/api.js'
+import { MOTION_MS } from '../lib/arrivalProgress.js'
+import { SCAN_FAIL_HOLD_MS } from '../lib/scanProgress.js'
+import { sensorNotesFor } from '../lib/sensorNotes.js'
 import { TASKS, taskConfig } from '../lib/photoQuality/config.js'
 import { mediapipeDetector } from '../lib/photoQuality/face/mediapipeDetector.js'
 import { runPhotoQualityBrowser } from '../lib/photoQuality/client.js'
@@ -27,25 +30,14 @@ import { captureMotionSample, getGPS, getNetworkInfo } from '../lib/sensors.js'
 const WORKER_ID = 'worker_demo_1'
 const DEFAULT_TASK_ID = 'task_demo_1'
 const SITE_ID = 'site_demo_1'
-const MOTION_MS = 3000
 const MIN_ANALYSIS_MS = 2600
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const STEP_INDEX = { photo: 0, sensors: 1, analysis: 2, verdict: 3 }
-const BARS = { slow: 1, '3g': 2, '2g': 1, 'slow-2g': 1, '4g': 4 }
-
-function signalBars(type) {
-  const n = BARS[type] ?? 0
-  return (
-    <span className="signal" aria-hidden="true" style={{ marginLeft: 'auto' }}>
-      {[6, 10, 14, 18].map((h, i) => (
-        <i key={h} className={i < n ? 'on' : ''} style={{ height: h }} />
-      ))}
-    </span>
-  )
-}
 
 export default function Capture() {
+  const [theme, setTheme] = useCapTheme()
+  const layout = useLayoutMode()
   const [step, setStep] = useState('photo')
   const [taskId, setTaskId] = useState(DEFAULT_TASK_ID)
   // 'camera' = in-app live viewfinder, 'file' = the system picker / camera app.
@@ -61,7 +53,10 @@ export default function Capture() {
   const [left, setLeft] = useState(MOTION_MS)
   const [result, setResult] = useState(null)
   const [sensorNotes, setSensorNotes] = useState([])
+  const [continuing, setContinuing] = useState(false) // all readings are in: the 0.5 s pause before the AI scan
+  const [enter, setEnter] = useState(undefined) // 'fwd' = arriving at the Arrival step, 'back' = a failed submission returned to Photo (page transition)
   const [error, setError] = useState(null)
+  const [scanFailure, setScanFailure] = useState(null) // the "Submission failed: …" text while the failed AI scan is held on screen before the Photo step opens
   const fileRef = useRef(null)
   const runId = useRef(0)
   const photoFile = useRef(null)
@@ -101,6 +96,10 @@ export default function Capture() {
 
   useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview])
 
+  // Every step opens at the top. The worker tapped a button lower down the page (the "I've reached the site" button, or the scan's step before it),
+  // and the browser would otherwise keep that scroll position: the Verdict opened ~200 px down with the progress bar and top bar out of view.
+  useEffect(() => { globalThis.scrollTo?.({ top: 0, left: 0, behavior: 'instant' }) }, [step])
+
   // What this task needs from the photo (e.g. a face) and which camera to open.
   const task = taskConfig(taskId)
   const needsFace = task.face !== 'off'
@@ -128,7 +127,10 @@ export default function Capture() {
     setPreview(null)
     setResult(null)
     setSensorNotes([])
+    setContinuing(false)
+    setEnter(undefined)
     setError(null)
+    setScanFailure(null)
     setSensors({ gps: 'wait', motion: 'wait', net: 'wait' })
     setReadout({})
     setInputKey((k) => k + 1)
@@ -170,10 +172,13 @@ export default function Capture() {
     if (!quality || quality.report.verdict === VERDICT.BLOCK) return
     setError(null)
     setResult(null)
+    setContinuing(false)
+    setEnter('fwd')
     setStep('sensors')
     setSensors({ gps: 'acq', motion: 'acq', net: 'acq' })
     setLeft(MOTION_MS)
 
+    let scanning = false // true once the AI scan step is on screen (a failure before that returns to Photo at once)
     const t0 = performance.now()
     const tick = setInterval(() => setLeft(Math.max(0, MOTION_MS - (performance.now() - t0))), 100)
 
@@ -198,6 +203,7 @@ export default function Capture() {
       setSensors((s) => ({ ...s, net: hasNet ? 'ok' : 'na' }))
       setReadout((r) => ({
         ...r,
+        netType: net.effectiveType,
         net: hasNet ? `${net.effectiveType} · ${net.downlink} Mbps · ${net.rtt} ms` : 'Network info not exposed by this browser',
       }))
 
@@ -206,13 +212,11 @@ export default function Capture() {
       const rec = recorder.getState()
       const trail = rec.running ? recorder.snapshot() : null
 
-      const notes = []
-      if (!gps) notes.push('GPS unavailable or denied')
-      if (motionSamples.length === 0) notes.push('no motion samples (sensor unavailable or denied)')
-      if (!hasNet) notes.push('network info unavailable in this browser')
-      setSensorNotes(notes)
+      setSensorNotes(sensorNotesFor({ gps: gps ? 'ok' : 'na', motion: motionSamples.length ? 'ok' : 'na', net: hasNet ? 'ok' : 'na' }))
 
+      setContinuing(true)
       await sleep(500)
+      scanning = true
       setStep('analysis')
       // Multipart: the photo itself (so the server can re-check it, never trusting
       // this device's verdict) plus everything else as a JSON `payload` field.
@@ -245,227 +249,153 @@ export default function Capture() {
       setStep('verdict')
     } catch (err) {
       clearInterval(tick)
-      setError(`Submission failed: ${err.message}`)
+      const failure = `Submission failed: ${err.message}`
+      // From the AI scan the failure is shown on the scan card for a moment (the scan stops, the message is read), then the Photo step opens with it.
+      if (scanning) { setScanFailure(failure); await sleep(SCAN_FAIL_HOLD_MS) }
+      setScanFailure(null)
+      setError(failure)
+      setContinuing(false)
+      setEnter('back')
       setStep('photo')
     }
   }
 
   const verdict = quality?.report.verdict
   const blocked = verdict === VERDICT.BLOCK
-  const warned = verdict === VERDICT.WARN
   const canSubmit = !!quality && !blocked
-  const glow = blocked ? 'red' : warned ? 'amber' : 'green'
+  const report = quality?.report
 
+  // Step 2 (Arrival) is the redesigned card inside the same shell and stepper as the Photo step (design: redesign/capture-arrival).
+  if (step === 'sensors') {
+    return (
+      <CapShell theme={theme} onTheme={setTheme} enter={enter}>
+        <Stepper current={STEP_INDEX.sensors} />
+        <ArrivalCard sensors={sensors} readout={readout} left={left} continuing={continuing} photoUrl={preview} recorder={recorder} />
+      </CapShell>
+    )
+  }
+
+  // Step 3 (AI scan) is the redesigned card inside the same shell and stepper (design: redesign/capture-scan).
+  if (step === 'analysis') {
+    return (
+      <CapShell theme={theme} onTheme={setTheme} enter={enter}>
+        <Stepper current={STEP_INDEX.analysis} />
+        <ScanCard notes={sensorNotes} photoUrl={preview} taskLabel={task.label} failure={scanFailure} />
+      </CapShell>
+    )
+  }
+
+  // Step 4 (Verdict) is the redesigned result inside the same shell and stepper, every step done (design: redesign/capture-verdict).
+  // "New submission" scrolls to the top, resets the flow, reopens the camera and restarts the visit recording if the worker already agreed.
+  if (step === 'verdict' && result) {
+    return (
+      <CapShell theme={theme} onTheme={setTheme} enter={enter}>
+        <Stepper current={STEP_INDEX.verdict + 1} />
+        <Verdict result={result} notes={sensorNotes} onReset={() => { globalThis.scrollTo?.({ top: 0 }); reset({ reopenCamera: true }); if (safeStorage.get(CONSENT_KEY) === '1') startRecording() }} />
+      </CapShell>
+    )
+  }
+
+  const recording = recorder.getState().running
   return (
-    <div>
-      <div className="capture-narrow"><Stepper current={STEP_INDEX[step]} /></div>
+    <CapShell theme={theme} onTheme={setTheme} enter={enter}>
+      <Stepper current={STEP_INDEX[step]} />
 
-      <AnimatePresence mode="wait">
-        {step === 'photo' && (
-          <motion.div key="photo" className="stack stack--lg" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.22 }}>
-            <div className="panel panel--tight brief">
-              <div className="brief__head">
-                <div className="eyebrow eyebrow--cyan">Mission brief</div>
-                <h1 style={{ fontSize: 22, marginTop: 4 }}>Capture proof of work</h1>
-              </div>
-              <div className="brief__body">
-                <div className="ctx">
-                  <span className="chip">worker · {WORKER_ID}</span>
-                  <span className="chip">site · {SITE_ID}</span>
-                </div>
-                <div className="tasks" role="group" aria-label="Task type">
-                  {Object.entries(TASKS).map(([id, t]) => (
-                    <button key={id} type="button" className={`chip chip--btn${id === taskId ? ' chip--active' : ''}`} aria-pressed={id === taskId} onClick={() => pickTask(id)}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                {needsFace && (
-                  <p className="dim" style={{ fontSize: 13, margin: 0 }}>
-                    {task.face === 'required' ? 'This task needs a clear photo of your face and a short live check (blink, turn your head, smile or open your mouth). They are used only to verify this submission.' : 'A face is optional for this task.'}
-                  </p>
-                )}
-              </div>
+      <section className="cap-card cap-brief" aria-label="Task">
+        <div className="cap-brief__tasks" role="group" aria-label="Task type">
+          {Object.entries(TASKS).map(([id, t]) => (
+            <button key={id} type="button" className="cap-chip cap-chip--toggle" aria-pressed={id === taskId} onClick={() => pickTask(id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {needsFace && (
+          <p className="cap-brief__note">
+            <ScanFace size={16} className="cap-icon" aria-hidden="true" />
+            <span>{task.face === 'required' ? 'This task needs a clear photo of your face and a short live check (blink, turn your head, smile or open your mouth). They are used only to verify this submission.' : 'A face is optional for this task.'}</span>
+          </p>
+        )}
+      </section>
+
+      {error && (
+        <div className="cap-banner cap-banner--error" role="alert">
+          <CircleAlert size={18} className="cap-icon" aria-hidden="true" />
+          <span className="cap-banner__text">{error}</span>
+          {canSubmit && (
+            <button type="button" className="cap-btn cap-btn--sm cap-btn--danger" onClick={onSubmit}>
+              <RefreshCw size={14} className="cap-icon" aria-hidden="true" /> Retry
+            </button>
+          )}
+        </div>
+      )}
+
+      {cameraNote && mode === 'file' && !preview && (
+        <div className="cap-banner cap-banner--warn" role="status">
+          <CircleAlert size={18} className="cap-icon" aria-hidden="true" />
+          <span className="cap-banner__text">{cameraNote}</span>
+        </div>
+      )}
+
+      <div className="cap-grid">
+        {mode === 'camera' && !preview ? (
+          <LiveCamera
+            key={inputKey}
+            task={task}
+            taskId={taskId}
+            workerId={WORKER_ID}
+            detector={needsFace ? faceDetector() : null}
+            autoStart={autoStart}
+            onCapture={(file, meta) => processPhoto(file, meta)}
+            onUnavailable={cameraUnavailable}
+            onUsePicker={() => { setMode('file'); setCameraNote(null) }}
+          />
+        ) : (
+          <>
+            <div className="cap-grid__stage">
+              {preview ? (
+                <PhotoOverlay
+                  src={preview}
+                  width={report?.metrics.width}
+                  height={report?.metrics.height}
+                  boxes={overlayBoxes(report)}
+                  checking={checking}
+                  needsFace={needsFace}
+                  blocked={blocked}
+                />
+              ) : (
+                <FilePicker task={task} inputKey={inputKey} inputRef={fileRef} onChange={onPhotoChange} />
+              )}
+              {mode === 'file' && !preview && cameraSupported() && (
+                <button type="button" className="cap-link" onClick={() => { setMode('camera'); setCameraNote(null); setAutoStart(false) }}>
+                  Use the live camera
+                </button>
+              )}
             </div>
-
-            <VisitPanel recorder={recorder} onStart={startRecording} onStop={() => recorder.reset()} note={visitNote} siteId={SITE_ID} />
-
-            {error && (
-              <div className="banner banner--error" role="alert">
-                <CircleAlert size={18} />
-                <span>{error}</span>
-                {canSubmit && (
-                  <button className="btn btn--sm btn--danger" onClick={onSubmit}>
-                    <RefreshCw size={14} /> Retry
-                  </button>
-                )}
-              </div>
-            )}
-
-            {cameraNote && mode === 'file' && !preview && (
-              <div className="banner banner--warn" role="status">
-                <CircleAlert size={18} />
-                <span>{cameraNote}</span>
-              </div>
-            )}
-
-            {mode === 'camera' && !preview ? (
-              <LiveCamera
-                key={inputKey}
-                task={task}
-                taskId={taskId}
-                workerId={WORKER_ID}
-                detector={needsFace ? faceDetector() : null}
-                autoStart={autoStart}
-                onCapture={(file, meta) => processPhoto(file, meta)}
-                onUnavailable={cameraUnavailable}
-              />
-            ) : (
-              <div className="capture-grid">
-                <div className={`panel brackets capture-grid__main${blocked ? ' shake' : ''}`} key={blocked ? 'b' : 'n'} style={{ padding: 12 }}>
-                  <label
-                    className={`viewfinder${preview ? ' viewfinder--filled' : ''}`}
-                    style={{ display: 'grid', ...(quality ? { '--ar': quality.report.metrics.width / quality.report.metrics.height, '--ar-num': quality.report.metrics.width / quality.report.metrics.height } : {}) }}
-                  >
-                    <input
-                      key={inputKey}
-                      ref={fileRef}
-                      type="file"
-                      accept="image/*"
-                      capture={task.camera}
-                      onChange={onPhotoChange}
-                      style={{ position: 'absolute', opacity: 0, inset: 0, cursor: preview ? 'default' : 'pointer', pointerEvents: preview ? 'none' : 'auto' }}
-                      aria-label="Take or choose a photo"
-                    />
-                    {preview ? (
-                      <>
-                        {quality ? (
-                          <PhotoOverlay src={preview} width={quality.report.metrics.width} height={quality.report.metrics.height} boxes={overlayBoxes(quality.report)} />
-                        ) : (
-                          <img src={preview} alt="Captured proof" />
-                        )}
-                        {checking && <div className="scanline" />}
-                      </>
-                    ) : (
-                      <div className="viewfinder__target">
-                        <div className="reticle">
-                          <div className="reticle__core">
-                            <Camera size={28} />
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ color: 'var(--text)', fontWeight: 600 }}>Tap to capture</div>
-                          <div className="eyebrow" style={{ marginTop: 4 }}>{task.camera === 'user' ? 'Front camera' : 'Rear camera'} · photo quality check</div>
-                        </div>
-                      </div>
-                    )}
-                  </label>
-                </div>
-
-                {quality && (
-                  <motion.div className={`panel panel--glow-${glow} capture-grid__side`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                    <QualityChecklist report={quality.report} />
-                    {canSubmit && (
-                      <p className="dim" style={{ fontSize: 13, margin: 'var(--s2) 0 0' }} data-testid="arrival-hint">
-                        Photo checked. When you are standing at the site, tap the button: we then send your GPS location{recorder.getState().running ? ' and the movement recorded on the way' : ''} and verify you reached it.
-                        {!recorder.getState().running && ' (Without the visit recording only your location can be checked.)'}
-                      </p>
-                    )}
-                    <div className="row" style={{ marginTop: 'var(--s2)' }}>
-                      {canSubmit && (
-                        <button className="btn btn--primary" onClick={onSubmit} data-testid="arrived-btn">
-                          <Send size={16} /> {warned ? "I've reached the site · send location anyway" : "I've reached the site · send my location"}
-                        </button>
-                      )}
-                      <button className={`btn ${blocked ? 'btn--primary' : ''}`} onClick={() => reset({ reopenCamera: true })}>
-                        <RefreshCw size={16} /> Retake
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </div>
-            )}
-
-            {mode === 'camera' && !preview && !task.live && (
-              <button type="button" className="picker-link" onClick={() => { setMode('file'); setCameraNote(null) }}>
-                Use the photo picker instead
-              </button>
-            )}
-            {mode === 'file' && !preview && cameraSupported() && (
-              <button type="button" className="picker-link" onClick={() => { setMode('camera'); setCameraNote(null); setAutoStart(false) }}>
-                Use the live camera
-              </button>
-            )}
-
-            {checking && (
-              <div className="terminal" role="status">
-                <div>&gt; Checking focus, lighting, lens{needsFace ? ', face' : ''} on-device…</div>
-              </div>
-            )}
-
-            <SensorFeed recorder={recorder} siteId={SITE_ID} />
-
-          </motion.div>
+            <div className="cap-grid__hud">
+              {report ? (
+                <QualityChecklist report={report} recording={recording} shake onSend={onSubmit} onRetake={() => reset({ reopenCamera: true })} />
+              ) : checking ? (
+                <section className="cap-card" aria-label="Photo check" aria-busy="true">
+                  <div className="cap-card__head"><div><div className="cap-eyebrow">Photo result</div><h2 className="cap-card__title">Checking your photo</h2></div></div>
+                  <div className="cap-card__body"><span className="cap-skeleton" style={{ height: 16 }} /><span className="cap-skeleton" style={{ height: 16, width: '80%' }} /><span className="cap-skeleton" style={{ height: 16, width: '60%' }} /></div>
+                </section>
+              ) : layout !== 'overlay' ? (
+                <section className="cap-card" aria-label="Live quality">
+                  <div className="cap-card__head"><div className="cap-eyebrow">Live quality</div></div>
+                  <div className="cap-card__body"><p className="cap-hud__empty">Live numbers are available with the live camera. Your photo is checked right after you take it.</p></div>
+                </section>
+              ) : null}
+            </div>
+          </>
         )}
 
-        {step === 'sensors' && (
-          <motion.div key="sensors" className="panel stack stack--lg capture-narrow" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.22 }}>
-            <div>
-              <div className="eyebrow eyebrow--cyan">Verifying your arrival</div>
-              <h2 style={{ fontSize: 20, marginTop: 4 }}>Sending your location</h2>
-              <p className="dim" style={{ fontSize: 13, marginTop: 4 }}>Your photo is verified. Hold the phone naturally for ~3 seconds while we send your GPS location and the movement recorded on the way, and check you reached the site.</p>
-            </div>
-            <div className="sensors">
-              <SensorTile icon={Satellite} title="GPS" state={sensors.gps} value={readout.gps} />
-              <SensorTile
-                icon={Activity}
-                title="Motion"
-                state={sensors.motion}
-                value={readout.motion}
-                aside={
-                  sensors.motion === 'acq' && (
-                    <Gauge value={1 - left / MOTION_MS} color="var(--cyan)" size={52} stroke={5}>
-                      <span className="num" style={{ fontSize: 13 }}>{(left / 1000).toFixed(1)}</span>
-                    </Gauge>
-                  )
-                }
-              >
-                <Waveform active={sensors.motion === 'acq'} />
-              </SensorTile>
-              <SensorTile icon={Wifi} title="Network" state={sensors.net} value={readout.net} aside={sensors.net === 'ok' ? signalBars(getNetworkInfo().effectiveType) : null} />
-              <TrailTile recorder={recorder} />
-            </div>
-          </motion.div>
-        )}
-
-        {step === 'analysis' && (
-          <motion.div key="analysis" className="panel stack stack--lg capture-narrow" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-            <div style={{ textAlign: 'center' }}>
-              <div className="eyebrow eyebrow--cyan">AI analysis</div>
-              <h2 style={{ fontSize: 20, marginTop: 4 }}>Neural scan in progress</h2>
-            </div>
-            <Analysis />
-            {sensorNotes.length > 0 && (
-              <div className="banner banner--warn">
-                <ShieldX size={18} />
-                <span>Note: {sensorNotes.join('; ')}. Submitted anyway.</span>
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {step === 'verdict' && result && (
-          <motion.div key="verdict" className="capture-narrow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <Verdict result={result} onReset={() => { globalThis.scrollTo?.({ top: 0 }); reset({ reopenCamera: true }); if (safeStorage.get(CONSENT_KEY) === '1') startRecording() }} />
-            {sensorNotes.length > 0 && (
-              <div className="banner banner--warn" style={{ marginTop: 'var(--s2)' }}>
-                <ScanLine size={18} />
-                <span>Note: {sensorNotes.join('; ')}. Submitted anyway.</span>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+        <div className="cap-grid__visit">
+          <VisitPanel recorder={recorder} onStart={startRecording} onStop={() => recorder.reset()} note={visitNote} siteId={SITE_ID} />
+        </div>
+        <div className="cap-grid__feed">
+          <SensorFeed recorder={recorder} siteId={SITE_ID} />
+        </div>
+      </div>
+    </CapShell>
   )
 }

@@ -1,0 +1,58 @@
+15 presets × 4 widths
+
+Inventory ids: 33/33 found
+Checks:
+  PASS arrival wording 1 (inside) 
+  PASS arrival wording 2 (outside, red) 
+  PASS arrival wording 3 (close, amber) 
+  PASS arrival wording 4 (no GPS fix) 
+  PASS arrival wording 5 (no site) 
+  PASS muted fusion sentences 
+  PASS fetched rows: 8 + 3, wording 
+  PASS muted fetched rows use dashes 
+  PASS IP row, hosting 
+  PASS TOP DRIVER differs per state 
+  PASS no fusion: rows and fetched card hidden, SHAP stays 
+  PASS title text and tone per outcome 
+  PASS notes banner wording 
+  PASS gauge aria 
+Flows:
+  PASS gauge counts up from 0 to the final value (animated) 
+  PASS gauge final value after the animation 
+  PASS celebration plays once for accepted, not for flagged 
+  PASS reduced motion: no celebration, final value at once 
+  PASS copy button: check for 1.5 s, then back; aria-label 
+  PASS desktop: action inside the result card, Details toggle hidden, all 11 rows visible 
+  PASS phone: sticky action, Details collapses and expands the 11 rows 
+  PASS phone: the full list is reachable in the DOM when collapsed (hidden attribute only) 
+  PASS phone: IP database warning opens the more menu 
+  PASS layout switch phone → desktop keeps one action button 
+Contrast:
+  PASS dark text on card 16.7
+  PASS dark muted text on card 6.76
+  PASS dark ok (gauge value, badge) on card 9.65
+  PASS dark bad (gauge value, red rows) on card 5.17
+  PASS dark warn (amber row) on card 11.11
+  PASS dark accent text (TOP DRIVER) on card 8.07
+  PASS dark text on shell (sticky bar) 17.24
+  PASS dark accent segments vs track (non-text 3:1) 3.85
+  PASS dark grey segments vs track (non-text 3:1) 6.32
+  PASS dark ok segments vs card (non-text 3:1) 9.65
+  PASS dark bad segments vs card (non-text 3:1) 5.17
+  PASS dark white on primary button 4.5
+  PASS light text on card 16.6
+  PASS light muted text on card 6.34
+  PASS light ok (gauge value, badge) on card 6.15
+  PASS light bad (gauge value, red rows) on card 5.33
+  PASS light warn (amber row) on card 5.31
+  PASS light accent text (TOP DRIVER) on card 6.28
+  PASS light text on shell (sticky bar) 18.1
+  PASS light accent segments vs track (non-text 3:1) 4.59
+  PASS light grey segments vs track (non-text 3:1) 5.85
+  PASS light ok segments vs card (non-text 3:1) 6.15
+  PASS light bad segments vs card (non-text 3:1) 5.33
+  PASS light white on primary button 5.43
+Notes (not failures):
+ - small phone stress-long: reason sentence ends at 698px, bar at 620px (needs a scroll)
+
+Problems: 0

@@ -1,0 +1,114 @@
+/* Capture · AI scan step: the few components this step adds on top of the Photo step's tokens, components and page CSS.
+   Loaded after ../capture-photo/css/{cap-tokens,cap-components,cap-page}.css; shares .cap-thumb and .cap-view with the Arrival step (identical rules). Same rules: every class cap-, every color a token,
+   flat (no glow, no blur), 12px minimum text, AA contrast, visible focus, reduced motion respected.
+   New components: .cap-flow (centered flow card), .cap-scanmark (decorative rings), .cap-meter--busy (indeterminate bar),
+   .cap-steps / .cap-step (progress checklist), .cap-scan__top (mark + chip + bar row), .cap-scan__note (quiet line). */
+
+/* ---------- Flow card: one centered card for the later steps. Same width for Arrival, AI scan and Verdict. ---------- */
+.cap-flow { --cap-flow-w: 560px; width: min(100%, var(--cap-flow-w)); margin-inline: auto; }
+.cap-flow .cap-card__head { align-items: flex-start; }
+.cap-flow .cap-card__title { font-size: var(--cap-text-xl); letter-spacing: -0.01em; line-height: 1.2; margin-top: 4px; }
+.cap-flow .cap-card__body { gap: var(--cap-space-4); }
+.cap-flow .cap-banner { align-items: flex-start; }
+.cap-flow .cap-banner > .cap-icon { margin-top: 1px; }
+.cap-scan__aux:empty, .cap-scan__fail:empty, .cap-scan__notes:empty { display: none; }
+.cap-scan__aux, .cap-scan__fail { display: grid; gap: var(--cap-space-2); }
+
+/* ---------- Scan mark (B2): decorative. Thin rings, ONE slow rotation, a soft pulsing core. No glow, no gradient. ---------- */
+.cap-scanmark { --m: 56px; position: relative; flex: none; width: var(--m); height: var(--m); display: block; color: var(--cap-accent-text); }
+.cap-scanmark__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cap-scanmark__svg circle { fill: none; stroke-width: 1.5; }
+.cap-scanmark__ring { stroke: var(--cap-border-2); }
+.cap-scanmark__ring--in { stroke: var(--cap-border); }
+.cap-scanmark__arc { stroke: var(--cap-accent); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 26 74; transform-origin: 32px 32px; transform: rotate(-90deg); animation: cap-orbit 9s linear infinite; }
+@keyframes cap-orbit { to { transform: rotate(270deg); } }
+.cap-scanmark__core .cap-icon { width: 55%; height: 55%; }
+.cap-scanmark__core { position: absolute; left: 50%; top: 50%; width: calc(var(--m) * 0.47); height: calc(var(--m) * 0.47); margin: calc(var(--m) * -0.235) 0 0 calc(var(--m) * -0.235); border-radius: 50%; display: grid; place-items: center; background: var(--cap-card-2); border: 1px solid var(--cap-border-2); animation: cap-core 2.6s ease-in-out infinite; }
+@keyframes cap-core { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.62; transform: scale(0.92); } }
+.cap-scanmark--stopped .cap-scanmark__arc { stroke: var(--cap-bad); animation: none; }
+.cap-scanmark--stopped .cap-scanmark__core { animation: none; color: var(--cap-bad); }
+
+/* ---------- Indeterminate bar (A6): the Photo step's 20-segment meter with a travelling highlight. No number, no percentage. ---------- */
+.cap-meter--busy { --tone: var(--cap-accent); }
+.cap-meter--busy .cap-meter__cell { background: var(--cap-border-2); }
+.cap-meter--busy .cap-meter__cell { animation: cap-sweep 1.8s linear infinite; animation-delay: calc(var(--i) * 70ms - 1.8s); }
+@keyframes cap-sweep { 0% { background: var(--cap-border-2); } 8% { background: var(--tone); } 24% { background: var(--tone); } 40%, 100% { background: var(--cap-border-2); } }
+.cap-meter--busy.is-stopped { --tone: var(--cap-bad); }
+.cap-meter--busy.is-stopped .cap-meter__cell { animation: none; }
+.cap-meter--busy.is-stopped .cap-meter__cell:nth-child(odd) { background: var(--tone); opacity: 0.55; }
+
+/* ---------- Progress checklist (B3): done = check, active = spinner, pending = muted. The latest line is highlighted. ---------- */
+.cap-steps { display: grid; gap: 2px; margin: 0 -4px; }
+.cap-step { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; column-gap: 12px; align-items: center; min-height: 48px; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; color: var(--cap-text-2); transition: background var(--cap-dur-med) var(--cap-ease), border-color var(--cap-dur-med) var(--cap-ease), color var(--cap-dur-med) var(--cap-ease); }
+.cap-step__icon { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--cap-border-2); color: var(--cap-text-2); justify-self: center; }
+.cap-step__icon .cap-icon { display: block; }
+.cap-step__body { display: grid; gap: 2px; min-width: 0; }
+.cap-step__text { font-size: var(--cap-text-md); line-height: 1.35; overflow-wrap: anywhere; }
+.cap-step__sub { font-size: var(--cap-text-xs); color: var(--cap-text-2); }
+.cap-step__word { font-size: var(--cap-text-xs); font-weight: 500; white-space: nowrap; color: var(--cap-text-2); }
+.cap-step--done .cap-step__icon { border-color: color-mix(in srgb, var(--cap-ok) 55%, transparent); background: color-mix(in srgb, var(--cap-ok) var(--cap-tint), transparent); color: var(--cap-ok); }
+.cap-step--active { color: var(--cap-text); background: color-mix(in srgb, var(--cap-accent) 10%, transparent); border-color: color-mix(in srgb, var(--cap-accent) 45%, transparent); }
+.cap-step--active .cap-step__text { font-weight: 500; }
+.cap-step--active .cap-step__icon { border-color: var(--cap-accent); color: var(--cap-accent-text); }
+.cap-step--active .cap-step__word { color: var(--cap-accent-text); }
+.cap-step--active .cap-step__sub { color: var(--cap-text-2); }
+.cap-step--halt { color: var(--cap-text); background: color-mix(in srgb, var(--cap-bad) 8%, transparent); border-color: color-mix(in srgb, var(--cap-bad) 45%, transparent); }
+.cap-step--halt .cap-step__icon { border-color: var(--cap-bad); color: var(--cap-bad); }
+.cap-step--halt .cap-step__word { color: var(--cap-bad); }
+/* the "Finishing up…" row always holds its space, so nothing below it jumps when it appears */
+.cap-step--off { visibility: hidden; }
+.cap-step__still { display: none; }
+
+/* ---------- Photo thumbnail (addition): identical to the Arrival step's, so the head does not change between steps.
+   These four rules are the same as in capture-arrival/css/cap-arrival.css; keep one copy when both steps are merged. ---------- */
+.cap-thumb { position: relative; flex: none; width: 52px; height: 52px; margin: 0 6px 6px 0; }
+.cap-thumb__img { position: absolute; inset: 0; overflow: hidden; border-radius: 10px; border: 1px solid var(--cap-border-2); background: #0c0c0f; }
+.cap-thumb__img svg { width: 100%; height: 100%; display: block; }
+.cap-thumb__badge { position: absolute; right: -6px; bottom: -6px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--cap-card); border: 1px solid color-mix(in srgb, var(--cap-ok) 60%, transparent); color: var(--cap-ok); }
+.cap-thumb__badge .cap-icon { width: 12px; height: 12px; }
+
+/* ---------- Top row of the body: scan mark on the left, task chip + bar on the right (addition: chip) ---------- */
+.cap-scan__top { display: flex; align-items: center; gap: var(--cap-space-4); min-width: 0; }
+.cap-scan__topbody { display: grid; gap: var(--cap-space-3); flex: 1; min-width: 0; justify-items: start; }
+.cap-scan__topbody .cap-meter { width: 100%; }
+
+/* ---------- Quiet line (slow server, returning to Photo): text-2, small icon, no color alarm ---------- */
+.cap-scan__note { display: flex; align-items: flex-start; gap: 8px; font-size: var(--cap-text-sm); color: var(--cap-text-2); }
+.cap-scan__note .cap-icon { width: 16px; height: 16px; margin-top: 2px; }
+.cap-scan__note span { min-width: 0; }
+
+/* ---------- Reduced motion: rings and bar static, the lines still change state ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .cap-scanmark__arc, .cap-scanmark__core, .cap-meter--busy .cap-meter__cell { animation: none; }
+  .cap-meter--busy:not(.is-stopped) .cap-meter__cell:nth-child(odd) { background: var(--tone); opacity: 0.55; }
+  .cap-step__spin { display: none; }
+  .cap-step__still { display: block; }
+}
+:root[data-motion='reduce'] .cap-scanmark__arc, :root[data-motion='reduce'] .cap-scanmark__core, :root[data-motion='reduce'] .cap-meter--busy .cap-meter__cell { animation: none; }
+:root[data-motion='reduce'] .cap-meter--busy:not(.is-stopped) .cap-meter__cell:nth-child(odd) { background: var(--tone); opacity: 0.55; }
+:root[data-motion='reduce'] .cap-spin, :root[data-motion='reduce'] .cap-step { animation: none; transition: none; }
+:root[data-motion='reduce'] .cap-step__spin { display: none; }
+:root[data-motion='reduce'] .cap-step__still { display: block; }
+
+/* ---------- Phone ---------- */
+@media (max-width: 720px) {
+  .cap-flow { --cap-flow-w: none; }
+  .cap-flow .cap-card__head { padding: var(--cap-space-3) var(--cap-space-3) 0; }
+  .cap-flow .cap-card__body { padding: var(--cap-space-3); gap: var(--cap-space-3); }
+  .cap-flow .cap-card__title { font-size: var(--cap-text-lg); }
+  .cap-thumb { width: 44px; height: 44px; }
+  .cap-step { padding: 8px; column-gap: 10px; }
+  .cap-scanmark { --m: 48px; }
+  .cap-scan__top { gap: var(--cap-space-3); }
+}
+
+/* Component sheet only: shows the reduced-motion look inside one block, without changing the whole page */
+.cap-motion-off .cap-scanmark__arc, .cap-motion-off .cap-scanmark__core, .cap-motion-off .cap-meter--busy .cap-meter__cell { animation: none; }
+.cap-motion-off .cap-meter--busy:not(.is-stopped) .cap-meter__cell:nth-child(odd) { background: var(--tone); opacity: 0.55; }
+.cap-motion-off .cap-step__spin { display: none; }
+.cap-motion-off .cap-step__still { display: block; }
+
+/* Step transition: the same slide-in as the Arrival step (cap-view). Identical rules; keep one copy when merged. */
+.cap-main { overflow-x: clip; }
+.cap-view { display: grid; gap: var(--cap-space-4); align-content: start; animation: cap-view-in var(--cap-dur-med) var(--cap-ease) both; }
+@keyframes cap-view-in { from { opacity: 0; transform: translateX(24px); } }

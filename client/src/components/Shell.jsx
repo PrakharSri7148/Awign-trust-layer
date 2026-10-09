@@ -12,7 +12,15 @@ const LINKS = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
 ]
 
+// The reviewer console (/dashboard) has its own top bar and footer (components/dashboard), and so has the Photo step of the Capture
+// page (components/capture/CapShell). Capture wraps its later steps (Arrival, AI scan, Verdict) in ChromeShell itself.
 export default function Shell({ children }) {
+  const { pathname } = useLocation()
+  if (pathname.startsWith('/dashboard') || pathname === '/') return <>{children}</>
+  return <ChromeShell>{children}</ChromeShell>
+}
+
+export function ChromeShell({ children }) {
   const health = useHealth()
   const { demo, setDemo } = useDemo()
   const { pathname } = useLocation()

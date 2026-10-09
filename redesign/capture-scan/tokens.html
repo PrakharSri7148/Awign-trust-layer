@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · AI scan step · components</title>
+  <link rel="stylesheet" href="../capture-photo/css/cap-tokens.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-components.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-page.css" />
+  <link rel="stylesheet" href="css/scan.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-viewer.css" />
+</head>
+<body class="cv-body cap-body">
+<div class="cap cv-page" id="root">
+  <div><h1>AI scan step: new components</h1>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0"><a href="index.html">Viewer</a> · <a href="coverage.html">Coverage</a> · <a href="frames.html">Gallery</a> · <a href="../capture-photo/tokens.html">Photo step tokens (all colors, type, buttons, pills…)</a>. This step adds <b style="color:var(--cap-text)">no new color token</b>: every color below is a Photo-step token. New CSS lives in <span class="cv-mono">css/scan.css</span> and loads after the three Photo stylesheets. Everything on this page is rendered with that CSS. <button type="button" class="cap-btn cap-btn--sm" id="th">Toggle light / dark</button></p></div>
+
+  <section class="cv-sec"><h2>Scan mark (decorative, aria-hidden)</h2><div class="cv-demo"><div class="cv-row" style="gap:32px" id="marks"></div>
+    <p style="margin:0;font-size:13px;color:var(--cap-text-2)">Left to right: running · stopped (failure) · reduced motion. 56px (48px on phones). Three thin rings, one arc that turns once every 9 s, a core that fades between 100% and 62% every 2.6 s. Flat: no glow, no gradient, one hue (<span class="cv-mono">--cap-accent</span>, <span class="cv-mono">--cap-border-2</span>, <span class="cv-mono">--cap-bad</span>).</p></div></section>
+
+  <section class="cv-sec"><h2>Indeterminate bar (<span class="cv-mono">cap-meter--busy</span>)</h2><div class="cv-demo" id="bars"></div>
+    <p style="margin:0;font-size:13px;color:var(--cap-text-2)">Same 20 cells as the Photo step’s overall meter (<span class="cv-mono">cap-meter--20</span>), tone <span class="cv-mono">--cap-accent</span>. A highlight travels along it (1.8 s loop, 70 ms offset per cell); there is no value, so no number and no fake progress. Reduced motion and stopped: static dashes (every other cell). <span class="cv-mono">role="progressbar"</span> with no <span class="cv-mono">aria-valuenow</span> = indeterminate; the Photo step’s <span class="cv-mono">role="meter"</span> stays for values that exist.</p></section>
+
+  <section class="cv-sec"><h2>Progress checklist (<span class="cv-mono">cap-steps</span> / <span class="cv-mono">cap-step</span>)</h2><div class="cv-grid"><div class="cap-card"><div class="cap-card__body"><ol class="cap-steps" id="steps"></ol></div></div>
+    <div class="cap-card"><div class="cap-card__body"><ol class="cap-steps cap-motion-off" id="steps2"></ol><p style="margin:0;font-size:12px;color:var(--cap-text-2)">Reduced motion: the spinner becomes a still ring-dot; the states still change.</p></div></div>
+    <div class="cap-card"><div class="cap-card__body"><ol class="cap-steps" id="steps3"></ol><p style="margin:0;font-size:12px;color:var(--cap-text-2)">The extra “Finishing up…” row, and the stopped row (failure).</p></div></div></div>
+    <table class="cv-table"><thead><tr><th>State</th><th>Class</th><th>Icon + word</th><th>Look</th></tr></thead><tbody>
+      <tr><td>done</td><td class="cv-mono">cap-step--done</td><td>check, “Done”</td><td>Green-tinted circle, muted text (older lines dimmed)</td></tr>
+      <tr><td>active</td><td class="cv-mono">cap-step--active</td><td>spinner, “Running”</td><td>Blue tint + 1px blue border, full text: the latest line is highlighted</td></tr>
+      <tr><td>pending</td><td class="cv-mono">cap-step--pending</td><td>empty circle, “Waiting”</td><td>Muted</td></tr>
+      <tr><td>stopped</td><td class="cv-mono">cap-step--halt</td><td>alert circle, “Stopped”</td><td>Red tint + border (failure only)</td></tr>
+      <tr><td>extra row</td><td class="cv-mono">cap-step--extra / --off</td><td>“Finishing up…”</td><td>Same as active; <span class="cv-mono">--off</span> keeps its space with <span class="cv-mono">visibility:hidden</span></td></tr></tbody></table></section>
+
+  <section class="cv-sec"><h2>Top row (mark + chip + bar), thumbnail, quiet notes, banners</h2><div class="cv-grid"><div class="cap-card"><div class="cap-card__body" id="misc"></div></div></div></section>
+
+  <section class="cv-sec"><h2>Flow card (<span class="cv-mono">cap-flow</span>)</h2><div class="cv-demo"><p style="margin:0;font-size:13px;color:var(--cap-text-2)">A <span class="cv-mono">cap-card</span> with <span class="cv-mono">width: min(100%, var(--cap-flow-w))</span>, <span class="cv-mono">--cap-flow-w: 560px</span> (the Arrival prototype's width), centered, with the same slide-in (<span class="cv-mono">cap-view</span>). Use it for Arrival, AI scan and Verdict so moving between steps keeps the same column. Head = eyebrow + title (20px, same as Arrival), the verified-photo thumbnail top-right (same markup as Arrival). Phones: full width inside the 12px page gutter, 12px card padding.</p></div></section>
+
+  <section class="cv-sec"><h2>Class names and React mapping</h2><table class="cv-table"><thead><tr><th>React (proposed)</th><th>Root class</th><th>Parts</th></tr></thead><tbody>
+    <tr><td>AnalysisStep (in Capture.jsx, step “analysis”)</td><td class="cv-mono">cap-card cap-flow cap-scan</td><td class="cv-mono">cap-card__head, cap-eyebrow, cap-card__title, cap-card--fail, cap-scan__top, cap-scan__aux, cap-scan__fail, cap-scan__notes, cap-scan__note</td></tr>
+    <tr><td>ScanMark (replaces <span class="cv-mono">.neural</span> in Analysis.jsx)</td><td class="cv-mono">cap-scanmark</td><td class="cv-mono">__svg, __ring, __ring--in, __arc, __core, --stopped</td></tr>
+    <tr><td>Analysis.jsx (the five lines)</td><td class="cv-mono">cap-steps</td><td class="cv-mono">cap-step (--done/--active/--pending/--halt/--extra/--off), __icon, __spin, __still, __body, __text, __sub, __word</td></tr>
+    <tr><td>BusyBar</td><td class="cv-mono">cap-meter cap-meter--20 cap-meter--busy</td><td class="cv-mono">cap-meter__cell (style --i), is-stopped</td></tr>
+    <tr><td>PhotoThumb (shared with Arrival)</td><td class="cv-mono">cap-thumb</td><td class="cv-mono">__img, __badge; top-right of the card head</td></tr>
+    <tr><td>Top row</td><td class="cv-mono">cap-scan__top</td><td class="cv-mono">cap-scanmark, cap-scan__topbody (cap-chip + cap-meter--busy)</td></tr>
+    <tr><td>Stepper (existing)</td><td class="cv-mono">cap-stepper</td><td class="cv-mono">current = 2 (Photo, Arrival done)</td></tr></tbody></table></section>
+
+  <section class="cv-sec"><h2>CSS variables</h2><table class="cv-table"><thead><tr><th>Variable</th><th>Where</th><th>Meaning</th></tr></thead><tbody>
+    <tr><td class="cv-mono">--cap-flow-w</td><td class="cv-mono">.cap-flow</td><td>Width of the centered flow card (560px)</td></tr>
+    <tr><td class="cv-mono">--i</td><td class="cv-mono">.cap-meter--busy .cap-meter__cell</td><td>Cell index 0 to 19, sets the animation offset</td></tr>
+    <tr><td class="cv-mono">--tone</td><td class="cv-mono">.cap-meter--busy (existing)</td><td>Set to <span class="cv-mono">--cap-accent</span>; <span class="cv-mono">--cap-bad</span> when stopped</td></tr>
+    <tr><td class="cv-mono">--cap-accent, --cap-border-2, --cap-border, --cap-card-2, --cap-ok, --cap-bad, --cap-text, --cap-text-2, --cap-tint</td><td>tokens (existing)</td><td>The only colors used; light theme works by the token swap, nothing else</td></tr></tbody></table></section>
+
+  <section class="cv-sec"><h2>Accessibility notes</h2><table class="cv-table"><thead><tr><th>What</th><th>How</th></tr></thead><tbody>
+    <tr><td>Live announcements</td><td>One <span class="cv-mono">role="status" aria-live="polite" aria-atomic</span> element, visually hidden, outside the re-rendered page. Its text is replaced only when the message changes: “Step n of 5: line”, “Finishing up…”, the slow line. The list itself is not live, so no line is read twice. Failure uses <span class="cv-mono">role="alert"</span> once.</td></tr>
+    <tr><td>Busy state</td><td><span class="cv-mono">aria-busy="true"</span> on the card while scanning; the list marks the current row with <span class="cv-mono">aria-current="step"</span>.</td></tr>
+    <tr><td>Color is never alone</td><td>Every row has an icon and a word; the banner has an icon and the full sentence.</td></tr>
+    <tr><td>Motion</td><td><span class="cv-mono">prefers-reduced-motion</span> (and the viewer’s forced <span class="cv-mono">html[data-motion="reduce"]</span>): arc, core and bar stop, spinner becomes a still dot; row state changes remain.</td></tr>
+    <tr><td>Touch targets</td><td>The card has no controls. Rows are 48px tall anyway.</td></tr></tbody></table></section>
+</div>
+<script src="../capture-photo/js/cap-icons.js"></script><script src="js/scan-icons.js"></script><script src="../capture-photo/js/cap-data.js"></script><script src="../capture-photo/js/cap-render.js"></script>
+<script src="js/scan-data.js"></script><script src="js/scan-state.js"></script><script src="js/scan-render.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, R = window.SCAN_R, ST = window.SCAN_STATE, ic = window.ic, D = window.SCAN_DATA;
+  var run = R.mark({ phase: 'scan' }).replace(' data-inv="B2"', ''), stop = R.mark({ phase: 'failed' }).replace(' data-inv="B2"', '');
+  $('marks').innerHTML = run + stop + '<span class="cap-motion-off">' + run + '</span>';
+  var b = function (S) { return R.bar(S).replace(/ data-inv="X6"/, ''); };
+  $('bars').innerHTML = '<div><div class="cv-label">Running</div>' + b({ phase: 'scan' }) + '</div><div class="cap-motion-off"><div class="cv-label">Reduced motion</div>' + b({ phase: 'scan' }) + '</div><div><div class="cv-label">Stopped (failure)</div>' + b({ phase: 'failed' }) + '</div>';
+  function row(text, st, extra) {
+    var icon = st === 'done' ? ic('check', 14) : st === 'halt' ? ic('circle-alert', 16) : st === 'active' ? '<span class="cap-step__spin">' + ic('loader-circle', 16, 'cap-spin') + '</span><span class="cap-step__still">' + ic('circle-dot', 16) + '</span>' : '';
+    return '<li class="cap-step cap-step--' + st + (extra ? ' cap-step--extra' : '') + '"><span class="cap-step__icon">' + icon + '</span><span class="cap-step__body"><span class="cap-step__text">' + text + '</span>' + (extra ? '<span class="cap-step__sub">' + D.FINISHING_SUB + '</span>' : '') + '</span><span class="cap-step__word">' + D.WORD[st] + '</span></li>';
+  }
+  var set1 = row(D.LINES[0], 'done') + row(D.LINES[1], 'done') + row(D.LINES[2], 'active') + row(D.LINES[3], 'pending') + row(D.LINES[4], 'pending');
+  $('steps').innerHTML = set1;
+  $('steps2').innerHTML = set1;
+  $('steps3').innerHTML = row(D.LINES[3], 'done') + row(D.LINES[4], 'done') + row(D.FINISHING, 'active', true) + row(D.LINES[2], 'halt');
+  $('misc').innerHTML = '<div class="cap-scan__top">' + run.replace('cap-scanmark', 'cap-scanmark') + '<div class="cap-scan__topbody"><span class="cap-chip">' + D.TASK_LABEL + '</span>' + b({ phase: 'scan' }) + '</div></div>' +
+    R.thumb().replace(/ data-inv="[^"]*"/, '') +
+    '<p class="cap-scan__note">' + ic('clock', 16) + '<span>' + D.SLOW + '</span></p>' +
+    '<p class="cap-scan__note">' + ic('arrow-left', 16) + '<span>' + D.RETURNING + '</span></p>' +
+    '<div class="cap-banner cap-banner--warn" role="note">' + ic('shield-alert', 18) + '<span class="cap-banner__text">' + D.noteText([D.NOTES[0], D.NOTES[2]]) + '</span></div>' +
+    '<div class="cap-banner cap-banner--error">' + ic('circle-alert', 18) + '<span class="cap-banner__text">' + D.ERR_503 + '</span></div>';
+  $('th').onclick = function () { var h = document.documentElement; h.setAttribute('data-theme', h.getAttribute('data-theme') === 'light' ? 'dark' : 'light'); };
+})();
+</script>
+</body>
+</html>

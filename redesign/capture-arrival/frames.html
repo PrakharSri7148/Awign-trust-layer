@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · Arrival step · gallery</title>
+  <link rel="stylesheet" href="../capture-photo/css/cap-tokens.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-components.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-viewer.css" />
+</head>
+<body class="cv-body">
+<div class="cv-page">
+  <div><h1>Gallery: every state at desktop, tablet and phone</h1><p style="color:var(--cap-text-2);font-size:13px">Dark theme. Frames are live iframes of <a href="app.html">app.html</a> (lazy loaded), scaled down; “play” states are left out because they move (open them in the <a href="index.html">viewer</a>). The last section shows the phone in the light theme. Frozen states still animate the waveform.</p></div>
+  <div id="g"></div>
+</div>
+<script src="js/arrival-data.js"></script>
+<script>
+(function () {
+  var SIZES = [['Desktop 1280×860', 1280, 860, 0.34], ['Tablet 820×1100', 820, 1100, 0.34], ['Phone 390×844', 390, 844, 0.5]];
+  var g = document.getElementById('g'), P = window.CAP_ARR.presets.filter(function (p) { return !p.play && !p.view; });
+  function item(id, s, theme) {
+    var d = document.createElement('div'); d.className = 'cv-gal-item';
+    var w = s[1] * s[3], h = s[2] * s[3];
+    d.innerHTML = '<div class="cv-label">' + id + ' · ' + s[0] + (theme === 'light' ? ' · light' : '') + '</div><div class="cv-box" style="width:' + w + 'px;height:' + h + 'px"></div>';
+    var f = document.createElement('iframe'); f.loading = 'lazy'; f.title = id + ' ' + s[0]; f.src = 'app.html?state=' + id + '&theme=' + (theme || 'dark');
+    f.style.width = s[1] + 'px'; f.style.height = s[2] + 'px'; f.style.transform = 'scale(' + s[3] + ')';
+    d.lastChild.appendChild(f); return d;
+  }
+  P.forEach(function (p) {
+    var sec = document.createElement('section'); sec.className = 'cv-sec'; sec.id = p.id;
+    sec.innerHTML = '<h2>' + p.group + ' · ' + p.label + '</h2><div class="cv-gal-row"></div>';
+    SIZES.forEach(function (s) { sec.lastChild.appendChild(item(p.id, s)); });
+    g.appendChild(sec);
+  });
+  var sec = document.createElement('section'); sec.className = 'cv-sec'; sec.innerHTML = '<h2>6 · Light theme (outdoor), phone</h2><div class="cv-gal-row"></div>';
+  ['wait', 'acq-all', 'mid', 'done', 'na-all', 'net-slow', 'err-end'].forEach(function (id) { sec.lastChild.appendChild(item(id, SIZES[2], 'light')); });
+  g.appendChild(sec);
+})();
+</script>
+</body>
+</html>

@@ -15,7 +15,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.20270031594955937,0.7051,0.8,1,1,1,a_weak_poor_photo,ambiguous,flat_motion_while_moving network_unseen_at_site
 0.9011057735228646,0.9429,0.5,1,0,0,h_first_visit,hard_genuine,
 0.8795852738222468,0.9,1.0,1,1,0,h_short_trail,hard_genuine,
-0.877437986994888,0.648,1.0,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_with_motion gps_too_perfect
+0.877437986994888,0.216,1.0,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_flat_motion gps_too_perfect
 0.6868202058731174,0.9,0.168,1,1,1,n_vpn_foreign_genuine_walk,foreign_network,network_provider_unseen_at_site anonymizing_network ip_country_mismatch
 0.930402920578448,0.9846,0.8,1,1,0,g_odd_network_new_worker,genuine,network_unseen_at_site
 0.0,0.5,0.8,0,1,0,h_indoor_drift,hard_genuine,network_unseen_at_site
@@ -38,7 +38,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.883644062044325,0.9,1.0,1,1,0,h_throttled_sensor,hard_genuine,
 0.7437432380277271,0.9513,0.65,1,1,0,g_walk_pocket,genuine,ip_region_mismatch
 0.853777991430589,0.1566,1.0,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_flat_motion arrival_without_approach gps_too_perfect
-0.3050925467956366,0.9,1.0,1,1,1,f_realistic_spoof_still_phone,fraud,
+0.3050925467956366,0.893,1.0,1,1,1,f_realistic_spoof_still_phone,fraud,
 0.7361438449769828,0.9,1.0,1,1,0,g_at_site,genuine,
 0.4737658759668585,0.7208,1.0,1,1,0,h_smooth_highway,hard_genuine,flat_motion_while_moving
 0.7692373008229527,0.9875,1.0,1,1,0,g_walk_pocket,genuine,
@@ -221,7 +221,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.8046650368132093,1.0,1.0,1,1,0,g_drive_then_walk,genuine,
 0.7329387679791071,0.9944,0.8,1,1,0,g_walk_hand,genuine,network_unseen_at_site
 0.7967442771060392,0.5,0.448,0,1,0,n_vpn_same_country_honest,hard_genuine,network_unseen_at_site network_provider_unseen_at_site anonymizing_network
-0.7748828599063511,0.7056,0.8,1,1,1,f_linear_mock_walk,fraud,gps_too_perfect network_unseen_at_site
+0.7748828599063511,0.6984,0.8,1,1,1,f_linear_mock_walk,fraud,gps_too_perfect network_unseen_at_site
 0.9355518241298744,0.713,0.8,1,1,1,f_linear_mock_walk,fraud,gps_too_perfect network_unseen_at_site
 0.5748738937432996,0.9889,1.0,1,1,0,g_walk_pocket,genuine,
 0.7707073543791437,1.0,0.65,1,1,0,g_walk_hand,genuine,ip_region_mismatch
@@ -234,7 +234,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.6638792673378484,0.7676,0.8,1,1,1,a_weak_poor_photo,ambiguous,flat_motion_while_moving network_unseen_at_site
 0.7787883402105553,0.9,1.0,1,1,0,g_at_site,genuine,
 0.944517900572288,1.0,0.8,1,1,0,g_walk_hand,genuine,network_unseen_at_site
-0.9566393936204065,0.648,1.0,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_with_motion gps_too_perfect
+0.9566393936204065,0.216,1.0,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_flat_motion gps_too_perfect
 0.8545369476304713,0.9176,0.8,1,1,0,g_odd_network_new_worker,genuine,network_unseen_at_site
 0.8368740408798865,1.0,0.65,1,1,0,g_walk_pocket,genuine,ip_region_mismatch
 0.6421593708596874,0.72,1.0,1,1,1,f_static_mock_home,fraud,gps_too_perfect
@@ -371,7 +371,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.9763022853157646,0.684,0.8,1,1,0,a_weak_good_photo,ambiguous,flat_motion_while_moving network_unseen_at_site
 0.7448819239131265,0.7474,0.8,1,1,0,a_weak_good_photo,ambiguous,flat_motion_while_moving network_unseen_at_site
 0.5813215098497657,0.72,1.0,1,1,1,f_static_mock_home,fraud,gps_too_perfect
-0.9479701081470824,0.9,1.0,1,1,1,f_realistic_spoof_still_phone,fraud,
+0.9479701081470824,0.8858,1.0,1,1,1,f_realistic_spoof_still_phone,fraud,
 0.6658838274120487,1.0,0.3,1,1,1,n_isp_foreign_genuine_walk,foreign_network,ip_country_mismatch
 0.17506121085743367,0.7728,0.8,1,1,1,a_weak_poor_photo,ambiguous,flat_motion_while_moving network_unseen_at_site
 0.7156965078964624,0.9727,0.8,1,1,0,g_odd_network_new_worker,genuine,network_unseen_at_site
@@ -625,7 +625,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.9237855482462128,1.0,0.8,1,1,0,g_odd_network_new_worker,genuine,network_unseen_at_site
 0.8949441662253981,0.9571,1.0,1,1,0,g_walk_pocket,genuine,
 0.631482116921785,0.216,0.8,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_flat_motion gps_too_perfect network_unseen_at_site
-0.72067770876384,0.6904,1.0,1,1,1,f_linear_mock_walk,fraud,gps_too_perfect
+0.72067770876384,0.6715,1.0,1,1,1,f_linear_mock_walk,fraud,gps_too_perfect
 0.6159256765577675,0.837,0.8,1,1,0,a_weak_good_photo,ambiguous,network_unseen_at_site
 0.9594640287043269,0.9929,0.8,1,1,0,g_walk_pocket,genuine,network_unseen_at_site
 0.9203854976994066,0.9,0.52,1,1,0,h_short_trail,hard_genuine,network_unseen_at_site ip_region_mismatch
@@ -715,7 +715,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.8987573514436392,0.9,1.0,1,1,0,h_indoor_drift,hard_genuine,
 0.7078978500672404,0.9875,0.24,1,1,1,n_isp_foreign_genuine_walk,foreign_network,network_provider_unseen_at_site ip_country_mismatch
 0.968823885592729,0.99,1.0,1,1,0,h_first_visit,hard_genuine,
-0.9604174277513372,0.4588,1.0,1,1,1,f_realistic_spoof_still_phone,fraud,flat_motion_while_moving arrival_without_approach
+0.9604174277513372,0.4221,1.0,1,1,1,f_realistic_spoof_still_phone,fraud,flat_motion_while_moving arrival_without_approach
 0.28490810007896894,0.984,0.8,1,1,0,g_bad_photo,genuine,network_unseen_at_site
 0.23710349514014473,0.9,1.0,1,1,0,g_at_site,genuine,
 0.9386721303085798,0.9,1.0,1,1,0,g_at_site,genuine,
@@ -1097,7 +1097,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.7455485774718628,0.4725,1.0,1,1,1,f_realistic_spoof_still_phone,fraud,flat_motion_while_moving
 0.8618988816034795,0.9769,1.0,1,1,0,g_drive_then_walk,genuine,
 0.8053351511786943,0.9,0.8,1,1,0,h_tunnel_dropout,hard_genuine,network_unseen_at_site
-0.8730558318101876,0.8533,1.0,1,1,0,h_smooth_highway,hard_genuine,
+0.8730558318101876,0.8415,1.0,1,1,0,h_smooth_highway,hard_genuine,
 0.821897101208421,0.6569,0.8,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect network_unseen_at_site
 0.7036385253396029,0.9,0.192,1,1,1,n_isp_foreign_genuine_walk,foreign_network,network_unseen_at_site network_provider_unseen_at_site ip_country_mismatch
 0.35562671281200686,0.9168,1.0,1,1,0,g_drive_then_walk,genuine,
@@ -1793,7 +1793,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.35816950800345393,0.9592,1.0,1,1,0,g_drive_then_walk,genuine,
 0.19952736283789627,1.0,0.65,1,1,0,g_bad_photo,genuine,ip_region_mismatch
 0.6977089996501262,0.72,0.65,1,1,1,f_static_mock_home,fraud,gps_too_perfect ip_region_mismatch
-0.879356271820083,0.789,1.0,1,1,0,h_tunnel_dropout,hard_genuine,
+0.879356271820083,0.7818,1.0,1,1,0,h_tunnel_dropout,hard_genuine,
 0.36968555227914845,0.9625,0.8,1,1,1,a_weak_poor_photo,ambiguous,network_unseen_at_site
 0.6342219161721079,0.153,1.0,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_flat_motion arrival_without_approach gps_too_perfect
 0.9751754764928682,0.9,1.0,1,1,0,h_indoor_drift,hard_genuine,
@@ -1919,7 +1919,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.4907350962541996,0.9636,0.1344,1,1,1,f_wrong_area_network,fraud_hard,network_unseen_at_site network_provider_unseen_at_site anonymizing_network ip_country_mismatch
 0.7179564777357804,0.9,0.8,1,1,0,g_at_site,genuine,network_unseen_at_site
 0.8109821506304725,0.7471,1.0,1,1,0,h_smooth_highway,hard_genuine,flat_motion_while_moving
-0.815602995771197,0.7054,0.65,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect ip_region_mismatch
+0.815602995771197,0.7029,0.65,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect ip_region_mismatch
 0.7281013983373863,0.9957,1.0,1,1,0,h_first_visit,hard_genuine,
 0.6789878730890194,0.216,0.8,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_flat_motion gps_too_perfect network_unseen_at_site
 0.7199672583458661,0.9,1.0,1,1,0,h_tunnel_dropout,hard_genuine,
@@ -2003,7 +2003,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.980200830803866,0.5,1.0,0,1,0,h_indoor_drift,hard_genuine,
 0.6212617707898419,0.648,0.8,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_with_motion gps_too_perfect network_unseen_at_site
 0.7994307313779342,0.9,0.8,1,1,0,h_short_trail,hard_genuine,network_unseen_at_site
-0.7784602568256056,0.5196,1.0,1,1,1,f_linear_mock_walk,fraud,flat_motion_while_moving gps_too_perfect
+0.7784602568256056,0.5018,1.0,1,1,1,f_linear_mock_walk,fraud,flat_motion_while_moving gps_too_perfect
 0.469146129300918,0.9,1.0,1,1,0,h_desktop,hard_genuine,
 0.1338412952665691,0.8025,0.8,1,1,1,a_weak_poor_photo,ambiguous,flat_motion_while_moving network_unseen_at_site
 0.8528323826268989,0.9,1.0,1,1,0,h_smooth_highway,hard_genuine,
@@ -2099,7 +2099,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.8390188982232659,1.0,1.0,1,1,0,g_walk_hand,genuine,
 0.903261223199025,0.9,0.24,1,1,1,n_isp_foreign_genuine_walk,foreign_network,network_provider_unseen_at_site ip_country_mismatch
 0.14657204808602028,0.6933,1.0,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect
-0.8937494528545322,0.7042,1.0,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect
+0.8937494528545322,0.6917,1.0,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect
 0.8704104679476311,0.6607,0.8,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect network_unseen_at_site
 0.6224954403111399,0.5376,0.8,1,1,1,f_linear_mock_walk,fraud,flat_motion_while_moving gps_too_perfect network_unseen_at_site
 0.9484037039625569,0.6733,1.0,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect
@@ -2114,7 +2114,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.6599577470402285,0.648,1.0,1,1,1,f_mock_replayed_motion,fraud_hard,gps_too_perfect
 0.23099339624495413,0.7738,0.8,1,1,1,a_weak_poor_photo,ambiguous,flat_motion_while_moving network_unseen_at_site
 0.9010494231559416,0.162,1.0,1,1,1,f_teleport_still,fraud,gps_jump gps_jump_flat_motion arrival_without_approach
-0.7978462501159987,0.6459,1.0,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect
+0.7978462501159987,0.633,1.0,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect
 0.6617761412918303,0.6207,1.0,1,1,1,f_linear_mock_drive,fraud,gps_too_perfect
 0.9392859614757206,0.3892,0.8,1,1,1,f_realistic_spoof_still_phone,fraud,flat_motion_while_moving arrival_without_approach network_unseen_at_site
 0.7710336071270895,0.72,0.8,1,1,1,f_linear_mock_walk,fraud,gps_too_perfect network_unseen_at_site
@@ -2217,7 +2217,7 @@ photo_quality_score,motion_score,ambient_score,motion_known,env_known,is_fraud,s
 0.9156637514246315,0.5955,1.0,1,1,1,f_linear_mock_drive,fraud,flat_motion_while_moving gps_too_perfect
 0.9105680598596662,0.9923,0.8,1,1,0,g_walk_pocket,genuine,network_unseen_at_site
 0.91049254545283,0.885,1.0,1,1,1,f_realistic_spoof_still_phone,fraud,
-0.27258400462922266,0.4175,0.8,1,1,1,f_linear_mock_walk,fraud,flat_motion_while_moving arrival_without_approach gps_too_perfect network_unseen_at_site
+0.27258400462922266,0.3492,0.8,1,1,1,f_linear_mock_walk,fraud,flat_motion_while_moving arrival_without_approach gps_too_perfect network_unseen_at_site
 0.5827621427402274,0.4023,1.0,1,1,1,f_realistic_spoof_still_phone,fraud,flat_motion_while_moving arrival_without_approach
 0.5702367025195767,1.0,1.0,1,1,0,g_bad_photo,genuine,
 0.08591791200417932,0.9762,0.168,1,1,1,n_vpn_foreign_genuine_walk,foreign_network,network_provider_unseen_at_site anonymizing_network ip_country_mismatch

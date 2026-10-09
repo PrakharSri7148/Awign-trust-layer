@@ -12,21 +12,29 @@ Fill the results into `templates/phone-test-results.csv` (copy it first). Send t
 4. Plugged in, no sleep, phone hotspot ready as a backup. The DEMO chip in the dashboard top bar must be OFF.
 5. Phone: the APK installed (`docs/apk-build.md`) or just Chrome; **location, camera and motion allowed**.
 
+## OPPO / ColorOS tip (the test phone is an OPPO F19 Pro)
+
+ColorOS saves battery aggressively and can pause Chrome's sensors and location when the screen dims or Chrome goes to the background, which makes a recorded visit look sensor-less (motion `absent`, and it teaches nothing). Once before the test: Settings > Battery > Chrome > allow background activity; Settings > Display > screen timeout of at least 2 minutes; keep Chrome open on the Capture page for the whole recording.
+
 ## The steps (stand at the demo place)
 
 | # | Step | Pass if | If it fails |
 |---|---|---|---|
 | 0 | **Move the site to the demo place.** Open `https://<DOMAIN>/dashboard` on the phone or the laptop, enter the token, open **Site location**, stand at the venue, tap **Use my current location** (wait for a fix better than ±50 m, or type the coordinates), keep **Forget the learned network** ticked, **Review change**, **Confirm and save**. Set country **IN** and a radius of 100 m | the panel shows the venue's coordinates; the change log lists the move; the "Learned network" card says "Nothing learned yet" | the form shows the backend's message; if the GPS accuracy is poor, type the coordinates |
 | 1 | Open the app (or `https://<DOMAIN>/` in Chrome). Allow location, camera, motion | the Capture page loads over HTTPS; no certificate warning | wrong domain, tunnel down, Chrome too old: read the preflight |
-| 2 | On **mobile data** (WiFi OFF) open `https://<DOMAIN>/api/env/check?site_id=site_demo_1` | shows your carrier, your country and a distance. **Write the distance down.** If it is above 300 km and you are standing at the site, the rule is too strict for your carrier: tell the assistant (the 300 km limit is a guess) | `could not read this caller's address`: `TRUSTED_PROXY_HEADER` does not match the tunnel (ngrok: `x-forwarded-for`, Cloudflare: `cf-connecting-ip`) |
+| 2 | **SKIPPED (no mobile data plan; decided 2026-10-08).** On **mobile data** (WiFi OFF) open `https://<DOMAIN>/api/env/check?site_id=site_demo_1` | shows your carrier, your country and a distance. **Write the distance down.** If it is above 300 km and you are standing at the site, the rule is too strict for your carrier: tell the assistant (the 300 km limit is a guess) | `could not read this caller's address`: `TRUSTED_PROXY_HEADER` does not match the tunnel (ngrok: `x-forwarded-for`, Cloudflare: `cf-connecting-ip`) |
 | 3 | The same on the **WiFi** you will use at the venue | the venue ISP and a small distance | |
 | 4 | **Three genuine visits** at the site. Tap **Start recording my visit** BEFORE you walk, record at least 60 seconds, walk the last 100 m, take the photo, submit. Do it three times | all three accepted. In the dashboard, **Site location > Learned network** says "Learned from 3 accepted visits" (and `tools/seed_check.py` says READY). Visits with no motion data (motion `absent`) do NOT count | motion or photo flags: open the case file and read the sentence. "Phone sensors: motion absent" means the browser gave no sensor data: use Chrome (or the APK), allow motion |
-| 5 | A genuine visit, switching WiFi to mobile data right before submitting | accepted; the case file shows a network note if the speed class is new | |
+| 5 | **SKIPPED (no mobile data plan).** A genuine visit, switching WiFi to mobile data right before submitting | accepted; the case file shows a network note if the speed class is new | |
 | 6 | Turn the VPN on with an exit in **another country**; submit from the site | **flagged**; the sentence names both countries ("The network is in NL, the site is in IN") | check which country the VPN really exits in (`/api/env/check`) |
 | 7 | VPN on with an exit in the **same country** | the "hosting / VPN" note appears; **not flagged** by the VPN alone | if flagged, send the case file (score, flags, distance) |
 | 8 | Mock-location app puts the phone at the site while you sit elsewhere (or the DevTools override); the phone stays still | flagged by the motion signal (`gps_jump_flat_motion`) | |
 | 9 | Dashboard on the laptop with the token | the three genuine visits, the VPN case and the spoof case are listed with their reasons; the DEMO chip is off | |
 | 10 | Record the 2-3 minute backup video | | |
+
+## Skipped on purpose
+
+Steps 2 and 5 need mobile data and are skipped. Consequence: **your carrier's resolution and distance stay unmeasured**, so the 300 km `ipFarKm` rule remains a guess. This does not affect a demo run on WiFi (the venue's WiFi is what the judges see), and a far same-country address never flags on its own (weight 0.35, the classifier decides). The home-WiFi reading was taken on 2026-10-08 (Hathway cable broadband, AS17488, Bengaluru, 10 km from the site, environment 1.0). Do step 3 (the venue's WiFi) at the venue. A phone hotspot as the backup internet for demo day needs a data pack or a friend's hotspot.
 
 ## What this test can show that nothing before it could
 

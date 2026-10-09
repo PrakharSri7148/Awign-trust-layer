@@ -242,12 +242,28 @@ def test_the_public_url_checks(monkeypatch):
 def test_exit_code_rules():
     p = {"check": "a", "status": "PASS", "detail": ""}
     w = {"check": "b", "status": "NEEDS N1", "detail": ""}
+    n3 = {"check": "assetlinks", "status": "NEEDS N3", "detail": ""}
     f = {"check": "c", "status": "FAIL", "detail": ""}
     assert preflight.exit_code([p]) == 0
     assert preflight.exit_code([p, w]) == 1 and preflight.exit_code([p, w], pre_tunnel=True) == 0
     assert preflight.exit_code([p, f], pre_tunnel=True) == 1
+    assert preflight.exit_code([p, n3]) == 0  # the APK fingerprint is optional polish: it never blocks
     out = preflight.render([p, w, f])
     assert out.count("GREEN") == 1 and out.count("WAIT") == 1 and out.count("RED") == 1
+
+
+def test_the_closing_line_says_what_is_really_wrong():
+    p = {"check": "a", "status": "PASS", "detail": ""}
+    n3 = {"check": "assetlinks.json", "status": "NEEDS N3", "detail": ""}
+    n1 = {"check": "Public URL answers", "status": "NEEDS N1", "detail": ""}
+    f = {"check": "Site", "status": "FAIL", "detail": ""}
+    v = lambda rs, **k: preflight.verdict(rs, preflight.exit_code(rs, **k))  # noqa: E731
+    assert v([p, n3]).startswith("READY: nothing is red.") and "assetlinks.json (NEEDS N3)" in v([p, n3])
+    assert v([p]) == "READY: nothing is red."
+    assert v([p, f]).startswith("NOT READY: fix the red lines") and "Site" in v([p, f])
+    no_red = v([p, n1])
+    assert no_red.startswith("NOT READY YET: nothing is red") and "Public URL answers" in no_red  # not 'fix the red lines' when none is red
+    assert v([p, n1], pre_tunnel=True).startswith("READY")
 
 
 def test_the_command_line_is_red_with_a_broken_setup_and_never_prints_the_token(tmp_path):

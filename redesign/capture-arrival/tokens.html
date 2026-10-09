@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · Arrival step · components</title>
+  <link rel="stylesheet" href="../capture-photo/css/cap-tokens.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-components.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-page.css" />
+  <link rel="stylesheet" href="css/cap-arrival.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-viewer.css" />
+</head>
+<body class="cv-body cap-body">
+<div class="cap cv-page" id="root">
+  <div><h1>Arrival step · new components</h1>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0"><a href="index.html">Viewer</a> · <a href="coverage.html">Coverage</a> · <a href="frames.html">Gallery</a> · <a href="../capture-photo/tokens.html">Base tokens and components (Photo step)</a>. Tokens are not changed: this step only uses the Photo step’s <span class="cv-mono">--cap-*</span> variables. Everything below is rendered with <span class="cv-mono">css/cap-arrival.css</span> on top of the Photo step’s three stylesheets. <button class="cap-btn cap-btn--sm" id="th" type="button">Toggle light theme</button></p></div>
+
+  <section class="cv-sec"><h2>Sensor tile <span class="cv-mono">cap-sensor</span>: the four states</h2><div class="cv-grid" id="tiles" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))"></div>
+    <p style="margin:0;font-size:13px;color:var(--cap-text-2)">Modifiers <span class="cv-mono">--wait / --acq / --ok / --na</span> only set <span class="cv-mono">--tone</span> and <span class="cv-mono">--tone-text</span>; border, icon box and background tint derive from them with <span class="cv-mono">color-mix</span>. The state is always a <span class="cv-mono">cap-pill</span> with word + icon.</p></section>
+  <section class="cv-sec"><h2>Countdown ring <span class="cv-mono">cap-ring</span>, signal bars <span class="cv-mono">cap-signal</span>, thumbnail <span class="cv-mono">cap-thumb</span></h2><div class="cv-demo"><div class="cv-row" id="bits" style="gap:28px;align-items:flex-end"></div></div></section>
+  <section class="cv-sec"><h2>Progress summary <span class="cv-mono">cap-progress</span></h2><div class="cv-grid" id="prog"></div></section>
+  <section class="cv-sec"><h2>Quiet notice <span class="cv-mono">cap-notice</span> and the activity strip with 4-item legend</h2><div class="cv-grid"><div class="cap-card"><div class="cap-card__body" id="notice"></div></div><div class="cap-card"><div class="cap-card__body" id="strip"></div></div></div></section>
+
+  <section class="cv-sec"><h2>Component → class → variables</h2><table class="cv-table"><thead><tr><th>React piece</th><th>Class</th><th>Parts / modifiers</th><th>Variables (reads)</th></tr></thead><tbody>
+    <tr><td>Capture.jsx, Sensors step (page)</td><td class="cv-mono">cap-arr</td><td class="cv-mono">max-width 560 centered; phones full width. Inside it the Photo step’s cap-card (__head, __body, __title), cap-eyebrow</td><td class="cv-mono">--cap-card, --cap-border, --cap-radius-card</td></tr>
+    <tr><td>Step change</td><td class="cv-mono">cap-view</td><td class="cv-mono">--back, --out, --out-back (slide 24px + fade, 220ms; none under reduced motion)</td><td class="cv-mono">--cap-dur-med, --cap-ease</td></tr>
+    <tr><td>Stepper</td><td class="cv-mono">cap-stepper (unchanged)</td><td class="cv-mono">Photo = done, Arrival = active</td><td class="cv-mono">--cap-ok, --cap-accent</td></tr>
+    <tr><td>SensorTile</td><td class="cv-mono">cap-sensor</td><td class="cv-mono">--wait / --acq / --ok / --na, __icon, __body, __head, __title, __value, __main, __extra, __live</td><td class="cv-mono">local: --tone, --tone-text · reads --cap-skip, --cap-accent, --cap-accent-text, --cap-ok, --cap-warn, --cap-card, --cap-card-2, --cap-border</td></tr>
+    <tr><td>Gauge (countdown)</td><td class="cv-mono">cap-ring</td><td class="cv-mono">__track, __bar, __num; role=meter</td><td class="cv-mono">local: --p (0..1 elapsed) · reads --cap-accent, --cap-border-2</td></tr>
+    <tr><td>Waveform</td><td class="cv-mono">cap-feed__wave (Photo step)</td><td class="cv-mono">+ cap-wave__base, cap-wave__line (an SVG path rebuilt from a 90-sample buffer)</td><td class="cv-mono">--cap-card-2, --cap-accent-text, --cap-border-2</td></tr>
+    <tr><td>signalBars</td><td class="cv-mono">cap-signal</td><td class="cv-mono">4 &lt;i&gt;, .is-on; role=img</td><td class="cv-mono">--tone (falls back to --cap-ok)</td></tr>
+    <tr><td>TrailTile strip</td><td class="cv-mono">cap-strip, cap-legend (Photo step)</td><td class="cv-mono">+ .is-unknown cell and legend item</td><td class="cv-mono">--cap-text-2, --cap-ok, --cap-accent-text</td></tr>
+    <tr><td>Overall progress (new)</td><td class="cv-mono">cap-progress</td><td class="cv-mono">__row, __count; the Photo step’s cap-meter cap-meter--20 plus --info</td><td class="cv-mono">--tone via cap-meter--info / --pass / --warn</td></tr>
+    <tr><td>Thumbnail (new)</td><td class="cv-mono">cap-thumb</td><td class="cv-mono">__img, __badge</td><td class="cv-mono">--cap-border-2, --cap-ok</td></tr>
+    <tr><td>sensorNotes (A7)</td><td class="cv-mono">cap-notice</td><td class="cv-mono">__lead, ul, __foot; role=status</td><td class="cv-mono">--cap-warn, --cap-border, --cap-text-2</td></tr>
+    <tr><td>Error banner (A8)</td><td class="cv-mono">cap-banner cap-banner--error (Photo step)</td><td class="cv-mono">role=alert, shown on the Photo step</td><td class="cv-mono">--cap-bad</td></tr></tbody></table>
+    <p style="font-size:13px;color:var(--cap-text-2);margin:0">Port notes: add <span class="cv-mono">cap-arrival.css</span> to <span class="cv-mono">client/src/styles/capture.css</span> (every class is <span class="cv-mono">cap-</span>, nothing is global). <span class="cv-mono">SensorTile.jsx</span> / <span class="cv-mono">TrailTile.jsx</span> keep their props (icon, title, state, value, aside, children) and change only the markup; <span class="cv-mono">Waveform.jsx</span> can keep its canvas (give it the <span class="cv-mono">cap-feed__wave</span> box) or draw the SVG path as the prototype does.</p></section>
+</div>
+<script src="../capture-photo/js/cap-icons.js"></script><script src="../capture-photo/js/cap-data.js"></script><script src="../capture-photo/js/cap-render.js"></script>
+<script src="js/arrival-data.js"></script><script src="js/arrival-render.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, A = window.CAP_ARR, R = window.CAP_ARR_R, T = A.T, ic = window.ic;
+  var buf = []; for (var i = 0; i < 90; i++) buf.push(0.4 + 0.5 * Math.abs(Math.sin(i * 0.7)) + 0.2 * Math.sin(i * 2.3));
+  var flat = new Array(90).fill(0), D = A.TILES;
+  function tile(id, t, b) { return '<ul class="cap-sensors">' + R.sensor(D.filter(function (d) { return d.id === id; })[0], t, {}, { motion: b || flat }) + '</ul>'; }
+  $('tiles').innerHTML = [
+    ['Waiting', tile('gps', T.wait())], ['Acquiring (ring + live waveform)', tile('motion', T.motionAcq(1400), buf)],
+    ['Locked', tile('net', T.netOk('3g'))], ['Unavailable', tile('gps', T.gpsNa())],
+    ['Trail: Locked with strip', tile('trail', T.trailOk())], ['Motion: Locked, recorded waveform', tile('motion', T.motionOk(), buf)]
+  ].map(function (x) { return '<div class="cv-demo"><div class="cv-label">' + x[0] + '</div>' + x[1] + '</div>'; }).join('');
+  $('bits').innerHTML = [3000, 1400, 200].map(function (l) { return '<div style="display:grid;gap:6px;justify-items:center">' + R.ring(l) + '<span class="cap-muted" style="font-size:12px">' + (l / 1000).toFixed(1) + ' s left</span></div>'; }).join('') +
+    ['4g', '3g', 'slow-2g', 'none'].map(function (t) { return '<div style="display:grid;gap:6px;justify-items:center">' + R.signal(t) + '<span class="cap-muted" style="font-size:12px">' + t + ' · ' + A.bars(t) + ' bar' + (A.bars(t) === 1 ? '' : 's') + '</span></div>'; }).join('') +
+    '<div style="display:grid;gap:6px;justify-items:center">' + R.thumb() + '<span class="cap-muted" style="font-size:12px">thumbnail</span></div>';
+  function S(g, m, n, t, ph) { return { tiles: { gps: g, motion: m, net: n, trail: t }, phase: ph || 'reading' }; }
+  $('prog').innerHTML = [
+    S(T.wait(), T.wait(), T.wait(), T.wait()), S(T.gpsOk(), T.motionAcq(1400), T.netOk(), T.trailOk()), S(T.gpsOk(), T.motionOk(), T.netOk(), T.trailOk(), 'continuing'), S(T.gpsNa(), T.motionNa(), T.netNa(), T.trailNa(), 'continuing')
+  ].map(function (s) { return '<div class="cap-card"><div class="cap-card__body">' + R.progress(s) + '</div></div>'; }).join('');
+  $('notice').innerHTML = R.notice(S(T.gpsNa(), T.motionNa(), T.netNa(), T.trailOk())).replace('class="cap-notice"', 'class="cap-notice" style="border-top:0;padding-top:0"');
+  $('strip').innerHTML = R.strip(A.MOCK.acts);
+  $('th').onclick = function () { var h = document.documentElement; h.setAttribute('data-theme', h.getAttribute('data-theme') === 'light' ? 'dark' : 'light'); };
+})();
+</script>
+</body>
+</html>

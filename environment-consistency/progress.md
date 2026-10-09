@@ -2,21 +2,21 @@
 
 Plans: [`iteration-1.md`](iteration-1.md) (build, hackathon edition) · [`iteration-2.md`](iteration-2.md) (deploy, package, rehearse) · prompts: [`iteration-1-prompt.md`](iteration-1-prompt.md), [`iteration-2-prompt.md`](iteration-2-prompt.md)
 
-**Status (2026-10-08): iteration 1 implemented and verified (E0-E6 ticked below). Two things are the user's, not code: restart the own backend on 8000 once, and record 3 real visits on the phone (the learned network is still 0 rows in the real database). Iteration 2 not started.** Tick a box only with evidence (test name, number, screenshot description). Label every number REAL or SYNTHETIC.
+**Session closed 2026-10-09: the APK (N3) was skipped by choice; the demo runs in Chrome through the ngrok tunnel. What is left is the venue day (steps 0, 3, 4, 9, 10 of the phone test) and the backup video.** **Status (2026-10-08): iteration 1 implemented and verified (E0-E6). Iteration 2 implemented up to what does not need you: P0, P1, P4, P5, P6, P7, P8 done; P2 and P3 written but not run (blocked on N1, N3). Your real database has the site (country IN, radius 100) and the learned network (3 of 3 trusted visits). Only the tunnel (N1), the APK fingerprint (N3), the phone apps (N4) and the phone test itself remain.** Tick a box only with evidence (test name, number, screenshot description). Label every number REAL or SYNTHETIC.
 
 ## Waiting on the user
 
 | # | Item | For | Status |
 |---|---|---|---|
 | M1 | DB-IP files in `backend/data/geoip/` (city 127 MB + ASN 9.6 MB, 2026-10) | E2, E3 | **done and verified on real records (E2)**. User restarts own backend on 8000 once (new model, new IP code, new `sitechange` table) |
-| M2 | Demo site `site_demo_1` = user's house: lat 12.9259481, lng 77.6722586, country IN, radius 100 m | E4 | **done**: read-only check of the real database shows it registered by the user (label "Home (test)"). The agent never wrote to the real database. **The learned network (fingerprint) is NOT there yet**: 0 rows; the 3 accepted submissions in the dashboard (ids 11-13) came from a device with `motion: absent` and no GPS fixes, so under E5 they teach nothing. Owed: 3 recorded phone visits |
+| M2 | Demo site `site_demo_1` = user's house: lat 12.9259 (shown as 12.925964 after the phone registered it), lng 77.6722, country IN, radius 100 m | E4 | **done and verified read-only 2026-10-08**: registered, country IN, radius 100 (the user restored them after an old button wiped the country). **Fingerprint: 3 of 3 trusted visits learned (`4g|0|<150` x3): READY.** The agent never wrote to the real database |
 | M3 | OK with the consent sentence about network / IP | E6 | default yes applied (DRAFT sentence in `consent.js`; the wording and the 30-day retention are the owner's decisions) |
-| N1 | Tunnel choice (ngrok static domain / Cloudflare), domain, logged in on the laptop | P2 | waiting |
+| N1 | Tunnel choice (ngrok static domain / Cloudflare), domain, logged in on the laptop | P2 | **done 2026-10-08**: ngrok, `fountain-drool-moving.ngrok-free.dev`, tunnel and live preflight verified by the user |
 | N2 | Laptop kept awake, plugged in, hotspot as backup | demo day | waiting |
-| N3 | Run Bubblewrap `init` / `build` / `fingerprint`, send the SHA-256 | P3 | waiting |
-| N4 | VPN app with country choice + mock-location app on the phone | phone test | waiting |
+| N3 | Run Bubblewrap `init` / `build` / `fingerprint`, send the SHA-256 | P3 | **SKIPPED by the user's choice (2026-10-09)**: the demo runs in Chrome; the APK is not built; `backend/data/assetlinks.json` stays the placeholder (the preflight shows `NEEDS N3`, non-blocking). Everything for building it later is in `docs/apk-build.md` |
+| N4 | VPN app with country choice + mock-location app on the phone | phone test | **VPN: done.** Turbo VPN (free), exit offered: UK only. A REAL check on 2026-10-08 over home WiFi through the tunnel: `/api/env/check` showed GB / London, Datacamp Limited (AS212238), `vpn_or_hosting` true, 8,044 km from the site, environment 0.21, flags `anonymizing_network` + `ip_country_mismatch`, sentence "The network is in GB, the site is in IN" (the same 0.21 as the rehearsal's foreign hosting exit, which was flagged at P 0.99). **No India exit: the honest same-country VPN case cannot be done on the phone** (stays covered only by the rehearsal's forwarded real Amazon Mumbai address). **Mock-location app: not yet** |
 | N5 | Backup video | after phone test | waiting |
-| N6 | Phone model, Android and Chrome versions | phone test | waiting |
+| N6 | Phone model, Android and Chrome versions | phone test | **done 2026-10-09**: OPPO F19 Pro, Android 13, Chrome 148.0.7778.178 |
 
 ## Known defects found while planning (2026-10-08, SYNTHETIC model, reproduced by a probe)
 
@@ -43,7 +43,7 @@ Plans: [`iteration-1.md`](iteration-1.md) (build, hackathon edition) · [`iterat
 |---|---|---|---|
 | P0 | Single-origin build | [x] | `backend/tests/test_serving.py` 17 passed (SPA fallback, `/api` prefix, no shadowing of API routes, cache headers, path traversal, missing file = 404, unknown `/api/x` = JSON 404). Real browser against the production build: `npm run e2e:public pub_basics` ALL CHECKS PASSED (15) |
 | P1 | Public-mode hardening | [x] | `backend/tests/test_public_mode.py` 40 passed (start-up refusal per missing variable, no secret in any message, security headers, body caps per endpoint, forwarded-proto, log redaction, the fake IP provider refused, every protected endpoint 401 without the token, worker endpoints open, CORS exact origin). Subprocess tests import the real app in public mode |
-| P2 | Tunnel runbook | [~] | `environment-consistency/tunnel-runbook.md` + `demo/demo-up.sh` written (bash syntax checked). **Not run: blocked on N1** (your tunnel choice, fixed domain, logged in on the laptop). The assistant never opens a tunnel |
+| P2 | Tunnel runbook | [x] | N1 given 2026-10-08: **ngrok**, fixed domain `fountain-drool-moving.ngrok-free.dev` (a public name). The USER ran the tunnel (`ngrok http --url=... 8002`, plan Free, region India, 25 ms) and the demo (`demo/demo-up.sh`) and the REAL preflight with `--url`: **all 5 public-URL checks PASS** (`/health` public_mode=True with the IP database, manifest 200, assetlinks 200, `/submissions` 401, `/docs` 404) and all local checks PASS; only `assetlinks.json` NEEDS N3. A test from the phone on mobile data reached the laptop through the tunnel; **ngrok's "Visit Site" warning page appeared once** (click-through, remembered by the browser for about a week). The assistant never ran a tunnel. **Mistake of mine:** the test told the user to serve `/tmp` through the tunnel, which briefly exposed a directory listing of `/tmp` (database sockets, screenshots, my scratch folder) to the internet; stopped within minutes; the address is an unguessable name; advised to check ngrok's local inspector (127.0.0.1:4040) and to delete `/tmp/claude-501` when done |
 | P3 | TWA packaging files | [~] | manifest, icons (looked at), `android/twa-manifest.template.json`, `docs/apk-build.md`, `backend/data/assetlinks.json` (placeholder), validator: done and tested (`test_preflight.py`). **Blocked on N1** (the domain goes into the Bubblewrap file) and **N3** (the signing fingerprint) |
 | P4 | Preflight | [x] | `backend/tests/test_preflight.py` 26 passed (each check against a broken and a good setup; the CLI is red with a broken setup and never prints the token). A real pre-tunnel run is pasted below |
 | P5 | Demo hygiene (reset, seed check) | [x] | `backend/tests/test_demo_tools.py` (reset keeps sites, backup is restorable, all sites, the in-use guard in public mode, `seed_check` read-only). `seed_check` also run read-only on the real database (see Bugs) |
@@ -53,27 +53,35 @@ Plans: [`iteration-1.md`](iteration-1.md) (build, hackathon edition) · [`iterat
 
 ## Final step (yours): the phone test, section 5 of `iteration-2.md`
 
+Run by the user on a REAL Android phone through the REAL ngrok tunnel (`fountain-drool-moving.ngrok-free.dev`), over home WiFi, 2026-10-08/09. The classifier is SYNTHETIC. Results are the user's reports and screenshots.
+
 | Step | Result |
 |---|---|
-| 0 (move the site to the venue with the panel) to 10 | not started |
+| Network check on home WiFi (`/api/env/check`) | **done, REAL**: Hathway Cable and Datacom (AS17488), Bengaluru, 10 km, environment 1.0, no flags |
+| 2 mobile data, 5 switch WiFi to mobile data | **SKIPPED**: no mobile data plan. The carrier's resolution and distance are NOT measured; the 300 km `ipFarKm` rule stays a guess |
+| 6 VPN exit in another country | **done, REAL**: Turbo VPN, UK exit. `/api/env/check`: GB / London, Datacamp Limited (AS212238), `vpn_or_hosting` true, 8,044 km, environment 0.21, flags `anonymizing_network` + `ip_country_mismatch`. A real submission through the app: **flagged**, "The network is in GB, the site is in IN" |
+| 7 VPN exit in the SAME country | **not possible**: the VPN offers no India exit. Covered only by the rehearsal (a real Amazon Mumbai address forwarded in a header, accepted, P 0.02) |
+| 8 GPS spoof with a mock-location app | **done, REAL**: case #23 **flagged, 100.0%** (threshold 50%), "GPS jumped 22.2 km in 7 s while the phone stayed still"; Arrival says 5 m from the centre (the mock location); an amber weak note "The network speed profile is new for this site" (the phone's link class differed from the 3 learned visits: this is the known weakness of the link-speed signal, weight 0.2) |
+| 0 move the site to the venue, 3 genuine visits at the venue, venue WiFi reading, 9 dashboard with the token, 10 backup video | **not done yet: at the venue** |
+| N6 phone model, Android and Chrome versions | **done**: OPPO F19 Pro, Android 13, Chrome 148.0.7778.178 |
 
 ## Measured
 
 | Suite | E0 baseline (original code, 2026-10-08) | After iteration 1 | After iteration 2 |
 |---|---|---|---|
-| `pytest -q` | **235 passed, 2 skipped** (24:38, loaded machine) | **433 passed** (19:17); the report files were rerun after the report code changed: 36 passed | |
-| `npm test` | **261 pass, 0 fail** | **279 pass, 0 fail** | |
-| `npm run build` | OK | OK | |
-| `npm run fusion:parity` | 13/13 cases agree (104 values) | 13/13 cases agree (104 values) | |
-| `npm run e2e` | **not measured at E0** (the machine was busy with other runs); last recorded: 229 PASS / 0 FAIL at the end of Phase 8, before the fusion work | see below | |
+| `pytest -q` | **235 passed, 2 skipped** (24:38, loaded machine) | **433 passed** (19:17); the report files were rerun after the report code changed: 36 passed | **522 passed, 2 failed** (22:44): `test_the_committed_training_data_is_reproducible` (NOT mine: another session changed the movement code, 14 of 2430 simulated rows moved; needs `backend/train.sh` run by that session) and a too-strict test of mine (fixed, passes now) |
+| `npm test` | **261 pass, 0 fail** | **279 pass, 0 fail** | **281 pass, 0 fail** |
+| `npm run build` | OK | OK | OK (`npm run build:prod` too) |
+| `npm run fusion:parity` | 13/13 cases agree (104 values) | 13/13 cases agree (104 values) | 13/13 cases agree (104 values) |
+| `npm run e2e` | **not measured at E0** (the machine was busy with other runs); last recorded: 229 PASS / 0 FAIL at the end of Phase 8, before the fusion work | see below | **32 scenarios, 361 PASS, 0 FAIL, ALL CHECKS PASSED** (one complete run on the final state: the clean complete run owed from iteration 1) |
 
-**e2e after iteration 1 (REAL browser + REAL isolated backend; honest account):** the last COMPLETE run of every scenario was 320 PASS / 5 FAIL: 3 were a stale expectation from the sensor-fusion iteration (the post-photo button is now "I've reached the site", not "Submit"), 2 were my new panel scenario assuming an empty database. Two earlier failures in that same suite were also fixed: a check that required an empty database (`no submission exists before the tap` now compares with the count at the start) and a **real bug** (`client/src/lib/api.js` read `localStorage` without a guard, so a browser that blocks storage threw at start-up). After those fixes I did NOT capture one more complete run of the whole suite: the one after crashed inside the face-timing `liveness` scenario (a selector timeout while the machine load average was about 11; the same scenario passed in the run before and in the run after). Instead the affected scenarios were run together on one database (`npm run e2e liveness,toggle,sharpcapture,netsection,sitepanel`): **119 PASS, ALL CHECKS PASSED**, and `ipchip` (9 PASS). **Re-run the whole `npm run e2e` once on a quiet machine to close this.**
+**e2e after iteration 1 (REAL browser + REAL isolated backend; honest account):** the last COMPLETE run of every scenario was 320 PASS / 5 FAIL: 3 were a stale expectation from the sensor-fusion iteration (the post-photo button is now "I've reached the site", not "Submit"), 2 were my new panel scenario assuming an empty database. Two earlier failures in that same suite were also fixed: a check that required an empty database (`no submission exists before the tap` now compares with the count at the start) and a **real bug** (`client/src/lib/api.js` read `localStorage` without a guard, so a browser that blocks storage threw at start-up). After those fixes I did NOT capture one more complete run of the whole suite: the one after crashed inside the face-timing `liveness` scenario (a selector timeout while the machine load average was about 11; the same scenario passed in the run before and in the run after). Instead the affected scenarios were run together on one database (`npm run e2e liveness,toggle,sharpcapture,netsection,sitepanel`): **119 PASS, ALL CHECKS PASSED**, and `ipchip` (9 PASS). **This was closed in iteration 2: a complete run on the final state passed (361 PASS, 0 FAIL, 32 scenarios).**
 
 ## Supervision log
 
 CLAUDE.md asks for the `edge-validator-ai` subagent after each milestone. Record: invoked and its verdict, or "not invocable" (no stand-ins).
 
-- 2026-10-08, before E0, and again at the milestones E1, E2, E3, E4, E5 and E6: **not invocable** (`Agent type 'edge-validator-ai' not found. Available agents: claude, claude-code-guide, Explore, general-purpose, Plan, statusline-setup`; the definition exists at `.claude/agents/edge-validator-ai.md` but is not registered in this session; restart Claude Code / `/agents`). No stand-in was used; **no milestone of iteration 1 has been reviewed by it.** Restart Claude Code / run `/agents`, then ask it: "audit environment-consistency/progress.md and the environment work against environment-consistency/iteration-1.md".
+- 2026-10-08, before E0, at the milestones E1, E2, E3, E4, E5, E6 and at every iteration-2 phase (P0-P8): **not invocable** (`Agent type 'edge-validator-ai' not found. Available agents: claude, claude-code-guide, Explore, general-purpose, Plan, statusline-setup`; the definition exists at `.claude/agents/edge-validator-ai.md` but is not registered in this session; restart Claude Code / `/agents`). No stand-in was used; **no milestone of iteration 1 has been reviewed by it.** Restart Claude Code / run `/agents`, then ask it: "audit environment-consistency/progress.md and the environment work against environment-consistency/iteration-1.md".
 
 ## Phase log
 
@@ -188,9 +196,14 @@ READY (pre-tunnel): nothing is red.
 | Item | Detail |
 |---|---|
 | Fingerprint for the real site | 0 learned rows. Needs 3 accepted phone visits with the recording on and motion allowed (see M2). The user's own backend must be restarted once first |
-| One complete `npm run e2e` | not captured after the last fixes (see Measured); re-run on a quiet machine |
 | `edge-validator-ai` review | not invocable in this session: nothing in iteration 1 has been reviewed by it |
 | Real carrier / VPN behaviour | needs the phone and the public URL (iteration 2): the IP rules were verified on REAL database records, not on a real phone network |
 | Consent sentence, 30-day retention, the shortened IP being stored even for a worker who declined the recording | the owner's decisions (draft wording) |
 | Spoofer behind a same-country VPN is missed 13% of the time (SYNTHETIC) | by construction only the motion signal sees them |
 | `SitesPanel.jsx` | unused, can be deleted |
+| `test_the_committed_training_data_is_reproducible` fails | NOT from this work: another session changed the movement code, 14 of 2430 simulated rows moved. That session runs `backend/train.sh` once (regenerates `synthetic_fusion_data.csv` and retrains `fraud_classifier.pkl`), then the full suite, then re-checks the guarantees pinned in `tests/test_classifier_env.py` and regenerates the accuracy report (`cd client && npm run report`), whose SYNTHETIC numbers will change |
+| First real network check from the phone | **Done on home WiFi, REAL (2026-10-08):** through the tunnel the server saw Hathway Cable and Datacom (AS17488), Bengaluru, **10 km** from the site, environment 1.0, no flags, sentence "Nothing contradicts the claimed area". **Mobile-data reading SKIPPED by the user (no data plan)**: the carrier's resolution and distance are NOT measured, so the 300 km `ipFarKm` rule stays a guess (does not affect a WiFi demo). The venue's WiFi reading is still to do |
+| Iteration 2: N3 APK fingerprint, N4 VPN + mock-location apps, N6 phone details, N5 backup video | for the phone test; nothing before the phone test needs them |
+| The phone test | NOT done. Real carrier, a real VPN exit, the APK and full-screen, the browser's real network information, the real motion sensor, the tunnel and the ngrok warning page are unverified until you do it |
+| No Content-Security-Policy, no `X-Frame-Options` | public-mode hardening gap (would need a pass over the app's inline styles) |
+| The Visit recording tool "Register this spot" | fixed to keep an existing site's radius, country and label and to refuse a move over 1 km; your real database had its country wiped by the old version (you restored it) |

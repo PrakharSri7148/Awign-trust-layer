@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · Verdict step · tokens and components</title>
+  <link rel="stylesheet" href="../capture-photo/css/cap-tokens.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-components.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-page.css" />
+  <link rel="stylesheet" href="css/cap-verdict.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-viewer.css" />
+</head>
+<body class="cv-body cap-body">
+<div class="cap cv-page" id="root">
+  <div><h1>Verdict step: new components</h1>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0"><a href="index.html">Viewer</a> · <a href="coverage.html">Coverage</a> · <a href="frames.html">Gallery</a> · <a href="../capture-photo/tokens.html">Photo step sheet (all shared tokens and primitives)</a>. Everything below is rendered by the same functions and CSS the page uses (<span class="cv-mono">css/cap-verdict.css</span>, <span class="cv-mono">js/cap-verdict-render.js</span>). <button type="button" class="cap-btn cap-btn--sm" id="th" aria-pressed="false">Toggle light theme</button></p></div>
+
+  <section class="cv-sec"><h2>What is reused, unchanged, from the Photo step</h2>
+    <table class="cv-table"><thead><tr><th>Piece</th><th>Classes / tokens</th><th>Used for</th></tr></thead><tbody>
+      <tr><td>Tokens</td><td class="cv-mono">--cap-bg … --cap-text-2, --cap-accent*, --cap-ok / --cap-warn / --cap-bad / --cap-skip, --cap-tint*, --cap-radius-*, --cap-space-*, --cap-text-*</td><td>Every colour, radius, space and type size. <b>No new colour token was added.</b></td></tr>
+      <tr><td>App shell</td><td class="cv-mono">cap-shell, cap-topbar, cap-brand, cap-nav, cap-bottomnav, cap-footer, cap-main (the Photo step’s own functions R.topbar / R.footer / R.bottomnav)</td><td>Top bar, bottom nav, credit line</td></tr>
+      <tr><td>Stepper</td><td class="cv-mono">cap-stepper, __item--done, __dot, __label, __bar--done</td><td>All four steps done</td></tr>
+      <tr><td>Card</td><td class="cv-mono">cap-card, __head, __body, cap-eyebrow, cap-card--ok / --fail</td><td>Result, Why?, What was fetched</td></tr>
+      <tr><td>Check row</td><td class="cv-mono">cap-checks, cap-check (--ok / --warn / --bad), __line, __label, __hint</td><td>Fusion summary rows (+ new --muted)</td></tr>
+      <tr><td>Meter</td><td class="cv-mono">cap-meter, cap-meter--20, __cell, __cell--on, role="meter"</td><td>SHAP bars (+ new --accent / --neutral tones)</td></tr>
+      <tr><td>Primitives</td><td class="cv-mono">cap-btn (--primary, --lg, --block, --sm), cap-icon-btn, cap-pill (--pass / --skip / --info), cap-banner--warn, cap-toast, cap-sr, data-tip tooltip, focus ring, reduced-motion rule</td><td>Action, Details, pills, notes banner</td></tr>
+    </tbody></table></section>
+
+  <section class="cv-sec"><h2>New: FraudGauge (cap-gauge)</h2><div class="cv-demo"><div class="cv-row" id="gauges" style="gap:32px;align-items:flex-start"></div>
+    <p class="cap-muted" style="font-size:13px;margin:0">60 segments (same cell language as the quality meters), clockwise from 12 o’clock; <b>the 50% threshold mark sits at 6 o’clock</b>; label, count-up value and caption are centred. Colour is <span class="cv-mono">--tone</span> (set by <span class="cv-mono">cap-gauge--ok</span> / <span class="cv-mono">--fail</span>); the word VERIFIED / FLAGGED FOR REVIEW always sits next to it. Size: <span class="cv-mono">--cap-gauge</span> (188 px desktop, 168 tablet, 132 phone). The element is <span class="cv-mono">role="meter"</span> with <span class="cv-mono">aria-valuetext="43.2%, threshold 50%"</span>.</p></div></section>
+
+  <section class="cv-sec"><h2>New: status badge (cap-badge) and celebration (cap-burst)</h2><div class="cv-demo"><div class="cv-row" id="badges" style="gap:40px;padding:36px 48px"></div>
+    <p class="cap-muted" style="font-size:13px;margin:0">Left to right: accepted, accepted with the celebration frozen mid-burst, flagged (no celebration). <span class="cv-mono">--b</span> is the tone, <span class="cv-mono">--c</span>, <span class="cv-mono">--dx</span>, <span class="cv-mono">--dy</span> are set per dot. Reduced motion (OS or <span class="cv-mono">html[data-motion="reduce"]</span>) hides the dots.</p></div></section>
+
+  <section class="cv-sec"><h2>New: submission id + copy (cap-idrow)</h2><div class="cv-demo"><div class="cv-row" id="ids"></div></div></section>
+
+  <section class="cv-sec"><h2>Why? card: reason, fusion rows (4 tones) and SHAP bars</h2><div class="cv-grid" id="why"></div></section>
+
+  <section class="cv-sec"><h2>New: fetched rows (cap-frow): received, not available, problem</h2><div class="cv-grid" id="fet"></div></section>
+
+  <section class="cv-sec"><h2>Class names, variables and React mapping</h2><table class="cv-table"><thead><tr><th>React component</th><th>Root class</th><th>Parts / modifiers / variables</th></tr></thead><tbody>
+    <tr><td>Verdict (page)</td><td class="cv-mono">cap-verdict</td><td class="cv-mono">__side (result + notes), __main (Why? + fetched); --accepted / --flagged. Desktop: 380 px | 1fr, side sticky. Tablet: one column, main two-up. Phone: flex column, wrappers display: contents</td></tr>
+    <tr><td>VerdictCard</td><td class="cv-mono">cap-card cap-card--ok|fail cap-vres</td><td class="cv-mono">__grid (areas head / gauge / id / foot), __head, __text, __title, __gauge, __id, __foot, __btn</td></tr>
+    <tr><td>StatusBadge</td><td class="cv-mono">cap-badge</td><td class="cv-mono">--ok, --fail; var --b</td></tr>
+    <tr><td>Celebration</td><td class="cv-mono">cap-burst</td><td class="cv-mono">--frame (static review frame), --done; __dot with vars --c --dx --dy; keyframes cap-burst</td></tr>
+    <tr><td>FraudGauge</td><td class="cv-mono">cap-gauge</td><td class="cv-mono">--ok, --fail; __svg, __seg (--on), __mark, __center, __label, __value, __cap; vars --cap-gauge, --tone</td></tr>
+    <tr><td>SubmissionId</td><td class="cv-mono">cap-idrow</td><td class="cv-mono">__id, __btn (.is-copied, .is-tip)</td></tr>
+    <tr><td>WhyCard</td><td class="cv-mono">cap-card cap-vwhy</td><td class="cv-mono">cap-reason, cap-fused (a cap-checks list), cap-check--muted</td></tr>
+    <tr><td>ShapBars</td><td class="cv-mono">cap-shap</td><td class="cv-mono">__rows, __row (--top), __head, __name, __tag, __val; cap-meter--accent / --neutral</td></tr>
+    <tr><td>FetchedPanel</td><td class="cv-mono">cap-card cap-vfet</td><td class="cv-mono">__toggle (.is-open), __sum, __chev; cap-frows, cap-frow (--ok / --na / --bad), __ic, __label, __text. Container query “vfet” at 520 px</td></tr>
+    <tr><td>NewSubmission (phone)</td><td class="cv-mono">cap-vaction</td><td class="cv-mono">sticky, bottom: calc(56px + env(safe-area-inset-bottom))</td></tr>
+  </tbody></table></section>
+</div>
+<script src="../capture-photo/js/cap-icons.js"></script><script src="js/cap-icons-extra.js"></script><script src="../capture-photo/js/cap-data.js"></script><script src="../capture-photo/js/cap-render.js"></script><script src="js/cap-verdict-data.js"></script><script src="js/cap-verdict-state.js"></script><script src="js/cap-verdict-render.js"></script>
+<script>
+(function () {
+  var R = window.CAP_R, V = window.CAP_V, M = V.M;
+  function S(result, o) { return Object.assign({ result: result, notes: [], copied: false, animate: false, burstDone: false, frame: '', fetchedOpen: true }, o || {}); }
+  function put(id, html) { document.getElementById(id).innerHTML = html; }
+  put('gauges', '<div>' + R.vgauge(0.432, 'ok') + '<p class="cap-muted" style="font-size:12px;text-align:center;margin:8px 0 0">accepted 43.2%</p></div><div>' + R.vgauge(0.718, 'fail') + '<p class="cap-muted" style="font-size:12px;text-align:center;margin:8px 0 0">flagged 71.8%</p></div><div style="--cap-gauge:132px">' + R.vgauge(0.062, 'ok') + '<p class="cap-muted" style="font-size:12px;text-align:center;margin:8px 0 0">phone size, 6.2%</p></div>');
+  var rs = R.vresult(S(M.acceptedFull), { phone: true }), rf = R.vresult(S(M.flaggedOutside), { phone: true }), rc = R.vresult(S(M.acceptedFull, { frame: 'celebrate' }), { phone: true });
+  function badge(h) { var a = h.indexOf('<span class="cap-badge'), b = h.indexOf('<div class="cap-vres__text"'); return h.slice(a, b); }
+  put('badges', badge(rs) + badge(rc) + badge(rf));
+  put('ids', R.vid(S(M.acceptedFull)) + R.vid(S(M.acceptedFull, { copied: true })) + R.vid(S({ id: '9f3c2a71-6b4e-4d0a-8c15-2e7d1b90a4f3' }, {})));
+  put('why', R.vwhy(S(M.flaggedOutside)) + R.vwhy(S(M.acceptedMuted)));
+  put('fet', R.vfetched(S(M.flaggedOutside), { phone: false }) + R.vfetched(S(M.acceptedMuted), { phone: true }));
+  var th = document.getElementById('th');
+  th.onclick = function () { var l = document.documentElement.getAttribute('data-theme') !== 'light'; document.documentElement.setAttribute('data-theme', l ? 'light' : 'dark'); th.setAttribute('aria-pressed', String(l)); };
+})();
+</script>
+</body>
+</html>

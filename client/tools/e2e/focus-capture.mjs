@@ -62,8 +62,8 @@ for (const [n, photo] of photos.entries()) {
     const page = await browser.newPage(); await page.setViewport({ width: 1440, height: 900 })
     if (taskKey === 'selfie') await page.evaluateOnNewDocument(MOCK)
     await page.goto(BASE + '?debug=checks', { waitUntil: 'networkidle0' })
-    for (const h of await page.$$('.tasks .chip')) if ((await h.evaluate((e) => e.innerText)) === TASK) await h.click()
-    await page.click('.live__start'); await page.waitForSelector('.hud', { timeout: 30000 })
+    for (const h of await page.$$('.cap-brief__tasks .cap-chip')) if ((await h.evaluate((e) => e.innerText)) === TASK) await h.click()
+    await page.click('.cap-start'); await page.waitForSelector('.cap-hud', { timeout: 30000 })
     if (taskKey === 'selfie') {
       const t0 = Date.now()
       for (let i = 0; i < 40 && (await live(page))?.tone !== 'ok' && Date.now() - t0 < 60000; i++) {
@@ -76,14 +76,14 @@ for (const [n, photo] of photos.entries()) {
     await sleep(1500)
     const bursts = []; page.on('console', (m) => { if (m.text().startsWith('[burst]')) bursts.push(m.text().slice(8)) })
     const t = Date.now()
-    await page.click('.live__shutter'); await page.waitForSelector('.qc', { timeout: 40000 })
+    await page.click('.cap-shutter'); await page.waitForSelector('.cap-result', { timeout: 40000 })
     rec.captureMs = Date.now() - t
     await sleep(300)
     const ui = await page.evaluate(() => ({
-      title: document.querySelector('.qc__title')?.innerText, why: document.querySelector('.qc__why')?.innerText ?? null,
-      submit: [...document.querySelectorAll('.capture-grid__side .btn')].map((b) => b.innerText.trim()),
+      title: document.querySelector('[data-testid=result-title]')?.innerText, why: document.querySelector('.cap-why')?.innerText ?? null,
+      submit: [...document.querySelectorAll('.cap-result .cap-btn')].map((b) => b.innerText.trim()),
       debug: document.querySelector('[data-testid=checks-debug]')?.innerText.replace(/\s+/g, ' ') ?? null,
-      rows: [...document.querySelectorAll('.qc__row')].map((r) => r.innerText.replace(/\s+/g, ' ')),
+      rows: [...document.querySelectorAll('.cap-check')].map((r) => r.innerText.replace(/\s+/g, ' ')),
     }))
     Object.assign(rec, ui)
     rec.canSubmit = ui.submit.some((s) => /^(Submit|I've reached)/.test(s))
@@ -92,7 +92,7 @@ for (const [n, photo] of photos.entries()) {
     rec.burst = bursts[0] ? JSON.parse(bursts[0]) : null
   } catch (e) {
     rec.error = String(e.message).slice(0, 200)
-    try { const pg = (await browser.pages()).at(-1); rec.stateAtFailure = await pg.evaluate(() => ({ live: document.querySelector('[data-liveness]')?.innerText ?? null, tone: document.querySelector('[data-liveness]')?.dataset.liveness ?? null, shutter: document.querySelector('.live__shutter')?.disabled ?? null, hint: document.querySelector('.live__hint')?.innerText ?? null })); await pg.screenshot({ path: path.join(outDir, `fail-${n}.png`) }) } catch {}
+    try { const pg = (await browser.pages()).at(-1); rec.stateAtFailure = await pg.evaluate(() => ({ live: document.querySelector('[data-liveness]')?.innerText ?? null, tone: document.querySelector('[data-liveness]')?.dataset.liveness ?? null, shutter: document.querySelector('.cap-shutter')?.disabled ?? null, hint: document.querySelector('.cap-hint')?.innerText ?? null })); await pg.screenshot({ path: path.join(outDir, `fail-${n}.png`) }) } catch {}
   } finally { await browser.close() }
   results.push(rec)
   console.log(`${rec.n} ${rec.source} ${rec.error ? 'ERROR ' + rec.error : `${rec.title} | submit:${rec.canSubmit}`}`)

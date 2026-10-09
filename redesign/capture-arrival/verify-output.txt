@@ -1,0 +1,9 @@
+ids in the DOM: 22/22
+additions measured: Add.progress 18 states, Add.thumb 18 states
+contrast checks: 216 text samples on real backgrounds, minimum 4.65:1
+flow: play-ok: Waiting -> Acquiring -> tiles resolve independently -> pause -> AI scan -> ok
+flow: play-desktop: GPS denied, no motion, no network, no recording: notes appear -> ok
+flow: error path: slides back, Photo active, Arrival pending, role=alert banner -> ok
+flow: reduced motion: no slide, sequence still completes -> ok
+flow: tab order and focus ring on the shell -> ok
+problems: 0

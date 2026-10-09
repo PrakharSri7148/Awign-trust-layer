@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture frames · Trust Layer</title>
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <style>
+    .frames { max-width: 1500px; margin: 0 auto; padding: 32px 24px 64px; }
+    .frames header { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+    .frames h1 + p { color: var(--color-text-2); margin-top: 4px; max-width: 70ch; }
+    .flow { margin-top: 40px; }
+    .flow h2 { margin-bottom: 4px; }
+    .flow > p { color: var(--color-text-2); font-size: var(--text-sm); margin-bottom: 16px; }
+    .row { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 12px; }
+    figure { margin: 0; flex: none; }
+    figcaption { font-size: var(--text-sm); color: var(--color-text-2); margin-bottom: 8px; }
+    figcaption b { color: var(--color-text); font-weight: 500; }
+    iframe { width: 390px; height: 844px; border: 1px solid var(--color-border-strong); border-radius: 28px; background: var(--color-shell); display: block; }
+  </style>
+</head>
+<body>
+  <div class="frames">
+    <header>
+      <div><h1>Capture flow, mobile frames</h1><p>Live 390 × 844 renders of the worker app, one per state. Each frame is the real page (<span class="mono">/?state=…&amp;embed=1</span>), so it is interactive. Open the full flow at <a href="index.html">the Capture page</a>.</p></div>
+      <a class="btn" href="dashboard.html">Reviewer console</a>
+    </header>
+
+    <section class="flow" aria-labelledby="f1"><h2 id="f1">1. Camera</h2><p>Camera first. One-line header, quality HUD (collapsed and expanded), liveness ring for face tasks, first-time consent sheet.</p>
+      <div class="row">
+        <figure><figcaption><b>Ready</b> shelf photo, visit recording</figcaption><iframe title="Camera, ready" src="index.html?state=camera&embed=1&theme=dark"></iframe></figure>
+        <figure><figcaption><b>HUD expanded</b> low light warning</figcaption><iframe title="Camera, HUD expanded" src="index.html?state=camera-dark&embed=1&theme=dark"></iframe></figure>
+        <figure><figcaption><b>Selfie</b> liveness prompt with progress ring</figcaption><iframe title="Camera, selfie liveness" src="index.html?state=camera-selfie&embed=1&theme=dark"></iframe></figure>
+        <figure><figcaption><b>First visit</b> consent bottom sheet</figcaption><iframe title="Consent sheet" src="index.html?state=consent&embed=1&theme=dark"></iframe></figure>
+      </div></section>
+
+    <section class="flow" aria-labelledby="f2"><h2 id="f2">2. Quality result</h2><p>Plain-language checklist, problems first. One primary button. Warnings get a quiet confirm step.</p>
+      <div class="row">
+        <figure><figcaption><b>All good</b></figcaption><iframe title="Quality result, pass" src="index.html?state=review-pass&embed=1&theme=dark"></iframe></figure>
+        <figure><figcaption><b>Warning</b> send for verification</figcaption><iframe title="Quality result, warning" src="index.html?state=review-warn&embed=1&theme=dark"></iframe></figure>
+        <figure><figcaption><b>Blocked</b> duplicate photo</figcaption><iframe title="Quality result, blocked" src="index.html?state=review-blocked&embed=1&theme=dark"></iframe></figure>
+      </div></section>
+
+    <section class="flow" aria-labelledby="f3"><h2 id="f3">3. Sending</h2><p>A real status list instead of an animation, and an offline state that says the photo is safe.</p>
+      <div class="row">
+        <figure><figcaption><b>Uploading</b></figcaption><iframe title="Sending" src="index.html?state=sending&embed=1&theme=dark"></iframe></figure>
+        <figure><figcaption><b>Offline</b> saved, will retry</figcaption><iframe title="Offline" src="index.html?state=offline&embed=1&theme=dark"></iframe></figure>
+      </div></section>
+
+    <section class="flow" aria-labelledby="f4"><h2 id="f4">4. Verdict</h2><p>Plain words, one reason, one action. No score, gauge or chart for workers.</p>
+      <div class="row">
+        <figure><figcaption><b>Verified</b></figcaption><iframe title="Verdict, verified" src="index.html?state=verified&embed=1&theme=dark"></iframe></figure>
+        <figure><figcaption><b>Sent for review</b></figcaption><iframe title="Verdict, sent for review" src="index.html?state=sent-review&embed=1&theme=dark"></iframe></figure>
+      </div></section>
+
+    <section class="flow" aria-labelledby="f5"><h2 id="f5">5. Light theme (outdoor)</h2><p>Same screens with the light tokens. Switch it any time under Diagnostics, or add <span class="mono">?theme=light</span>.</p>
+      <div class="row">
+        <figure><figcaption><b>Camera</b></figcaption><iframe title="Camera, light theme" src="index.html?state=camera&embed=1&theme=light"></iframe></figure>
+        <figure><figcaption><b>Quality result</b></figcaption><iframe title="Quality result, light theme" src="index.html?state=review-warn&embed=1&theme=light"></iframe></figure>
+        <figure><figcaption><b>Verdict</b></figcaption><iframe title="Verdict, light theme" src="index.html?state=verified&embed=1&theme=light"></iframe></figure>
+      </div></section>
+  </div>
+</body>
+</html>

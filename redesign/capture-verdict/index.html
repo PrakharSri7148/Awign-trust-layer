@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · Verdict step · prototype</title>
+  <link rel="stylesheet" href="../capture-photo/css/cap-tokens.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-components.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-viewer.css" />
+</head>
+<body class="cv-body">
+<div class="cv-layout">
+  <aside class="cv-side" aria-label="Prototype state switcher">
+    <div><h1>Capture · Verdict step</h1><p>Step 4 of 4. Prototype state switcher: pick a state, a device width, a theme and a motion setting. Inside the page the copy button, the Details toggle and “New submission” work.</p></div>
+    <div class="cv-links"><a href="app.html" target="_blank" rel="noopener">Open full page</a><a href="frames.html">Gallery</a><a href="coverage.html">Coverage</a><a href="tokens.html">Tokens + components</a></div>
+    <div class="cv-group"><h2>Device</h2><div class="cv-seg" id="cv-dev" role="group" aria-label="Device width">
+      <button type="button" data-dev="desktop" aria-pressed="true">Desktop</button><button type="button" data-dev="tablet" aria-pressed="false">Tablet</button><button type="button" data-dev="phone" aria-pressed="false">Phone</button></div></div>
+    <div class="cv-group"><h2>Theme</h2><div class="cv-seg" id="cv-theme" role="group" aria-label="Theme"><button type="button" data-th="dark" aria-pressed="true">Dark</button><button type="button" data-th="light" aria-pressed="false">Light (outdoor)</button></div></div>
+    <div class="cv-group"><h2>Motion</h2><div class="cv-seg" id="cv-motion" role="group" aria-label="Motion"><button type="button" data-m="normal" aria-pressed="true">Normal</button><button type="button" data-m="reduce" aria-pressed="false">Reduced</button></div></div>
+    <div class="cv-group"><h2>Animation</h2><button type="button" class="cap-btn" id="cv-replay">Replay count-up and celebration</button></div>
+    <div id="cv-states" style="display:grid;gap:14px"></div>
+  </aside>
+  <main class="cv-main">
+    <div class="cv-bar"><span id="cv-info" class="cv-title"></span></div>
+    <div class="cv-stagewrap" id="cv-wrap"><div class="cv-frame" id="cv-frame"><iframe id="cv-if" title="Verdict step prototype" src="app.html"></iframe></div></div>
+  </main>
+</div>
+<script src="../capture-photo/js/cap-icons.js"></script><script src="js/cap-icons-extra.js"></script><script src="js/cap-verdict-data.js"></script><script src="js/cap-verdict-state.js"></script>
+<script>
+(function () {
+  var DEV = { desktop: [1280, 860], tablet: [820, 1100], phone: [390, 844] };
+  var dev = 'desktop', theme = 'dark', motion = 'normal', cur = 'accepted-full';
+  var q = new URLSearchParams(location.search);
+  if (q.get('dev') && DEV[q.get('dev')]) dev = q.get('dev');
+  if (q.get('theme') === 'light') theme = 'light';
+  if (q.get('motion') === 'reduce') motion = 'reduce';
+  if (q.get('state')) cur = q.get('state');
+  if (!window.CAP_VSTATE.byId[cur]) cur = 'accepted-full';
+  var iframe = document.getElementById('cv-if'), frame = document.getElementById('cv-frame'), wrap = document.getElementById('cv-wrap');
+  var P = window.CAP_VSTATE.presets, groups = {};
+  P.forEach(function (p) { (groups[p.group] = groups[p.group] || []).push(p); });
+  var box = document.getElementById('cv-states');
+  Object.keys(groups).forEach(function (g) {
+    var d = document.createElement('div'); d.className = 'cv-group'; d.innerHTML = '<h2>' + g + '</h2>';
+    groups[g].forEach(function (p) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'cv-state'; b.dataset.id = p.id;
+      b.innerHTML = p.label + (p.desc ? '<small>' + p.desc + '</small>' : ''); b.onclick = function () { setState(p.id); }; d.appendChild(b);
+    }); box.appendChild(d);
+  });
+  function post(m) { try { iframe.contentWindow.postMessage(m, '*'); } catch (e) {} }
+  function url() { return 'app.html?state=' + cur + '&theme=' + theme + (motion === 'reduce' ? '&motion=reduce' : ''); }
+  function setState(id) { cur = id; post({ cap: 'apply', id: id }); post({ cap: 'theme', value: theme }); post({ cap: 'motion', value: motion }); mark(); history.replaceState(null, '', '?state=' + id + '&dev=' + dev + '&theme=' + theme + '&motion=' + motion); }
+  function mark() { document.querySelectorAll('.cv-state').forEach(function (b) { b.setAttribute('aria-current', b.dataset.id === cur ? 'true' : 'false'); }); document.getElementById('cv-info').textContent = (window.CAP_VSTATE.byId[cur] || {}).label + ' · ' + DEV[dev][0] + '×' + DEV[dev][1] + ' · ' + theme + (motion === 'reduce' ? ' · reduced motion' : ''); }
+  function fit() {
+    var w = DEV[dev][0], h = DEV[dev][1], pad = dev === 'phone' ? 16 : 0;
+    var aw = wrap.clientWidth - 32, ah = wrap.clientHeight - 32;
+    var k = Math.min(1, aw / (w + pad), ah / (h + pad));
+    iframe.style.width = w + 'px'; iframe.style.height = h + 'px';
+    frame.style.width = (w + pad) * k + 'px'; frame.style.height = (h + pad) * k + 'px';
+    frame.className = 'cv-frame' + (dev === 'phone' ? ' cv-frame--phone' : '');
+    iframe.style.transformOrigin = 'top left'; iframe.style.transform = 'scale(' + k + ')'; frame.style.overflow = 'hidden';
+  }
+  function press(sel, attr, val) { document.querySelectorAll(sel + ' button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset[attr] === val)); }); }
+  document.getElementById('cv-dev').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; dev = b.dataset.dev; press('#cv-dev', 'dev', dev); fit(); mark(); };
+  document.getElementById('cv-theme').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; theme = b.dataset.th; press('#cv-theme', 'th', theme); document.documentElement.setAttribute('data-theme', theme); post({ cap: 'theme', value: theme }); mark(); };
+  document.getElementById('cv-motion').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; motion = b.dataset.m; press('#cv-motion', 'm', motion); post({ cap: 'motion', value: motion }); mark(); };
+  document.getElementById('cv-replay').onclick = function () { post({ cap: 'replay' }); };
+  window.addEventListener('resize', fit);
+  press('#cv-dev', 'dev', dev); press('#cv-theme', 'th', theme); press('#cv-motion', 'm', motion); document.documentElement.setAttribute('data-theme', theme);
+  iframe.src = url(); fit(); mark();
+})();
+</script>
+</body>
+</html>

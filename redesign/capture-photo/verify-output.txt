@@ -1,0 +1,37 @@
+51 presets × 3 widths
+
+Inventory ids: 50/50 found (4 removed by request, must be absent: ok) in the DOM
+Flows:
+  PASS desktop: open camera → ready → capture → result → retake 
+  PASS face task: shutter disabled until live check passes 
+  PASS blocked result: no send button, Retake primary, card shakes 
+  PASS metrics toggle, tabs, accordion, task picker 
+  PASS arrive → step 2 stub → back 
+  PASS phone: immersive camera locks the page, close returns 
+  PASS file picker: a chosen photo is checked 
+Contrast:
+  PASS dark text on card 16.7
+  PASS dark muted text on card 6.76
+  PASS dark muted text on shell 6.98
+  PASS dark pass on card 9.65
+  PASS dark warn on card 11.11
+  PASS dark fail on card 5.17
+  PASS dark accent text on shell 8.33
+  PASS dark white on accent button 4.5
+  PASS dark accent ring on shell (3:1) 4.25
+  PASS light text on card 16.6
+  PASS light muted text on card 6.34
+  PASS light muted text on shell 6.91
+  PASS light pass on card 6.15
+  PASS light warn on card 5.31
+  PASS light fail on card 5.33
+  PASS light accent text on shell 6.85
+  PASS light white on accent button 5.43
+  PASS light accent ring on shell (3:1) 5.43
+  PASS camera ov-ok on scrim over white 5.23
+  PASS camera ov-warn on scrim over white 6.02
+  PASS camera ov-bad on scrim over white 4.54
+  PASS camera ov-text-2 on scrim over white 5.88
+  PASS camera ov-accent on scrim over white 5.35
+
+Problems: 0

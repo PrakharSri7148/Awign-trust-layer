@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · AI scan step · coverage</title>
+  <link rel="stylesheet" href="../capture-photo/css/cap-tokens.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-components.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-viewer.css" />
+</head>
+<body class="cv-body">
+<div class="cv-page">
+  <div><h1>Coverage: every inventory item, where it lives</h1>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0" id="sum"></p>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0"><a href="index.html">Viewer</a> · <a href="frames.html">Gallery</a> · <a href="tokens.html">Tokens + components</a>. “Found in states” is measured by <span class="cv-mono">node tools/verify.mjs</span> (a data-inv marker in the DOM at 1280, 820 and 390 px). Nothing from the inventory was removed; two terminal details were replaced by their checklist equivalents (B3.v, B3.c) and say so below.</p></div>
+  <section class="cv-sec"><h2>Inventory (B1 to B5, plus the behaviours from the step description)</h2>
+  <table class="cv-table"><thead><tr><th>ID</th><th>Item</th><th>Where it lives now</th><th>Component</th><th>Open</th><th>Found in</th></tr></thead><tbody id="rows"></tbody></table></section>
+  <section class="cv-sec"><h2>Additions (not in the inventory; all optional or quiet, veto any)</h2>
+  <table class="cv-table"><thead><tr><th>ID</th><th>Addition</th><th>Where it lives</th><th>Component</th><th>Open</th><th>Found in</th></tr></thead><tbody id="adds"></tbody></table></section>
+</div>
+<script src="js/scan-coverage-data.js"></script>
+<script src="coverage-report.js"></script>
+<script>
+(function () {
+  var rep = window.SCAN_COVERAGE_REPORT || null, rows = document.getElementById('rows'), adds = document.getElementById('adds'), ok = 0, tot = 0;
+  window.SCAN_COVERAGE.forEach(function (r) {
+    var found = rep && rep.found[r[0]], isAdd = r[5] === 'add', beh = r[5] === 'beh' && !(rep && rep.found[r[0]] && rep.found[r[0]].length);
+    if (!isAdd) { tot++; }
+    if (found && found.length && !isAdd) ok++;
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td class="cv-mono"><b>' + r[0] + '</b></td><td>' + r[1] + '</td><td>' + r[2] + '</td><td class="cv-mono">' + r[4] + '</td><td><a href="index.html?state=' + r[3] + '">' + r[3] + '</a></td><td>' +
+      (found && found.length ? '<span class="cap-pill cap-pill--pass">' + found.length + ' states</span>' : beh ? '<span class="cap-pill cap-pill--info">behaviour, see note</span>' : '<span class="cap-pill cap-pill--fail">not measured</span>') + '</td>';
+    (isAdd ? adds : rows).appendChild(tr);
+  });
+  document.getElementById('sum').textContent = tot + ' inventory entries · ' + ok + ' found in the DOM' + (rep ? ' · measured ' + rep.when + ' · ' + rep.states + ' states × ' + rep.widths + ' widths' : ' · run node tools/verify.mjs to measure');
+})();
+</script>
+</body>
+</html>

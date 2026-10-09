@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" class="cv-html" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capture · Verdict step · coverage</title>
+  <link rel="stylesheet" href="../capture-photo/css/cap-tokens.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-components.css" />
+  <link rel="stylesheet" href="../capture-photo/css/cap-viewer.css" />
+</head>
+<body class="cv-body">
+<div class="cv-page">
+  <div><h1>Coverage: every inventory item, where it lives</h1>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0" id="sum"></p>
+  <p style="color:var(--cap-text-2);font-size:13px;margin:6px 0 0"><a href="index.html">Viewer</a> · <a href="frames.html">Gallery</a> · <a href="tokens.html">Tokens + components</a>. Nothing was removed: no id is marked “removed”. “Found in” is measured by <span class="cv-mono">node tools/verify.mjs</span> (every element carries a <span class="cv-mono">data-inv</span> id; the tool loads every state at desktop, tablet and phone width and records which ids are in the DOM). C1…C5 are the brief’s ids; the letters split them into one id per element.</p></div>
+  <table class="cv-table"><thead><tr><th>ID</th><th>Item (wording of the brief)</th><th>Where it lives now</th><th>Component</th><th>Open</th><th>Found in</th></tr></thead><tbody id="rows"></tbody></table>
+  <section class="cv-sec"><h2>Additions</h2>
+    <p style="color:var(--cap-text-2);font-size:13px;margin:0">Everything in the new design that was not in the inventory. None of these replaces or hides an inventory item.</p>
+    <table class="cv-table"><thead><tr><th>#</th><th>Addition</th><th>What it is</th><th>Why</th></tr></thead><tbody id="adds"></tbody></table>
+  </section>
+</div>
+<script src="js/cap-coverage-data.js"></script>
+<script src="coverage-report.js"></script>
+<script>
+(function () {
+  var rep = window.CAP_COVERAGE_REPORT || null, rows = document.getElementById('rows'), ok = 0;
+  window.CAP_COVERAGE.forEach(function (r) {
+    var found = rep && rep.found[r[0]];
+    if (found && found.length) ok++;
+    var group = /^C\d$/.test(r[0]);
+    var tr = document.createElement('tr');
+    if (group) tr.style.background = 'var(--cap-card)';
+    tr.innerHTML = '<td class="cv-mono"><b>' + r[0] + '</b></td><td>' + (group ? '<b>' + r[1] + '</b>' : r[1]) + '</td><td>' + r[2] + '</td><td>' + r[4] + '</td><td><a href="index.html?state=' + r[3] + '">' + r[3] + '</a></td><td>' + (rep ? (found && found.length ? '<span class="cap-pill cap-pill--pass">' + found.length + ' states</span>' : '<span class="cap-pill cap-pill--fail">missing</span>') : '<span class="cap-pill cap-pill--skip">not measured</span>') + '</td>';
+    rows.appendChild(tr);
+  });
+  var adds = document.getElementById('adds');
+  window.CAP_ADDITIONS.forEach(function (a, i) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td class="cv-mono">' + (i + 1) + '</td><td><b>' + a[0] + '</b></td><td>' + a[1] + '</td><td>' + a[2] + '</td>';
+    adds.appendChild(tr);
+  });
+  document.getElementById('sum').textContent = window.CAP_COVERAGE.length + ' ids (C1…C5 and their parts, plus the shared step indicator), 0 removed' + (rep ? ' · ' + ok + ' found in the DOM · measured ' + rep.when : ' · run tools/verify.mjs to measure') + ' · ' + window.CAP_ADDITIONS.length + ' additions';
+})();
+</script>
+</body>
+</html>

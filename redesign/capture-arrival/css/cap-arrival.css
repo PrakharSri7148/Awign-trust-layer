@@ -1,0 +1,118 @@
+/* Capture · Arrival step (step 2 of 4). Loaded AFTER the Photo step's three stylesheets (../../capture-photo/css/*), which supply the
+   tokens, shell, stepper, card, pill, meter, strip and banner. This file only ADDS the components the Arrival step needs:
+   cap-arr (page column), cap-thumb, cap-progress, cap-sensor (tile) + cap-ring + cap-signal, cap-notice, cap-view (step transition).
+   Every class is prefixed cap-; every variable is --cap-* (new local ones: --tone, --tone-text, --p). */
+
+/* ---------- Page column: one calm card, max 560px, centered ---------- */
+.cap-main { overflow-x: clip; }   /* the 24px slide of a step change must never show a horizontal scrollbar */
+.cap-view { display: grid; gap: var(--cap-space-4); align-content: start; animation: cap-view-in var(--cap-dur-med) var(--cap-ease) both; }
+.cap-view--back { animation-name: cap-view-in-back; }
+.cap-view--out { animation: cap-view-out var(--cap-dur-med) var(--cap-ease) forwards; pointer-events: none; }
+.cap-view--out-back { animation-name: cap-view-out-back; }
+@keyframes cap-view-in { from { opacity: 0; transform: translateX(24px); } }
+@keyframes cap-view-in-back { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes cap-view-out { to { opacity: 0; transform: translateX(-24px); } }
+@keyframes cap-view-out-back { to { opacity: 0; transform: translateX(24px); } }
+
+.cap-arr { width: 100%; max-width: 560px; margin: var(--cap-space-2) auto 0; }
+.cap-arr .cap-card__title { font-size: var(--cap-text-xl); letter-spacing: -0.01em; line-height: 1.2; margin-top: 4px; }
+.cap-arr__lead { font-size: var(--cap-text-sm); color: var(--cap-text-2); line-height: 1.55; }
+
+/* ---------- Thumbnail of the just-verified photo (top right of the card, the card's "action" slot) ---------- */
+.cap-thumb { position: relative; flex: none; width: 52px; height: 52px; margin: 0 6px 6px 0; }
+.cap-thumb__img { position: absolute; inset: 0; overflow: hidden; border-radius: 10px; border: 1px solid var(--cap-border-2); background: #0c0c0f; }
+.cap-thumb__img svg { width: 100%; height: 100%; display: block; }
+.cap-thumb__badge { position: absolute; right: -6px; bottom: -6px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--cap-card); border: 1px solid color-mix(in srgb, var(--cap-ok) 60%, transparent); color: var(--cap-ok); }
+.cap-thumb__badge .cap-icon { width: 12px; height: 12px; }
+
+/* ---------- Overall progress: "3 of 4 readings done" + a 20-segment meter (same cap-meter as the Photo step's overall score) ---------- */
+.cap-progress { display: grid; gap: 8px; }
+.cap-progress__row { display: flex; align-items: center; justify-content: space-between; gap: var(--cap-space-3); min-height: 24px; }
+.cap-progress__count { font-size: var(--cap-text-sm); color: var(--cap-text-2); font-variant-numeric: tabular-nums; }
+.cap-progress__count b { color: var(--cap-text); font-weight: 600; }
+.cap-meter--info { --tone: var(--cap-accent); }
+.cap-progress .cap-meter__cell { background: var(--cap-border-2); transition: background var(--cap-dur-med) var(--cap-ease); }
+.cap-progress .cap-meter__cell--on { background: var(--tone); }
+
+/* ---------- Sensor tile: the live version of one Sensor-feed group. Tone follows the state; the state is always a word + icon too ---------- */
+.cap-sensors { display: grid; gap: 10px; }
+.cap-sensor {
+  --tone: var(--cap-skip); --tone-text: var(--cap-text-2);
+  display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; row-gap: 10px; align-items: start; min-width: 0;
+  padding: 12px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--tone) 42%, var(--cap-border));
+  background: color-mix(in srgb, var(--tone) 5%, var(--cap-card));
+  transition: border-color var(--cap-dur-med) var(--cap-ease), background var(--cap-dur-med) var(--cap-ease);
+}
+.cap-sensor--wait { border-color: var(--cap-border); background: var(--cap-card); }
+.cap-sensor--acq { --tone: var(--cap-accent); --tone-text: var(--cap-accent-text); }
+.cap-sensor--ok { --tone: var(--cap-ok); --tone-text: var(--cap-ok); }
+.cap-sensor--na { --tone: var(--cap-warn); --tone-text: var(--cap-warn); }
+.cap-sensor__icon { position: relative; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; color: var(--tone-text); background: color-mix(in srgb, var(--tone) 14%, var(--cap-card-2)); transition: color var(--cap-dur-med) var(--cap-ease), background var(--cap-dur-med) var(--cap-ease); }
+.cap-sensor__icon .cap-icon { width: 20px; height: 20px; }
+.cap-sensor--acq .cap-sensor__icon .cap-icon { animation: cap-arr-icon 1.4s ease-in-out infinite; }
+.cap-sensor--acq .cap-sensor__icon::after { content: ''; position: absolute; inset: -1px; border-radius: 10px; border: 1px solid var(--cap-accent); animation: cap-arr-ring 1.6s ease-out infinite; pointer-events: none; }
+@keyframes cap-arr-icon { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes cap-arr-ring { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.3); opacity: 0; } }
+.cap-sensor__body { min-width: 0; display: grid; gap: 2px; }
+.cap-sensor__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; flex-wrap: wrap; }
+.cap-sensor__title { font-size: var(--cap-text-md); font-weight: 600; }
+.cap-sensor__value { min-height: 20px; font-size: var(--cap-text-sm); color: var(--cap-text-2); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.cap-sensor--na .cap-sensor__value { color: var(--cap-warn); }
+.cap-sensor__main { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.cap-sensor__extra { grid-column: 2 / -1; display: grid; gap: 8px; min-width: 0; }
+.cap-sensor__live { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.cap-sensor__live .cap-feed__wave { flex: 1; min-width: 0; height: 52px; }
+.cap-sensor .cap-pill { background: color-mix(in srgb, var(--pill) var(--cap-tint), var(--cap-card)); }   /* opaque fill so the tile tint never lowers the text contrast */
+
+/* the waveform reuses .cap-feed__wave (Photo step); the baseline and the not-live colours are the only additions */
+.cap-feed__wave .cap-wave__base { stroke: var(--cap-border-2); stroke-width: 1; }
+.cap-sensor:not(.cap-sensor--acq) .cap-feed__wave .cap-wave__line { stroke: var(--cap-text-2); }
+
+/* countdown ring: --p is elapsed/total (0..1); the number inside counts 3.0 -> 0.0 */
+.cap-ring { position: relative; flex: none; width: 52px; height: 52px; }
+.cap-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.cap-ring__track { fill: none; stroke: var(--cap-border-2); stroke-width: 5; }
+.cap-ring__bar { fill: none; stroke: var(--cap-accent); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: calc(100 - 100 * var(--p, 0)); transition: stroke-dashoffset 120ms linear; }
+.cap-ring__num { position: absolute; inset: 0; display: grid; place-items: center; font-size: var(--cap-text-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 4-bar signal indicator (4g = 4 bars, 3g = 2, 2g / slow-2g / slow = 1) */
+.cap-signal { display: inline-flex; align-items: flex-end; gap: 3px; height: 20px; }
+.cap-signal i { display: block; width: 5px; border-radius: 1.5px; background: color-mix(in srgb, var(--cap-text-2) 35%, transparent); }
+.cap-signal i:nth-child(1) { height: 6px; } .cap-signal i:nth-child(2) { height: 10px; } .cap-signal i:nth-child(3) { height: 14px; } .cap-signal i:nth-child(4) { height: 18px; }
+.cap-signal i.is-on { background: var(--tone, var(--cap-ok)); }
+
+/* phone-activity strip: the Photo step's .cap-strip plus an "unknown" cell and a 4-item legend */
+.cap-strip .is-unknown { background: transparent; box-shadow: inset 0 0 0 1px var(--cap-border-2); }
+.cap-legend i.is-unknown { background: transparent; box-shadow: inset 0 0 0 1px var(--cap-text-2); }
+
+/* ---------- Quiet inline notice (A7): unavailable readings that will be noted on the next steps ---------- */
+.cap-notice { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; padding-top: var(--cap-space-3); border-top: 1px solid var(--cap-border); font-size: var(--cap-text-sm); color: var(--cap-text-2); animation: cap-notice-in var(--cap-dur-med) var(--cap-ease); }
+.cap-notice > .cap-icon { width: 16px; height: 16px; margin-top: 2px; color: var(--cap-warn); }
+.cap-notice__lead { color: var(--cap-text); font-weight: 500; }
+.cap-notice ul { display: grid; gap: 2px; margin-top: 4px; }
+.cap-notice li { position: relative; padding-left: 12px; }
+.cap-notice li::before { content: ''; position: absolute; left: 1px; top: 0.62em; width: 4px; height: 4px; border-radius: 50%; background: var(--cap-warn); }
+.cap-notice__foot { margin-top: 6px; font-size: var(--cap-text-xs); }
+@keyframes cap-notice-in { from { opacity: 0; transform: translateY(-4px); } }
+
+/* step stubs used by the prototype for what is not designed here (AI scan, Photo) */
+.cap-stubnote { font-size: var(--cap-text-xs); color: var(--cap-text-2); }
+
+/* ================= Tablet 721-999: same single column, shell margin comes from the Photo step ================= */
+
+/* ================= Phone <= 720: full width, 44px targets are in the shared primitives ================= */
+@media (max-width: 720px) {
+  .cap-arr { max-width: none; margin-top: 0; }
+  .cap-arr .cap-card__head { padding: var(--cap-space-3) var(--cap-space-3) 0; }
+  .cap-arr .cap-card__body { padding: var(--cap-space-3); gap: var(--cap-space-3); }
+  .cap-arr .cap-card__title { font-size: var(--cap-text-lg); }
+  .cap-thumb { width: 44px; height: 44px; }
+  .cap-sensors { gap: 8px; }
+  .cap-sensor { grid-template-columns: 36px minmax(0, 1fr); column-gap: 10px; row-gap: 8px; padding: 10px; }
+  .cap-sensor__icon { width: 36px; height: 36px; }
+  .cap-sensor__icon .cap-icon { width: 18px; height: 18px; }
+  .cap-sensor__extra { grid-column: 1 / -1; }
+  .cap-ring { width: 48px; height: 48px; }
+  .cap-sensor__live .cap-feed__wave { height: 48px; }
+}
