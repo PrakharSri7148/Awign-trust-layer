@@ -211,3 +211,75 @@ test('the verdict summary lists the arrival first, then movement and network', (
   const v = verdictSummary({ site: { lat: 1, lng: 2, radius_m: 60 }, motion: { score: 0.97, known: true, sensor_used: true, evidence: { site: { end_m: 5, radius_m: 60, end_inside: true } } }, environment: { known: false } })
   assert.deepEqual(v.map((l) => l.id), ['arrival', 'motion', 'network'])
 })
+
+import { countryName, distanceM, whereSummary } from './display.js'
+
+test('where: a network in another country than the site is called out, with distances', () => {
+  const w = whereSummary({
+    site: { lat: 12.9716, lng: 77.5946, radius_m: 60, country: 'IN' },
+    position: { lat: 12.9717, lng: 77.5947, acc_m: 8, at: 1_700_000_000_000, source: 'trail' },
+    ip: { country: 'US', region: 'Virginia', city: 'Ashburn', org: 'Some VPN Inc', lat: 39.04, lng: -77.49, private: false },
+  })
+  assert.equal(w.countryClash, true)
+  assert.equal(w.headline.tone, 'bad')
+  assert.match(w.headline.text, /United States \(US\).*India \(IN\)/)
+  assert.ok(w.phoneFromSiteM < 20)
+  assert.ok(w.netFromSiteKm > 12_000 && w.netFromPhoneKm > 12_000)
+  assert.equal(w.net.place, 'Ashburn, Virginia')
+})
+
+test('where: same country and close is quiet; a phone far outside the radius warns', () => {
+  const site = { lat: 12.9716, lng: 77.5946, radius_m: 60, country: 'IN' }
+  const ip = { country: 'IN', city: 'Bengaluru', lat: 12.97, lng: 77.59, private: false }
+  assert.equal(whereSummary({ site, ip, position: { lat: 12.9716, lng: 77.5947 } }).headline, null)
+  const far = whereSummary({ site, ip, position: { lat: 12.99, lng: 77.62 } })
+  assert.equal(far.headline.tone, 'warn')
+  assert.equal(far.countryClash, false)
+})
+
+test('where: missing pieces stay null; a private address is not a network location; unknown site country never claims a clash', () => {
+  assert.equal(whereSummary(null), null)
+  const w = whereSummary({ site: { lat: 1, lng: 2, radius_m: 50 }, ip: { private: true }, position: null })
+  assert.equal(w.net, null)
+  assert.equal(w.pos, null)
+  assert.equal(w.headline, null)
+  assert.equal(whereSummary({ site: { lat: 1, lng: 2 }, ip: { country: 'US', lat: 39, lng: -77 } }).countryClash, false)
+  assert.equal(whereSummary({ ip: { country: 'US', lat: null, lng: null, purged: true } }).net.located, false)
+  assert.equal(whereSummary({}).any, false)
+})
+
+test('distance and country names', () => {
+  assert.ok(Math.abs(distanceM(0, 0, 0, 1) - 111_195) < 300)
+  assert.equal(countryName(null), null)
+  assert.match(countryName('in'), /India/)
+})
+
+test('where: the start is the first trail point, and its distances are worked out', () => {
+  const w = whereSummary({
+    site: { lat: 12.9716, lng: 77.5946, radius_m: 60, country: 'IN' },
+    trail: { points: [[0, 12.9716, 77.5926, 9.5], [5, 12.9716, 77.5946, 6]] },
+    position: { lat: 12.9716, lng: 77.5946, source: 'trail' },
+  })
+  assert.deepEqual(w.start, { lat: 12.9716, lng: 77.5926, acc_m: 9.5 })
+  assert.ok(w.startFromSiteM > 190 && w.startFromSiteM < 250)
+  assert.ok(Math.abs(w.startToEndM - w.startFromSiteM) < 1)
+  assert.equal(whereSummary({ trail: { points: [], purged: true } }).start, null)
+})
+
+test('where: a network in another country, or one flagged as hosting, is labelled a VPN, with its distance from the start', () => {
+  const ip = { country: 'US', city: 'Ashburn', lat: 39.04, lng: -77.49 }
+  const start = [[0, 12.9716, 77.5926, 9]]
+  const clash = whereSummary({ site: { lat: 12.97, lng: 77.59, country: 'IN' }, ip, trail: { points: start } })
+  assert.equal(clash.net.isVpn, true)
+  assert.ok(clash.netFromStartKm > 12_000)
+  assert.equal(whereSummary({ ip, flags: ['anonymizing_network'] }).net.isVpn, true)
+  assert.equal(whereSummary({ ip: { country: 'IN', lat: 12.9, lng: 77.6 }, site: { lat: 12.97, lng: 77.59, country: 'IN' } }).net.isVpn, false)
+})
+
+test('where: a submission without a stored last fix shows the last saved trail point instead', () => {
+  const w = whereSummary({ source: 'trail', trail: { points: [[0, 12.9, 77.6, 17], [20, 12.95, 77.65, 4]] } })
+  assert.deepEqual(w.pos, { lat: 12.95, lng: 77.65, acc_m: 4, at: null, source: 'trail' })
+  assert.equal(whereSummary({ source: 'legacy_gps', trail: { points: [[0, 12.9, 77.6, null]] } }).pos.source, 'legacy_gps')
+  assert.equal(whereSummary({ position: { lat: 1, lng: 2, at: 5, source: 'trail' }, trail: { points: [[0, 9, 9, 1]] } }).pos.lat, 1) // a stored fix wins
+  assert.equal(whereSummary({ trail: { points: [], purged: true } }).pos, null)
+})

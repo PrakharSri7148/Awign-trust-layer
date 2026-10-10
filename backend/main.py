@@ -124,7 +124,7 @@ def to_response(sub: Submission, full: bool = False) -> dict:
     if full:
         # The per-check report is large; the list endpoint leaves it out.
         data["photo_quality"] = json.loads(sub.photo_report or "{}")
-        data["fusion"] = json.loads(sub.fusion_report or "{}")
+        data["fusion"] = fusion_pipeline.fill_ip_position(json.loads(sub.fusion_report or "{}"))
     if sub.timestamp is not None:
         # SQLite drops tzinfo; timestamps are stored as UTC.
         data["timestamp"] = sub.timestamp.replace(tzinfo=None).isoformat() + "Z"

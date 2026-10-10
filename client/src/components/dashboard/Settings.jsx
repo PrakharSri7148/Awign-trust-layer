@@ -130,7 +130,7 @@ export default function Settings({ theme, onTheme, sites, sitesError, toast, sel
           <div className={cx('panel__head')}><h2 className={cx('panel__title')}>Appearance</h2></div>
           <div className={cx('settings__body')}>
             <p className={cx('settings-note')}>The console is dark by default. Light is easier to read outdoors.</p>
-            <div className={cx('segmented')} role="radiogroup" aria-label="Theme" style={{ width: 'fit-content' }}>
+            <div className={cx('segmented')} role="radiogroup" aria-label="Theme" style={{ justifySelf: 'start' }}>
               {[['dark', 'moon', 'Dark'], ['light', 'sun', 'Light']].map(([k, i, l]) => <button key={k} type="button" className={cx('segmented__item')} role="radio" aria-checked={theme === k} onClick={() => onTheme(k)}><Icon name={i} />{l}</button>)}
             </div>
           </div>

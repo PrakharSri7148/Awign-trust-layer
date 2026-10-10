@@ -36,8 +36,15 @@ def _strip(report):
             if ip.get(k) is not None:
                 ip[k] = None
                 n_ip += 1
+        for k in ("lat", "lng"):  # the network's approximate coordinates go with the city they were derived from
+            if ip.get(k) is not None:
+                ip[k] = None
+                n_ip += 1
         if n_ip:
             ip["purged"] = True
+    if report.get("position"):  # the worker's last fix is a trail point too
+        report["position"] = None
+        n += 1
     trail = report.get("trail") or {}
     if trail.get("points"):
         n += len(trail["points"])

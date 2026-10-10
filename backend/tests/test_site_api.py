@@ -125,7 +125,7 @@ def test_old_submissions_keep_the_site_they_were_scored_with(client):
     first = submit(client, imgs.good(seed=1)).json()
     client.put("/sites/s1", json=VENUE)
     again = client.get(f"/submissions/{first['id']}").json()
-    assert again["fusion"]["site"] == {"lat": 12.9259481, "lng": 77.6722586, "radius_m": 100.0}
+    assert again["fusion"]["site"] == {"lat": 12.9259481, "lng": 77.6722586, "radius_m": 100.0, "country": "IN"}
     second = submit(client, imgs.good(seed=2), worker="w2").json()
     assert second["fusion"]["site"]["lat"] == 13.0827
 

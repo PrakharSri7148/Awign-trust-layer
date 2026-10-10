@@ -220,3 +220,54 @@ export function recentFix(s, { maxAgeS = 30 } = {}) {
   if (!f || !Number.isFinite(f.lat) || !Number.isFinite(f.lng) || s.lastFixAgoS == null || s.lastFixAgoS > maxAgeS) return null
   return { lat: f.lat, lng: f.lng }
 }
+
+// Great-circle distance in metres between two lat/lng points.
+export function distanceM(lat1, lng1, lat2, lng2) {
+  const rad = Math.PI / 180
+  const a = Math.sin(((lat2 - lat1) * rad) / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lng2 - lng1) * rad) / 2) ** 2
+  return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(a)))
+}
+
+const has = (o) => Number.isFinite(o?.lat) && Number.isFinite(o?.lng)
+export const fmtLatLng = (lat, lng, d = 5) => `${lat.toFixed(d)}, ${lng.toFixed(d)}`
+
+// "US" -> "United States (US)"; the bare code when the browser cannot name it.
+export function countryName(code) {
+  if (!code) return null
+  try {
+    const n = new Intl.DisplayNames(['en'], { type: 'region' }).of(code.toUpperCase())
+    return n && n !== code.toUpperCase() ? `${n} (${code.toUpperCase()})` : code.toUpperCase()
+  } catch {
+    return code.toUpperCase()
+  }
+}
+
+// The case file's "Where" block: where the site is, where the phone said it was at its last GPS fix, and where the network
+// (the IP address) resolves to. Pure. Each part is null when the report has nothing for it (no site, older report, purged after the
+// retention period). `headline` is set only when the evidence says something is off; it never decides, the classifier does.
+export function whereSummary(fusion) {
+  if (!fusion) return null
+  const site = has(fusion.site) ? { ...fusion.site, country: fusion.site.country || null } : null
+  // Trail points are [seconds, lat, lng, accuracy]; the first one is where the phone was when the visit started recording.
+  const first = (fusion.trail?.points ?? [])[0]
+  const start = Number.isFinite(first?.[1]) && Number.isFinite(first?.[2]) ? { lat: first[1], lng: first[2], acc_m: first[3] ?? null } : null
+  // The last GPS fix. Submissions made before `position` was stored fall back to the last saved trail point (its time is not known).
+  const lastPt = (fusion.trail?.points ?? []).at(-1)
+  const pos = has(fusion.position) ? fusion.position
+    : Number.isFinite(lastPt?.[1]) && Number.isFinite(lastPt?.[2]) ? { lat: lastPt[1], lng: lastPt[2], acc_m: lastPt[3] ?? null, at: null, source: fusion.source ?? 'trail' } : null
+  const ipr = fusion.ip && !fusion.ip.private ? fusion.ip : null
+  const net = ipr ? { ...ipr, located: has(ipr), place: [ipr.city, ipr.region].filter(Boolean).join(', ') || null } : null
+  const startFromSiteM = site && start ? distanceM(start.lat, start.lng, site.lat, site.lng) : null
+  const startToEndM = start && pos ? distanceM(start.lat, start.lng, pos.lat, pos.lng) : null
+  const phoneFromSiteM = site && pos ? distanceM(pos.lat, pos.lng, site.lat, site.lng) : null
+  const netFromSiteKm = site && net?.located ? distanceM(net.lat, net.lng, site.lat, site.lng) / 1000 : null
+  const netFromPhoneKm = pos && net?.located ? distanceM(net.lat, net.lng, pos.lat, pos.lng) / 1000 : null
+  const countryClash = !!(site?.country && net?.country && site.country.toUpperCase() !== net.country.toUpperCase())
+  // A network that sits in another country than the site, or that the server flagged as a hosting / VPN provider, is shown as a VPN.
+  if (net) net.isVpn = countryClash || (fusion.flags ?? []).includes('anonymizing_network')
+  const netFromStartKm = start && net?.located ? distanceM(net.lat, net.lng, start.lat, start.lng) / 1000 : null
+  let headline = null
+  if (countryClash) headline = { tone: 'bad', text: `The network is in ${countryName(net.country)}, the site is in ${countryName(site.country)}. A VPN or a proxy would look like this.` }
+  else if (phoneFromSiteM != null && phoneFromSiteM > (site.radius_m ?? 100)) headline = { tone: 'warn', text: `The phone's last GPS fix was ${fmtDistance(phoneFromSiteM)} from the site (the site's radius is ${fmtDistance(site.radius_m ?? 100)}).` }
+  return { site, pos, start, netFromStartKm, startFromSiteM, startToEndM, net, phoneFromSiteM, netFromSiteKm, netFromPhoneKm, countryClash, headline, any: !!(site || pos || start || net) }
+}

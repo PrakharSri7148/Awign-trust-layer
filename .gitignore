@@ -37,3 +37,6 @@ android/app-release-bundle.aab
 android/app-release-unsigned-aligned.apk
 android/*.idsig
 android/*.bak
+
+# Database backups (contain real submission data)
+backend/data/*.bak

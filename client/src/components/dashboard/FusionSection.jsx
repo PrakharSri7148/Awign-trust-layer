@@ -1,14 +1,67 @@
 import { DBIP_CREDIT } from '../../lib/ipDatabase.js'
 import { flagMeta } from '../../lib/format.js'
-import { envComponentText, fmtDistance, scoreWord, timelineCells, trailGeometry } from '../../lib/sensorFusion/display.js'
+import { countryName, envComponentText, fmtDistance, fmtLatLng, scoreWord, timelineCells, trailGeometry, whereSummary } from '../../lib/sensorFusion/display.js'
 import { isFusionFlag } from '../../lib/sensorFusion/flags.js'
-import { Pill, cx } from './ui.jsx'
+import { Icon, Pill, cx, fmtDateTime } from './ui.jsx'
 
 const pct0 = (v) => `${Math.round((v ?? 0) * 100)}`
 const TONE = { green: 'ok', amber: 'warn', red: 'bad', muted: 'neutral' }
 
 function Section({ title, children, testid }) {
   return <section className={cx('case-section')} data-testid={testid}><h3>{title}</h3>{children}</section>
+}
+
+const osmLink = (lat, lng) => `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}`
+
+// Where the site is, where the phone said it was, where the network resolves to: side by side, so a VPN in another country is obvious.
+function WhereSection({ w }) {
+  const { site, pos, start, net } = w
+  return (
+    <section className={cx('case-section')} data-testid="where-section">
+      <h3>Where</h3>
+      {w.headline && <div className={cx('review-banner', `review-banner--${w.headline.tone === 'bad' ? 'bad' : 'warn'}`)} data-testid="where-headline"><Icon name="map-pin" /><div>{w.headline.text}</div></div>}
+      <dl className={cx('kv', 'where')}>
+        <dt>Site</dt>
+        <dd data-testid="where-site">
+          {site ? <><span className={cx('num')}>{fmtLatLng(site.lat, site.lng)}</span>{site.country ? <> · {countryName(site.country)}</> : null} · radius {fmtDistance(site.radius_m)}</> : <span className={cx('text-2')}>no site registered for this task</span>}
+        </dd>
+        {start && (
+          <>
+            <dt>Phone at start</dt>
+            <dd data-testid="where-start">
+              <span className={cx('num')}>{fmtLatLng(start.lat, start.lng)}</span>{start.acc_m != null ? <span className={cx('text-2')}> ±{Math.round(start.acc_m)} m</span> : null}
+              {w.startFromSiteM != null ? <> · {fmtDistance(w.startFromSiteM)} from the site</> : null}
+              <div className={cx('text-xs', 'text-2')}>first GPS point of the visit · reported by the phone · <a href={osmLink(start.lat, start.lng)} target="_blank" rel="noopener noreferrer">open on a map</a></div>
+            </dd>
+          </>
+        )}
+        <dt>Phone at submit</dt>
+        <dd data-testid="where-phone">
+          {pos
+            ? <>
+              <span className={cx('num')}>{fmtLatLng(pos.lat, pos.lng)}</span>{pos.acc_m != null ? <span className={cx('text-2')}> ±{Math.round(pos.acc_m)} m</span> : null}
+              {w.phoneFromSiteM != null ? <> · {fmtDistance(w.phoneFromSiteM)} from the site</> : null}{start && w.startToEndM != null ? <> · {fmtDistance(w.startToEndM)} from where it started</> : null}
+              <div className={cx('text-xs', 'text-2')}>{pos.at ? `last GPS fix before submitting · ${fmtDateTime(new Date(pos.at).toISOString())}` : pos.source === 'legacy_gps' ? 'the only GPS point sent (older app)' : 'last saved GPS point of the trail'} · reported by the phone · <a href={osmLink(pos.lat, pos.lng)} target="_blank" rel="noopener noreferrer">open on a map</a></div>
+            </>
+            : <span className={cx('text-2')}>no GPS position is stored for this submission (none was sent, or it was deleted after the retention period)</span>}
+        </dd>
+        <dt>Network</dt>
+        <dd data-testid="where-network">
+          {net
+            ? <>
+              <b>{countryName(net.country) ?? 'unknown country'}</b>{net.place ? ` · ${net.place}` : ''}
+              {net.located ? <div className={cx('num')} data-testid="where-network-coords">lat {net.lat.toFixed(2)}, lng {net.lng.toFixed(2)}</div> : null}
+              {net.org ? <div className={cx('text-xs', 'text-2')}>{net.org}</div> : null}
+              <div className={cx('text-xs', 'text-2')}>
+                {w.netFromSiteKm != null ? `${Math.round(w.netFromSiteKm)} km from the site` : null}{w.netFromSiteKm != null && w.netFromPhoneKm != null ? ' · ' : null}{w.netFromPhoneKm != null ? `${Math.round(w.netFromPhoneKm)} km from the phone's GPS` : null}
+                {w.netFromSiteKm == null && w.netFromPhoneKm == null ? (net.purged && !net.located ? 'coordinates deleted after the retention period' : 'from the IP address; city-level at best') : ' · from the IP address; city-level at best, mobile networks can resolve far away'}
+              </div>
+            </>
+            : <span className={cx('text-2')}>not available: the address was private, unreadable, or no IP database is installed</span>}
+        </dd>
+      </dl>
+    </section>
+  )
 }
 
 // The case file's Sensor fusion section: how the phone's movement compared with the GPS trail, and whether the network fits the claimed area.
@@ -30,10 +83,12 @@ export default function FusionSection({ row, fusion }) {
   const flags = (fusion.flags ?? []).filter(isFusionFlag)
   const reasons = [m.reason, e.reason, ...(fusion.notes ?? [])].filter(Boolean)
   const s = fusion.sensors ?? {}
+  const where = whereSummary(fusion)
   const netKnown = (e.components ?? []).some((c) => ['ip_location', 'asn', 'hosting', 'wifi', 'cell'].includes(c.id) && c.status !== 'unavailable')
 
   return (
     <div data-testid="fusion-section" className={cx('fusion')}>
+      {where?.any && <WhereSection w={where} />}
       <section className={cx('case-section')}>
         <h3>Sensor fusion</h3>
         <div className={cx('fz-scores')}>

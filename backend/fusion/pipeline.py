@@ -88,6 +88,36 @@ def _points(trail):
 _mask_ip = ipctx.mask_ip  # privacy: never store a raw address
 
 
+def _round_coord(v):
+    """The network's position from the IP database is city-level at best: two decimals (about 1 km) is already more than it knows."""
+    return None if v is None else round(float(v), 2)
+
+
+def fill_ip_position(report):
+    """Submissions made before the network's coordinates were stored kept the city and the shortened address. Look the shortened address
+    up in the installed IP database so the case file can show where the network is. Display only: nothing is written back, and nothing
+    is added when the address was purged, is private, or is not in the database. Returns the same dict."""
+    ip = (report or {}).get("ip")
+    if not isinstance(ip, dict) or ip.get("private") or ip.get("lat") is not None or not ip.get("ip"):
+        return report
+    try:
+        ctx = ipctx.get_provider().lookup(ip["ip"])
+        if ctx is not None and ctx.lat is not None and ctx.lng is not None:
+            ip["lat"], ip["lng"] = _round_coord(ctx.lat), _round_coord(ctx.lng)
+    except Exception:
+        pass
+    return report
+
+
+def _position(fix, source):
+    """Where the phone said it was at its LAST GPS fix (the end of the trail), for the case file's 'Where' block. Device-reported.
+    Removed by tools/purge_trails.py together with the trail points. `at` is epoch ms (None for the old one-point format)."""
+    if not fix:
+        return None
+    return {"lat": round(fix["lat"], 6), "lng": round(fix["lng"], 6), "acc_m": None if fix.get("acc") is None else round(fix["acc"], 1),
+            "at": fix["t"] if source == "trail" else None, "source": source}
+
+
 def run_fusion(session: Session, payload, *, client_ip=None, now=None, retry=False) -> dict:
     now = now or _utcnow()
     now_ms = _ms(now)
@@ -162,10 +192,11 @@ def run_fusion(session: Session, payload, *, client_ip=None, now=None, retry=Fal
                         # how much the site's learned network profile rested on: shown as "learned from N visits" / "fewer than 3 visits"
                         "profile": {"visits": visits_learned, "needed": C.ENVIRONMENT["profileMin"]}},
         "ip": None if not ip else {k: ip.get(k) for k in ("country", "region", "city", "asn", "org", "private")}
-        | {"ip": _mask_ip(ip.get("ip")), "provider": provider.name, "db_date": (ipdb or {}).get("date"), "db_age_days": (ipdb or {}).get("age_days")},
+        | {"lat": _round_coord(ip.get("lat")), "lng": _round_coord(ip.get("lng")), "ip": _mask_ip(ip.get("ip")), "provider": provider.name, "db_date": (ipdb or {}).get("date"), "db_age_days": (ipdb or {}).get("age_days")},
         "sensors": (trail or {}).get("sensors") or {},
         "trail": {"points": _points(trail) if trail else [], "span_s": cons["evidence"]["duration_s"]},
-        "site": None if site is None else {"lat": site["lat"], "lng": site["lng"], "radius_m": site["radius_m"]},
+        "site": None if site is None else {"lat": site["lat"], "lng": site["lng"], "radius_m": site["radius_m"], "country": site.get("country")},
+        "position": _position(last_fix, source),
         "notes": notes,
     }
     return {
