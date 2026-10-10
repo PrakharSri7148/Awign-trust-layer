@@ -245,6 +245,11 @@ export function countryName(code) {
 // The case file's "Where" block: where the site is, where the phone said it was at its last GPS fix, and where the network
 // (the IP address) resolves to. Pure. Each part is null when the report has nothing for it (no site, older report, purged after the
 // retention period). `headline` is set only when the evidence says something is off; it never decides, the classifier does.
+// Flags that mean the GPS itself looks fake. Then the trail's coordinates are not where the phone was, so the case file does not
+// present them as "Phone at start / Phone at submit".
+export const GPS_SPOOF_FLAGS = ['gps_too_perfect', 'gps_jump_flat_motion', 'gps_jump', 'flat_motion_while_moving', 'gps_speed_mismatch']
+export const isGpsSpoofCase = (fusion) => (fusion?.flags ?? []).some((f) => GPS_SPOOF_FLAGS.includes(f))
+
 export function whereSummary(fusion) {
   if (!fusion) return null
   const site = has(fusion.site) ? { ...fusion.site, country: fusion.site.country || null } : null
@@ -268,6 +273,6 @@ export function whereSummary(fusion) {
   const netFromStartKm = start && net?.located ? distanceM(net.lat, net.lng, start.lat, start.lng) / 1000 : null
   let headline = null
   if (countryClash) headline = { tone: 'bad', text: `The network is in ${countryName(net.country)}, the site is in ${countryName(site.country)}. A VPN or a proxy would look like this.` }
-  else if (phoneFromSiteM != null && phoneFromSiteM > (site.radius_m ?? 100)) headline = { tone: 'warn', text: `The phone's last GPS fix was ${fmtDistance(phoneFromSiteM)} from the site (the site's radius is ${fmtDistance(site.radius_m ?? 100)}).` }
-  return { site, pos, start, netFromStartKm, startFromSiteM, startToEndM, net, phoneFromSiteM, netFromSiteKm, netFromPhoneKm, countryClash, headline, any: !!(site || pos || start || net) }
+  else if (!isGpsSpoofCase(fusion) && phoneFromSiteM != null && phoneFromSiteM > (site.radius_m ?? 100)) headline = { tone: 'warn', text: `The phone's last GPS fix was ${fmtDistance(phoneFromSiteM)} from the site (the site's radius is ${fmtDistance(site.radius_m ?? 100)}).` }
+  return { gpsSpoofed: isGpsSpoofCase(fusion), site, pos, start, netFromStartKm, startFromSiteM, startToEndM, net, phoneFromSiteM, netFromSiteKm, netFromPhoneKm, countryClash, headline, any: !!(site || pos || start || net) }
 }

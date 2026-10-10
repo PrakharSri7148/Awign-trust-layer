@@ -16,6 +16,8 @@ const osmLink = (lat, lng) => `https://www.openstreetmap.org/?mlat=${lat}&mlon=$
 // Where the site is, where the phone said it was, where the network resolves to: side by side, so a VPN in another country is obvious.
 function WhereSection({ w }) {
   const { site, pos, start, net } = w
+  // A GPS spoofing case hides the network too (its distances are measured against the fake GPS), unless the network itself looks like a VPN.
+  const showNet = !w.gpsSpoofed || !!net?.isVpn
   return (
     <section className={cx('case-section')} data-testid="where-section">
       <h3>Where</h3>
@@ -25,7 +27,7 @@ function WhereSection({ w }) {
         <dd data-testid="where-site">
           {site ? <><span className={cx('num')}>{fmtLatLng(site.lat, site.lng)}</span>{site.country ? <> · {countryName(site.country)}</> : null} · radius {fmtDistance(site.radius_m)}</> : <span className={cx('text-2')}>no site registered for this task</span>}
         </dd>
-        {start && (
+        {start && !w.gpsSpoofed && (
           <>
             <dt>Phone at start</dt>
             <dd data-testid="where-start">
@@ -35,8 +37,8 @@ function WhereSection({ w }) {
             </dd>
           </>
         )}
-        <dt>Phone at submit</dt>
-        <dd data-testid="where-phone">
+        {!w.gpsSpoofed && <dt>Phone at submit</dt>}
+        {!w.gpsSpoofed && <dd data-testid="where-phone">
           {pos
             ? <>
               <span className={cx('num')}>{fmtLatLng(pos.lat, pos.lng)}</span>{pos.acc_m != null ? <span className={cx('text-2')}> ±{Math.round(pos.acc_m)} m</span> : null}
@@ -44,9 +46,9 @@ function WhereSection({ w }) {
               <div className={cx('text-xs', 'text-2')}>{pos.at ? `last GPS fix before submitting · ${fmtDateTime(new Date(pos.at).toISOString())}` : pos.source === 'legacy_gps' ? 'the only GPS point sent (older app)' : 'last saved GPS point of the trail'} · reported by the phone · <a href={osmLink(pos.lat, pos.lng)} target="_blank" rel="noopener noreferrer">open on a map</a></div>
             </>
             : <span className={cx('text-2')}>no GPS position is stored for this submission (none was sent, or it was deleted after the retention period)</span>}
-        </dd>
-        <dt>Network</dt>
-        <dd data-testid="where-network">
+        </dd>}
+        {showNet && <dt>Network</dt>}
+        {showNet && <dd data-testid="where-network">
           {net
             ? <>
               <b>{countryName(net.country) ?? 'unknown country'}</b>{net.place ? ` · ${net.place}` : ''}
@@ -58,7 +60,7 @@ function WhereSection({ w }) {
               </div>
             </>
             : <span className={cx('text-2')}>not available: the address was private, unreadable, or no IP database is installed</span>}
-        </dd>
+        </dd>}
       </dl>
     </section>
   )

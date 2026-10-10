@@ -283,3 +283,18 @@ test('where: a submission without a stored last fix shows the last saved trail p
   assert.equal(whereSummary({ position: { lat: 1, lng: 2, at: 5, source: 'trail' }, trail: { points: [[0, 9, 9, 1]] } }).pos.lat, 1) // a stored fix wins
   assert.equal(whereSummary({ trail: { points: [], purged: true } }).pos, null)
 })
+
+test('whereSummary: a GPS spoofing case is marked so the dashboard hides the phone start / submit coordinates', () => {
+  const trail = { points: [[0, 12.9, 77.6, 0], [20, 12.9, 77.6, 0]] }
+  assert.equal(whereSummary({ trail, flags: ['gps_too_perfect'] }).gpsSpoofed, true)
+  assert.equal(whereSummary({ trail, flags: ['gps_jump_flat_motion'] }).gpsSpoofed, true)
+  assert.equal(whereSummary({ trail, flags: ['network_unseen_at_site'] }).gpsSpoofed, false)
+  assert.equal(whereSummary({ trail }).gpsSpoofed, false)
+})
+
+test('whereSummary: a GPS spoofing case has no "phone is far from the site" headline (that distance is measured on the fake GPS)', () => {
+  const site = { lat: 12.97, lng: 77.59, radius_m: 100 }
+  const position = { lat: 12.99, lng: 77.62 }
+  assert.ok(whereSummary({ site, position }).headline)
+  assert.equal(whereSummary({ site, position, flags: ['gps_too_perfect'] }).headline, null)
+})
