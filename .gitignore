@@ -27,3 +27,13 @@ demo/logs/
 # Android signing key + password (never commit)
 android/*.keystore
 android/keystore-password.txt
+
+# Android build output (regenerable; only app-release-signed.apk is kept)
+android/app/build/
+android/build/
+android/.gradle/
+android/build.log
+android/app-release-bundle.aab
+android/app-release-unsigned-aligned.apk
+android/*.idsig
+android/*.bak

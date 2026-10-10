@@ -3,8 +3,8 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "REPLACE_WITH_THE_PACKAGE_NAME_FROM_twa-manifest.json",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_THE_SHA256_FROM_bubblewrap_fingerprint_list"]
+      "package_name": "app.trustlayer.demo",
+      "sha256_cert_fingerprints": ["26:DA:3C:1E:A3:AD:CA:BA:BB:47:0A:15:3C:69:FD:32:C8:4C:89:76:D4:D0:8D:7B:9C:46:A1:4F:92:99:E7:C1"]
     }
   }
 ]

@@ -12,8 +12,8 @@
   "backgroundColor": "#05070d",
   "enableNotifications": false,
   "startUrl": "/",
-  "iconUrl": "https://fountain-drool-moving.ngrok-free.dev/icons/icon-512.png",
-  "maskableIconUrl": "https://fountain-drool-moving.ngrok-free.dev/icons/icon-maskable-512.png",
+  "iconUrl": "http://127.0.0.1:8765/icon-512.png",
+  "maskableIconUrl": "http://127.0.0.1:8765/icon-maskable-512.png",
   "webManifestUrl": "https://fountain-drool-moving.ngrok-free.dev/manifest.webmanifest",
   "splashScreenFadeOutDuration": 0,
   "signingKey": { "path": "./android.keystore", "alias": "trustlayer" },
@@ -23,7 +23,7 @@
   "features": { "locationDelegation": { "enabled": true } },
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "minSdkVersion": 21,
+  "minSdkVersion": 24,
   "fullScopeUrl": "https://fountain-drool-moving.ngrok-free.dev/",
   "generatorApp": "bubblewrap-cli"
 }
