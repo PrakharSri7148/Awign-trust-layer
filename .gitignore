@@ -23,3 +23,7 @@ edge-validator/samples/*/
 backend/data/demo.db
 backend/data/demo-uploads/
 demo/logs/
+
+# Android signing key + password (never commit)
+android/*.keystore
+android/keystore-password.txt
